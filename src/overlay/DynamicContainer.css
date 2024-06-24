@@ -1,5 +1,7 @@
 .dynamic-container {
     border: 3px dotted rgba(0, 0, 0, 0);
+    overflow: hidden;
+    line-height: 1;
 }
 
 .overlay.is-editable .dynamic-container {

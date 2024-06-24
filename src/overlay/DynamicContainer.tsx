@@ -1,7 +1,10 @@
 import "./DynamicContainer.css";
 import { ReactNode } from "react";
+import { Rnd } from "react-rnd";
 
 interface DynamicContainerProps {
+  x: number;
+  y: number;
   width: number;
   height: number;
   children: ReactNode;
@@ -10,12 +13,14 @@ interface DynamicContainerProps {
 const DynamicContainer = ({
   width,
   height,
+  x,
+  y,
   children,
 }: DynamicContainerProps) => {
   return (
-    <div className="dynamic-container" style={{ width, height }}>
+    <Rnd className="dynamic-container" default={{ width, height, x, y }}>
       {children}
-    </div>
+    </Rnd>
   );
 };
 

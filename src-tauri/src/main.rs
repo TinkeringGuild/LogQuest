@@ -59,6 +59,6 @@ fn overlay_window(app: &mut App) -> WindowBuilder {
         .transparent(true)
         .decorations(false)
         .fullscreen(true)
-    // .always_on_top(true)
+        .always_on_top(true)
     // .skip_taskbar(false)
 }

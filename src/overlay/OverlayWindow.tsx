@@ -19,7 +19,7 @@ function OverlayWindow() {
 
   return (
     <div className={`overlay ${editable ? "is-editable" : "is-static"}`}>
-      <DynamicContainer width={450} height={500}>
+      <DynamicContainer width={450} height={500} x={0} y={0}>
         <Countdown label="Clarity" duration={5} />
         <Countdown label="Visions of Grandeur" duration={60} />
       </DynamicContainer>
