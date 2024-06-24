@@ -1,0 +1,21 @@
+:root {
+    background-color: transparent;
+}
+
+.overlay {
+    padding: 0;
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    right: 0;
+    left: 0;
+    opacity: 0.75;
+}
+
+.overlay.is-editable {
+    background-color: white;
+}
+
+.column-member + .column-member {
+    margin-top: 5px;
+}
