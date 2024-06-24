@@ -18,7 +18,12 @@ const DynamicContainer = ({
   children,
 }: DynamicContainerProps) => {
   return (
-    <Rnd className="dynamic-container" default={{ width, height, x, y }}>
+    <Rnd
+      className="dynamic-container"
+      default={{ width, height, x, y }}
+      minWidth={100}
+      minHeight={100}
+    >
       {children}
     </Rnd>
   );

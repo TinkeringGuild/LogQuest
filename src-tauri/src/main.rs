@@ -56,9 +56,11 @@ fn main() {
 
 fn overlay_window(app: &mut App) -> WindowBuilder {
     tauri::WindowBuilder::new(app, "overlay", tauri::WindowUrl::App("overlay.html".into()))
+        .title("LogQuest Overlay")
         .transparent(true)
         .decorations(false)
+        .focused(true)
         .fullscreen(true)
         .always_on_top(true)
-    // .skip_taskbar(false)
+        .skip_taskbar(true)
 }

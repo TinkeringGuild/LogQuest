@@ -19,9 +19,14 @@
     },
     "windows": [
       {
-        "title": "log-quest",
+        "label": "main",
+        "title": "LogQuest",
         "width": 800,
-        "height": 600
+        "height": 600,
+        "minWidth": 640,
+        "minHeight": 480,
+        "focus": true,
+        "visible": true
       }
     ],
     "security": {
