@@ -31,7 +31,7 @@
     height: 100%;
     background-color: red;
     animation-name: shrinkWidth;
-    animation-iteration-count: infinite;
+    animation-fill-mode: forwards;
     animation-timing-function: linear;
 }
 

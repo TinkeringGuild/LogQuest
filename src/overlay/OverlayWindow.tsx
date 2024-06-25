@@ -3,10 +3,57 @@ import "./OverlayWindow.css";
 import Countdown from "./Countdown";
 import DynamicContainer from "./DynamicContainer";
 import { listen } from "@tauri-apps/api/event";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useReducer } from "react";
+import { SpellTimer } from "../types";
+import { pull } from "lodash";
+/* import { println } from "../util"; */
+
+interface OverlayDisplay {
+  spells: SpellTimer[];
+}
+
+interface OverlayAction {
+  type: "spell-added" | "spell-timer-finished";
+  payload: SpellTimer;
+}
+
+function reducer(state: OverlayDisplay, action: OverlayAction) {
+  switch (action.type) {
+    case "spell-added":
+      return { ...state, spells: [...state.spells, action.payload] };
+    case "spell-timer-finished":
+      return { ...state, spells: pull(state.spells, action.payload) };
+    default:
+      throw new Error("unrecognized OverAction!");
+  }
+}
 
 function OverlayWindow() {
   const [editable, setEditable] = useState(false);
+  const [display, dispatch] = useReducer(
+    reducer,
+    [],
+    (spells) =>
+      ({
+        spells,
+      }) as OverlayDisplay,
+  );
+
+  useEffect(() => {
+    let removalTimer: number | null = null;
+    const unlisten = listen<SpellTimer>("new-spell-timer", ({ payload }) => {
+      dispatch({ type: "spell-added", payload });
+      removalTimer = setTimeout(() => {
+        dispatch({ type: "spell-timer-finished", payload });
+      }, payload.duration * 1000);
+    });
+    return () => {
+      unlisten.then((fn) => fn());
+      if (removalTimer !== null) {
+        clearTimeout(removalTimer);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const unlisten = listen("editable-changed", (event) => {
@@ -20,8 +67,13 @@ function OverlayWindow() {
   return (
     <div className={`overlay ${editable ? "is-editable" : "is-static"}`}>
       <DynamicContainer width={450} height={500} x={0} y={0}>
-        <Countdown label="Clarity" duration={5} />
-        <Countdown label="Visions of Grandeur" duration={60} />
+        {display.spells.map((spell) => (
+          <Countdown
+            label={spell.name}
+            duration={spell.duration}
+            key={spell.uuid}
+          />
+        ))}
       </DynamicContainer>
     </div>
   );
