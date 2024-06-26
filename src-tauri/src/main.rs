@@ -1,8 +1,12 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::sync::Mutex;
+mod gina;
 
+use std::{error, path::PathBuf, sync::Mutex};
+
+use clap::{arg, command, value_parser};
+use gina::parse_gina_trigger_xml;
 use tauri::{App, AppHandle, GlobalShortcutManager, Manager, WindowBuilder};
 
 struct OverlayState {
@@ -18,6 +22,34 @@ impl Default for OverlayState {
 }
 
 fn main() {
+    parse_cli_params();
+}
+
+fn parse_cli_params() {
+    let matches = command!("lq")
+        .version("0.1.0")
+        .author("Tinkering Guild")
+        .about("EverQuest log parser, overlay, notification system, and Deluxe Toolbox for EQ-related assistance")
+        .subcommand_required(false)
+        .subcommand(
+            command!("import")
+                .about("Import a file")
+                .arg(arg!(<FILE>).required(true).index(1).help("Path of the GINA triggers file to import")
+                     .value_parser(value_parser!(PathBuf))),
+        )
+        .get_matches();
+
+    if let Some(import_match) = matches.subcommand_matches("import") {
+        let Some(file_path) = import_match.get_one::<PathBuf>("FILE") else {
+            panic!("No file path given to import?");
+        };
+        parse_gina_trigger_xml(file_path.to_owned());
+    } else {
+        start_ui();
+    }
+}
+
+fn start_ui() {
     tauri::Builder::default()
         .manage(OverlayState::default())
         .setup(|app| {

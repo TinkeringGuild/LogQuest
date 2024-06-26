@@ -48,10 +48,12 @@ function OverlayWindow() {
       }, payload.duration * 1000);
     });
     return () => {
-      unlisten.then((fn) => fn());
-      if (removalTimer !== null) {
-        clearTimeout(removalTimer);
-      }
+      unlisten.then((fn) => {
+        fn();
+        if (removalTimer !== null) {
+          clearTimeout(removalTimer);
+        }
+      });
     };
   }, []);
 
