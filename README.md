@@ -16,6 +16,14 @@ At the moment there are no release binaries published.
 
 You will need to have Rust, Tauri and NPM installed on your system to run LogQuest. Follow [the Tauri Prerequisites guide](https://tauri.app/v1/guides/getting-started/prerequisites) for instructions on how to set that up for your system.
 
+### Debian dependencies
+
+On a Debian system, you will probably need to install (at least) these dependencies:
+
+    sudo apt install librust-pangocairo-dev librust-atk-dev libjavascriptcoregtk-4.0-dev librust-gdk-pixbuf-dev librust-gdk-sys-dev libwebkit2gtk-4.0-dev
+
+### Running the desktop app in development mode
+
 Once everything is installed, you simply run:
 
 ```
