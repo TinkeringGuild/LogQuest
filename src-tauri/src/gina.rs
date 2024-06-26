@@ -18,15 +18,8 @@ pub fn parse_gina_trigger_xml(xml_file: PathBuf) {
             Ok(XmlEvent::StartElement { name, .. }) => {
                 current_element = name.local_name.clone();
                 if current_element == "TriggerGroup" {
-                    if shared_data.trigger_groups.is_none() {
-                        shared_data.trigger_groups = Some(Vec::new());
-                    }
                     let trigger_group = parse_trigger_group(&mut parser);
-                    shared_data
-                        .trigger_groups
-                        .as_mut()
-                        .unwrap()
-                        .push(trigger_group);
+                    shared_data.trigger_groups.push(trigger_group);
                 }
             }
             Ok(XmlEvent::EndDocument) => break,
@@ -44,13 +37,13 @@ pub fn parse_gina_trigger_xml(xml_file: PathBuf) {
 #[allow(unused)]
 #[derive(Debug, Default)]
 struct SharedData {
-    trigger_groups: Option<Vec<TriggerGroup>>,
+    trigger_groups: Vec<TriggerGroup>,
 }
 
 impl SharedData {
     fn new() -> Self {
         SharedData {
-            trigger_groups: None,
+            trigger_groups: Vec::new(),
         }
     }
 }
@@ -63,8 +56,8 @@ struct TriggerGroup {
     self_commented: Option<String>,
     group_id: Option<String>,
     enable_by_default: Option<String>,
-    trigger_groups: Option<Vec<TriggerGroup>>,
-    triggers: Option<Vec<Trigger>>,
+    trigger_groups: Vec<TriggerGroup>,
+    triggers: Vec<Trigger>,
 }
 
 impl TriggerGroup {
@@ -75,8 +68,8 @@ impl TriggerGroup {
             self_commented: None,
             group_id: None,
             enable_by_default: None,
-            trigger_groups: None,
-            triggers: None,
+            trigger_groups: Vec::new(),
+            triggers: Vec::new(),
         }
     }
 }
@@ -113,7 +106,7 @@ struct Trigger {
     category: Option<String>,
     modified: Option<String>,
     use_fast_check: Option<String>,
-    timer_early_enders: Option<Vec<EarlyEnder>>,
+    timer_early_enders: Vec<EarlyEnder>,
 }
 
 impl Trigger {
@@ -148,7 +141,7 @@ impl Trigger {
             category: None,
             modified: None,
             use_fast_check: None,
-            timer_early_enders: None,
+            timer_early_enders: Vec::new(),
         }
     }
 }
@@ -202,21 +195,11 @@ fn parse_trigger_group<R: std::io::Read>(parser: &mut EventReader<R>) -> Trigger
             Ok(XmlEvent::StartElement { name, .. }) => {
                 current_element = name.local_name.clone();
                 if current_element == "TriggerGroup" {
-                    if trigger_group.trigger_groups.is_none() {
-                        trigger_group.trigger_groups = Some(Vec::new());
-                    }
                     let nested_group = parse_trigger_group(parser);
-                    trigger_group
-                        .trigger_groups
-                        .as_mut()
-                        .unwrap()
-                        .push(nested_group);
+                    trigger_group.trigger_groups.push(nested_group);
                 } else if current_element == "Trigger" {
-                    if trigger_group.triggers.is_none() {
-                        trigger_group.triggers = Some(Vec::new());
-                    }
                     let trigger = parse_trigger(parser);
-                    trigger_group.triggers.as_mut().unwrap().push(trigger);
+                    trigger_group.triggers.push(trigger);
                 }
             }
             Ok(XmlEvent::Characters(data)) => match current_element.as_str() {
@@ -256,14 +239,7 @@ fn parse_trigger<R: std::io::Read>(parser: &mut EventReader<R>) -> Trigger {
                 } else if current_element == "TimerEndedTrigger" {
                     trigger.timer_ended_trigger = Some(parse_timer_trigger(parser));
                 } else if current_element == "EarlyEnder" {
-                    if trigger.timer_early_enders.is_none() {
-                        trigger.timer_early_enders = Some(Vec::new());
-                    }
-                    trigger
-                        .timer_early_enders
-                        .as_mut()
-                        .unwrap()
-                        .push(parse_early_ender(parser));
+                    trigger.timer_early_enders.push(parse_early_ender(parser));
                 }
             }
             Ok(XmlEvent::Characters(data)) => match current_element.as_str() {
