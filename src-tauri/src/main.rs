@@ -3,10 +3,10 @@
 
 mod gina;
 
-use std::{error, path::PathBuf, sync::Mutex};
+use std::{path::PathBuf, sync::Mutex};
 
 use clap::{arg, command, value_parser};
-use gina::parse_gina_trigger_xml;
+use gina::load_gina_triggers_from_file_path;
 use tauri::{App, AppHandle, GlobalShortcutManager, Manager, WindowBuilder};
 
 struct OverlayState {
@@ -43,7 +43,8 @@ fn parse_cli_params() {
         let Some(file_path) = import_match.get_one::<PathBuf>("FILE") else {
             panic!("No file path given to import?");
         };
-        parse_gina_trigger_xml(file_path.to_owned());
+        let gina_triggers = load_gina_triggers_from_file_path(file_path.to_owned());
+        println!("{:#?}", gina_triggers);
     } else {
         start_ui();
     }

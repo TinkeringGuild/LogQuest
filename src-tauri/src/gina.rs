@@ -1,22 +1,48 @@
+use anyhow::bail;
 use std::fs::File;
+use std::io::prelude::*;
 use std::io::BufReader;
 use std::path::PathBuf;
-use xml::reader::{EventReader, XmlEvent};
+use xml::reader::XmlEvent;
+use zip::read::ZipArchive;
 
-pub fn parse_gina_trigger_xml(xml_file: PathBuf) {
-    let file = File::open(xml_file).unwrap();
-    let buf_reader = BufReader::new(file);
-    let mut parser = EventReader::new(buf_reader);
+pub fn load_gina_triggers_from_file_path(file_path: PathBuf) -> anyhow::Result<GINATriggers> {
+    let shared_data = match file_path.extension().and_then(|s| s.to_str()) {
+        Some("gtp") => {
+            let file = File::open(&file_path)?;
+            let mut archive = ZipArchive::new(file)?;
+            let share_data_xml = archive.by_name("ShareData.xml").map_err(|_| {
+                anyhow::anyhow!("Could not find a ShareData.xml file in the GTP archive")
+            })?;
+            let mut reader = BufReader::new(share_data_xml);
+            read_xml(&mut reader)?
+        }
+        Some("xml") => {
+            let file = File::open(&file_path)?;
+            let mut reader = BufReader::new(file);
+            read_xml(&mut reader)?
+        }
+        Some(ext) => {
+            bail!("Unrecognized GINA trigger file format: {}", ext);
+        }
+        None => {
+            bail!("GINA trigger file must have a .gtp or .xml extension");
+        }
+    };
+    Ok(shared_data)
+}
 
-    let mut shared_data = SharedData::new();
+fn read_xml(reader: impl Read) -> anyhow::Result<GINATriggers> {
+    let mut parser = xml::reader::EventReader::new(reader);
+    let mut shared_data = GINATriggers::new();
 
-    #[allow(unused_assignments)] // initial assigned value of current_element isn't used
+    #[allow(unused_assignments)] // the String::new() default value is discarded
     let mut current_element: String = String::new();
 
     loop {
         match parser.next() {
             Ok(XmlEvent::StartElement { name, .. }) => {
-                current_element = name.local_name.clone();
+                current_element = name.local_name;
                 if current_element == "TriggerGroup" {
                     let trigger_group = parse_trigger_group(&mut parser);
                     shared_data.trigger_groups.push(trigger_group);
@@ -31,18 +57,18 @@ pub fn parse_gina_trigger_xml(xml_file: PathBuf) {
         }
     }
 
-    println!("{:#?}", shared_data);
+    Ok(shared_data)
 }
 
 #[allow(unused)]
 #[derive(Debug, Default)]
-struct SharedData {
+pub struct GINATriggers {
     trigger_groups: Vec<TriggerGroup>,
 }
 
-impl SharedData {
+impl GINATriggers {
     fn new() -> Self {
-        SharedData {
+        GINATriggers {
             trigger_groups: Vec::new(),
         }
     }
@@ -186,14 +212,14 @@ impl EarlyEnder {
     }
 }
 
-fn parse_trigger_group<R: std::io::Read>(parser: &mut EventReader<R>) -> TriggerGroup {
+fn parse_trigger_group<R: std::io::Read>(parser: &mut xml::reader::EventReader<R>) -> TriggerGroup {
     let mut trigger_group = TriggerGroup::new();
     let mut current_element = String::new();
 
     loop {
         match parser.next() {
             Ok(XmlEvent::StartElement { name, .. }) => {
-                current_element = name.local_name.clone();
+                current_element = name.local_name;
                 if current_element == "TriggerGroup" {
                     let nested_group = parse_trigger_group(parser);
                     trigger_group.trigger_groups.push(nested_group);
@@ -226,7 +252,7 @@ fn parse_trigger_group<R: std::io::Read>(parser: &mut EventReader<R>) -> Trigger
     trigger_group
 }
 
-fn parse_trigger<R: std::io::Read>(parser: &mut EventReader<R>) -> Trigger {
+fn parse_trigger<R: std::io::Read>(parser: &mut xml::reader::EventReader<R>) -> Trigger {
     let mut trigger = Trigger::new();
     let mut current_element = String::new();
 
@@ -288,7 +314,7 @@ fn parse_trigger<R: std::io::Read>(parser: &mut EventReader<R>) -> Trigger {
     trigger
 }
 
-fn parse_timer_trigger<R: std::io::Read>(parser: &mut EventReader<R>) -> TimerTrigger {
+fn parse_timer_trigger<R: std::io::Read>(parser: &mut xml::reader::EventReader<R>) -> TimerTrigger {
     let mut timer_trigger = TimerTrigger::new();
     let mut current_element = String::new();
 
@@ -323,7 +349,7 @@ fn parse_timer_trigger<R: std::io::Read>(parser: &mut EventReader<R>) -> TimerTr
     timer_trigger
 }
 
-fn parse_early_ender<R: std::io::Read>(parser: &mut EventReader<R>) -> EarlyEnder {
+fn parse_early_ender<R: std::io::Read>(parser: &mut xml::reader::EventReader<R>) -> EarlyEnder {
     let mut early_ender = EarlyEnder::new();
     let mut current_element = String::new();
 
