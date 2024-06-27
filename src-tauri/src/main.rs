@@ -1,11 +1,12 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod config;
 mod gina;
 
 use std::{path::PathBuf, sync::Mutex};
 
-use clap::{arg, command, value_parser};
+use clap::{arg, command, value_parser, Arg};
 use gina::load_gina_triggers_from_file_path;
 use tauri::{App, AppHandle, GlobalShortcutManager, Manager, WindowBuilder};
 
@@ -30,6 +31,16 @@ fn parse_cli_params() {
         .version("0.1.0")
         .author("Tinkering Guild")
         .about("EverQuest log parser, overlay, notification system, and Deluxe Toolbox for EQ-related assistance")
+        .arg(
+            Arg::new("config-dir")
+                .short('C')
+                .long("config-dir")
+                .value_name("DIR")
+                .help("Specify a specific directory to load LogQuest configs/state from")
+                .required(false)
+                .value_parser(value_parser!(PathBuf))
+                .global(true),
+        )
         .subcommand_required(false)
         .subcommand(
             command!("import")
@@ -38,6 +49,15 @@ fn parse_cli_params() {
                      .value_parser(value_parser!(PathBuf))),
         )
         .get_matches();
+
+    let overridden_config_path = matches.get_one::<PathBuf>("config-dir");
+    let config = match config::load_app_config(overridden_config_path.cloned()) {
+        Ok(config) => config,
+        Err(e) => {
+            panic!("Could not load config!\n{:#?}", e);
+        }
+    };
+    println!("Using config:\n{:#?}", config);
 
     if let Some(import_match) = matches.subcommand_matches("import") {
         let Some(file_path) = import_match.get_one::<PathBuf>("FILE") else {
