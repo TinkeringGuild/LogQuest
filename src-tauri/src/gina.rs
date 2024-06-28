@@ -1,4 +1,5 @@
 use anyhow::bail;
+use chrono::prelude::*;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::BufReader;
@@ -63,7 +64,7 @@ fn read_xml(reader: impl Read) -> anyhow::Result<GINATriggers> {
 #[allow(unused)]
 #[derive(Debug, Default)]
 pub struct GINATriggers {
-    trigger_groups: Vec<TriggerGroup>,
+    trigger_groups: Vec<GINATriggerGroup>,
 }
 
 impl GINATriggers {
@@ -76,19 +77,19 @@ impl GINATriggers {
 
 #[allow(unused)]
 #[derive(Debug, Default)]
-struct TriggerGroup {
+struct GINATriggerGroup {
     name: Option<String>,
     comments: Option<String>,
-    self_commented: Option<String>,
-    group_id: Option<String>,
-    enable_by_default: Option<String>,
-    trigger_groups: Vec<TriggerGroup>,
-    triggers: Vec<Trigger>,
+    self_commented: Option<bool>,
+    group_id: Option<i32>,
+    enable_by_default: Option<bool>,
+    trigger_groups: Vec<GINATriggerGroup>,
+    triggers: Vec<GINATrigger>,
 }
 
-impl TriggerGroup {
+impl GINATriggerGroup {
     fn new() -> Self {
-        TriggerGroup {
+        GINATriggerGroup {
             name: None,
             comments: None,
             self_commented: None,
@@ -102,42 +103,42 @@ impl TriggerGroup {
 
 #[allow(unused)]
 #[derive(Debug, Default)]
-struct Trigger {
+struct GINATrigger {
     name: Option<String>,
     trigger_text: Option<String>,
     comments: Option<String>,
-    enable_regex: Option<String>,
-    use_text: Option<String>,
+    enable_regex: Option<bool>,
+    use_text: Option<bool>,
     display_text: Option<String>,
-    copy_to_clipboard: Option<String>,
+    copy_to_clipboard: Option<bool>,
     clipboard_text: Option<String>,
-    use_text_to_voice: Option<String>,
-    interrupt_speech: Option<String>,
+    use_text_to_voice: Option<bool>,
+    interrupt_speech: Option<bool>,
     text_to_voice_text: Option<String>,
-    play_media_file: Option<String>,
-    timer_type: Option<String>,
+    play_media_file: Option<bool>,
+    timer_type: Option<String>, // either "Timer" or "NoTimer"? any other possible values?
     timer_name: Option<String>,
-    restart_based_on_timer_name: Option<String>,
-    timer_millisecond_duration: Option<String>,
-    timer_duration: Option<String>,
-    timer_visible_duration: Option<String>,
-    timer_start_behavior: Option<String>,
-    timer_ending_time: Option<String>,
-    use_timer_ending: Option<String>,
-    use_timer_ended: Option<String>,
-    timer_ending_trigger: Option<TimerTrigger>,
-    timer_ended_trigger: Option<TimerTrigger>,
-    use_counter_reset_timer: Option<String>,
-    counter_reset_duration: Option<String>,
+    restart_based_on_timer_name: Option<bool>,
+    timer_millisecond_duration: Option<i32>,
+    timer_duration: Option<i32>,
+    timer_visible_duration: Option<i32>,
+    timer_start_behavior: Option<String>, // "StartNewTimer" | "ResetTimer" | "IgnoreIfRunning"
+    timer_ending_time: Option<i32>,
+    use_timer_ending: Option<bool>,
+    use_timer_ended: Option<bool>,
+    timer_ending_trigger: Option<GINATimerTrigger>,
+    timer_ended_trigger: Option<GINATimerTrigger>,
+    use_counter_reset_timer: Option<bool>,
+    counter_reset_duration: Option<i32>,
     category: Option<String>,
-    modified: Option<String>,
-    use_fast_check: Option<String>,
-    timer_early_enders: Vec<EarlyEnder>,
+    modified: Option<NaiveDateTime>,
+    use_fast_check: Option<bool>,
+    timer_early_enders: Vec<GINAEarlyEnder>,
 }
 
-impl Trigger {
+impl GINATrigger {
     fn new() -> Self {
-        Trigger {
+        GINATrigger {
             name: None,
             trigger_text: None,
             comments: None,
@@ -174,18 +175,18 @@ impl Trigger {
 
 #[allow(unused)]
 #[derive(Debug, Default)]
-struct TimerTrigger {
-    use_text: Option<String>,
+struct GINATimerTrigger {
+    use_text: Option<bool>,
     display_text: Option<String>,
-    use_text_to_voice: Option<String>,
-    interrupt_speech: Option<String>,
+    use_text_to_voice: Option<bool>,
+    interrupt_speech: Option<bool>,
     text_to_voice_text: Option<String>,
-    play_media_file: Option<String>,
+    play_media_file: Option<bool>,
 }
 
-impl TimerTrigger {
+impl GINATimerTrigger {
     fn new() -> Self {
-        TimerTrigger {
+        GINATimerTrigger {
             use_text: None,
             display_text: None,
             use_text_to_voice: None,
@@ -198,22 +199,24 @@ impl TimerTrigger {
 
 #[allow(unused)]
 #[derive(Debug, Default)]
-struct EarlyEnder {
+struct GINAEarlyEnder {
     early_end_text: Option<String>,
-    enable_regex: Option<String>,
+    enable_regex: Option<bool>,
 }
 
-impl EarlyEnder {
+impl GINAEarlyEnder {
     fn new() -> Self {
-        EarlyEnder {
+        GINAEarlyEnder {
             early_end_text: None,
             enable_regex: None,
         }
     }
 }
 
-fn parse_trigger_group<R: std::io::Read>(parser: &mut xml::reader::EventReader<R>) -> TriggerGroup {
-    let mut trigger_group = TriggerGroup::new();
+fn parse_trigger_group<R: std::io::Read>(
+    parser: &mut xml::reader::EventReader<R>,
+) -> GINATriggerGroup {
+    let mut trigger_group = GINATriggerGroup::new();
     let mut current_element = String::new();
 
     loop {
@@ -231,9 +234,9 @@ fn parse_trigger_group<R: std::io::Read>(parser: &mut xml::reader::EventReader<R
             Ok(XmlEvent::Characters(data)) => match current_element.as_str() {
                 "Name" => trigger_group.name = Some(data),
                 "Comments" => trigger_group.comments = Some(data),
-                "SelfCommented" => trigger_group.self_commented = Some(data),
-                "GroupId" => trigger_group.group_id = Some(data),
-                "EnableByDefault" => trigger_group.enable_by_default = Some(data),
+                "SelfCommented" => trigger_group.self_commented = parse_bool(data),
+                "GroupId" => trigger_group.group_id = parse_int(data),
+                "EnableByDefault" => trigger_group.enable_by_default = parse_bool(data),
                 _ => {}
             },
             Ok(XmlEvent::EndElement { name }) => {
@@ -252,8 +255,8 @@ fn parse_trigger_group<R: std::io::Read>(parser: &mut xml::reader::EventReader<R
     trigger_group
 }
 
-fn parse_trigger<R: std::io::Read>(parser: &mut xml::reader::EventReader<R>) -> Trigger {
-    let mut trigger = Trigger::new();
+fn parse_trigger<R: std::io::Read>(parser: &mut xml::reader::EventReader<R>) -> GINATrigger {
+    let mut trigger = GINATrigger::new();
     let mut current_element = String::new();
 
     loop {
@@ -272,30 +275,30 @@ fn parse_trigger<R: std::io::Read>(parser: &mut xml::reader::EventReader<R>) -> 
                 "Name" => trigger.name = Some(data),
                 "TriggerText" => trigger.trigger_text = Some(data),
                 "Comments" => trigger.comments = Some(data),
-                "EnableRegex" => trigger.enable_regex = Some(data),
-                "UseText" => trigger.use_text = Some(data),
+                "EnableRegex" => trigger.enable_regex = parse_bool(data),
+                "UseText" => trigger.use_text = parse_bool(data),
                 "DisplayText" => trigger.display_text = Some(data),
-                "CopyToClipboard" => trigger.copy_to_clipboard = Some(data),
+                "CopyToClipboard" => trigger.copy_to_clipboard = parse_bool(data),
                 "ClipboardText" => trigger.clipboard_text = Some(data),
-                "UseTextToVoice" => trigger.use_text_to_voice = Some(data),
-                "InterruptSpeech" => trigger.interrupt_speech = Some(data),
+                "UseTextToVoice" => trigger.use_text_to_voice = parse_bool(data),
+                "InterruptSpeech" => trigger.interrupt_speech = parse_bool(data),
                 "TextToVoiceText" => trigger.text_to_voice_text = Some(data),
-                "PlayMediaFile" => trigger.play_media_file = Some(data),
+                "PlayMediaFile" => trigger.play_media_file = parse_bool(data),
                 "TimerType" => trigger.timer_type = Some(data),
                 "TimerName" => trigger.timer_name = Some(data),
-                "RestartBasedOnTimerName" => trigger.restart_based_on_timer_name = Some(data),
-                "TimerMillisecondDuration" => trigger.timer_millisecond_duration = Some(data),
-                "TimerDuration" => trigger.timer_duration = Some(data),
-                "TimerVisibleDuration" => trigger.timer_visible_duration = Some(data),
+                "RestartBasedOnTimerName" => trigger.restart_based_on_timer_name = parse_bool(data),
+                "TimerMillisecondDuration" => trigger.timer_millisecond_duration = parse_int(data),
+                "TimerDuration" => trigger.timer_duration = parse_int(data),
+                "TimerVisibleDuration" => trigger.timer_visible_duration = parse_int(data),
                 "TimerStartBehavior" => trigger.timer_start_behavior = Some(data),
-                "TimerEndingTime" => trigger.timer_ending_time = Some(data),
-                "UseTimerEnding" => trigger.use_timer_ending = Some(data),
-                "UseTimerEnded" => trigger.use_timer_ended = Some(data),
-                "UseCounterResetTimer" => trigger.use_counter_reset_timer = Some(data),
-                "CounterResetDuration" => trigger.counter_reset_duration = Some(data),
+                "TimerEndingTime" => trigger.timer_ending_time = parse_int(data),
+                "UseTimerEnding" => trigger.use_timer_ending = parse_bool(data),
+                "UseTimerEnded" => trigger.use_timer_ended = parse_bool(data),
+                "UseCounterResetTimer" => trigger.use_counter_reset_timer = parse_bool(data),
+                "CounterResetDuration" => trigger.counter_reset_duration = parse_int(data),
                 "Category" => trigger.category = Some(data),
-                "Modified" => trigger.modified = Some(data),
-                "UseFastCheck" => trigger.use_fast_check = Some(data),
+                "Modified" => trigger.modified = parse_datetime(data),
+                "UseFastCheck" => trigger.use_fast_check = parse_bool(data),
                 _ => {}
             },
             Ok(XmlEvent::EndElement { name }) => {
@@ -314,8 +317,10 @@ fn parse_trigger<R: std::io::Read>(parser: &mut xml::reader::EventReader<R>) -> 
     trigger
 }
 
-fn parse_timer_trigger<R: std::io::Read>(parser: &mut xml::reader::EventReader<R>) -> TimerTrigger {
-    let mut timer_trigger = TimerTrigger::new();
+fn parse_timer_trigger<R: std::io::Read>(
+    parser: &mut xml::reader::EventReader<R>,
+) -> GINATimerTrigger {
+    let mut timer_trigger = GINATimerTrigger::new();
     let mut current_element = String::new();
 
     loop {
@@ -324,12 +329,12 @@ fn parse_timer_trigger<R: std::io::Read>(parser: &mut xml::reader::EventReader<R
                 current_element = name.local_name;
             }
             Ok(XmlEvent::Characters(data)) => match current_element.as_str() {
-                "UseText" => timer_trigger.use_text = Some(data),
+                "UseText" => timer_trigger.use_text = parse_bool(data),
                 "DisplayText" => timer_trigger.display_text = Some(data),
-                "UseTextToVoice" => timer_trigger.use_text_to_voice = Some(data),
-                "InterruptSpeech" => timer_trigger.interrupt_speech = Some(data),
+                "UseTextToVoice" => timer_trigger.use_text_to_voice = parse_bool(data),
+                "InterruptSpeech" => timer_trigger.interrupt_speech = parse_bool(data),
                 "TextToVoiceText" => timer_trigger.text_to_voice_text = Some(data),
-                "PlayMediaFile" => timer_trigger.play_media_file = Some(data),
+                "PlayMediaFile" => timer_trigger.play_media_file = parse_bool(data),
                 _ => {}
             },
             Ok(XmlEvent::EndElement { name }) => {
@@ -349,8 +354,8 @@ fn parse_timer_trigger<R: std::io::Read>(parser: &mut xml::reader::EventReader<R
     timer_trigger
 }
 
-fn parse_early_ender<R: std::io::Read>(parser: &mut xml::reader::EventReader<R>) -> EarlyEnder {
-    let mut early_ender = EarlyEnder::new();
+fn parse_early_ender<R: std::io::Read>(parser: &mut xml::reader::EventReader<R>) -> GINAEarlyEnder {
+    let mut early_ender = GINAEarlyEnder::new();
     let mut current_element = String::new();
 
     loop {
@@ -360,7 +365,7 @@ fn parse_early_ender<R: std::io::Read>(parser: &mut xml::reader::EventReader<R>)
             }
             Ok(XmlEvent::Characters(data)) => match current_element.as_str() {
                 "EarlyEndText" => early_ender.early_end_text = Some(data),
-                "EnableRegex" => early_ender.enable_regex = Some(data),
+                "EnableRegex" => early_ender.enable_regex = parse_bool(data),
                 _ => {}
             },
             Ok(XmlEvent::EndElement { name }) => {
@@ -377,4 +382,22 @@ fn parse_early_ender<R: std::io::Read>(parser: &mut xml::reader::EventReader<R>)
     }
 
     early_ender
+}
+
+fn parse_int(text: String) -> Option<i32> {
+    text.parse().ok()
+}
+
+fn parse_bool(text: String) -> Option<bool> {
+    match text.as_str() {
+        "True" | "true" => Some(true),
+        "False" | "false" => Some(false),
+        _ => None,
+    }
+}
+
+fn parse_datetime(date_str: String) -> Option<NaiveDateTime> {
+    // example GINA timestamp: "2024-04-10T22:48:35"
+    let format = "%Y-%m-%dT%H:%M:%S";
+    NaiveDateTime::parse_from_str(&date_str, format).ok()
 }
