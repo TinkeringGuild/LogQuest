@@ -1,4 +1,6 @@
-:root {
+:root,
+html,
+body {
     background-color: transparent;
 }
 

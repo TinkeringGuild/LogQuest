@@ -7,11 +7,27 @@ mod gina;
 use std::{path::PathBuf, sync::Mutex};
 
 use clap::{arg, command, value_parser, Arg};
+use config::LogQuestConfig;
 use gina::load_gina_triggers_from_file_path;
+use std::fs::canonicalize;
 use tauri::{App, AppHandle, GlobalShortcutManager, Manager, WindowBuilder};
+
+struct AppState {
+    overlay_state: OverlayState,
+    config: Mutex<LogQuestConfig>,
+}
 
 struct OverlayState {
     overlay_editable: Mutex<bool>,
+}
+
+impl Default for AppState {
+    fn default() -> Self {
+        Self {
+            overlay_state: OverlayState::default(),
+            config: Mutex::new(LogQuestConfig::default()),
+        }
+    }
 }
 
 impl Default for OverlayState {
@@ -23,10 +39,10 @@ impl Default for OverlayState {
 }
 
 fn main() {
-    parse_cli_params();
+    init_using_cli_params().expect("Could not initialize!");
 }
 
-fn parse_cli_params() {
+fn init_using_cli_params() -> anyhow::Result<()> {
     let matches = command!("lq")
         .version("0.1.0")
         .author("Tinkering Guild")
@@ -57,7 +73,6 @@ fn parse_cli_params() {
             panic!("Could not load config!\n{:#?}", e);
         }
     };
-    println!("Using config:\n{:#?}", config);
 
     if let Some(import_match) = matches.subcommand_matches("import") {
         let Some(file_path) = import_match.get_one::<PathBuf>("FILE") else {
@@ -66,16 +81,31 @@ fn parse_cli_params() {
         let gina_triggers = load_gina_triggers_from_file_path(file_path.to_owned());
         println!("{:#?}", gina_triggers);
     } else {
-        start_ui();
+        let app_state = load_app_state_from_config(config)?;
+        start_ui(app_state);
     }
+    Ok(())
 }
 
-fn start_ui() {
+fn load_app_state_from_config(app_config: LogQuestConfig) -> anyhow::Result<AppState> {
+    let state = AppState {
+        overlay_state: OverlayState::default(),
+        config: Mutex::new(app_config),
+    };
+    Ok(state)
+}
+
+fn start_ui(app_state: AppState) {
     tauri::Builder::default()
-        .manage(OverlayState::default())
+        .manage(app_state)
         .setup(|app| {
-            let overlay_window = overlay_window(app).build().unwrap();
-            let is_editable = *app.state::<OverlayState>().overlay_editable.lock().unwrap();
+            let overlay_window = overlay_window_builder(app).build().unwrap();
+            let is_editable = *app
+                .state::<AppState>()
+                .overlay_state
+                .overlay_editable
+                .lock()
+                .expect("overlay_editable appears deadlocked!");
             overlay_window
                 .set_ignore_cursor_events(!is_editable)
                 .expect("Failed to set_ignore_cursor_events");
@@ -90,14 +120,19 @@ fn start_ui() {
                 .expect("Failed registering a global shortcut");
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![print_to_console])
+        .invoke_handler(tauri::generate_handler![
+            print_to_stdout,
+            print_to_stderr,
+            get_config,
+            set_everquest_dir
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
 
 fn toggle_overlay_editable(handle: AppHandle) {
-    let state = handle.state::<OverlayState>();
-    let mut editable_guard = state.overlay_editable.lock().unwrap();
+    let state = handle.state::<AppState>();
+    let mut editable_guard = state.overlay_state.overlay_editable.lock().unwrap();
     let inverse = !*editable_guard;
     *editable_guard = inverse;
 
@@ -113,18 +148,47 @@ fn toggle_overlay_editable(handle: AppHandle) {
     }
 }
 
-fn overlay_window(app: &mut App) -> WindowBuilder {
+fn overlay_window_builder(app: &mut App) -> WindowBuilder {
     tauri::WindowBuilder::new(app, "overlay", tauri::WindowUrl::App("overlay.html".into()))
         .title("LogQuest Overlay")
         .transparent(true)
         .decorations(false)
-        .focused(true)
-        .fullscreen(true)
-        .always_on_top(true)
-        .skip_taskbar(true)
+    // .focused(true)
+    // .fullscreen(true)
+    // .always_on_top(true)
+    // .skip_taskbar(true)
 }
 
 #[tauri::command]
-fn print_to_console(message: String) {
+fn get_config(app_handle: tauri::AppHandle) -> Result<LogQuestConfig, String> {
+    let app_state = app_handle.state::<AppState>();
+    let config = app_state.config.lock().unwrap().clone();
+    Ok(config)
+}
+
+#[tauri::command]
+fn set_everquest_dir(app_handle: tauri::AppHandle, new_dir: String) -> Result<String, String> {
+    println!("SETTING NEW DIR VIA COMMAND: {}", new_dir);
+    let app_state = app_handle.state::<AppState>();
+    let mut config_guard = app_state
+        .config
+        .lock()
+        .expect("Could not obtain lock for the LogQuestConfig");
+    let Ok(new_dir) = canonicalize(new_dir) else {
+        return Err("Could not determine canonical path of EQ dir".to_string());
+    };
+    let new_dir = new_dir.to_str().unwrap();
+    let new_dir = new_dir.to_string();
+    config_guard.everquest_directory = Some(new_dir.clone());
+    Ok(new_dir)
+}
+
+#[tauri::command]
+fn print_to_stdout(message: String) {
     println!("[UI] {}", message);
+}
+
+#[tauri::command]
+fn print_to_stderr(message: String) {
+    eprintln!("[UI ERROR] {}", message);
 }

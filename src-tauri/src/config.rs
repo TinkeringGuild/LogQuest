@@ -7,9 +7,9 @@ use std::path::PathBuf;
 
 const CONFIG_FILE_NAME: &str = "LogQuest.toml";
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct LogQuestConfig {
-    everquest_directory: Option<String>,
+    pub everquest_directory: Option<String>,
 }
 
 impl LogQuestConfig {

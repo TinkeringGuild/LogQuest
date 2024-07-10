@@ -6,15 +6,21 @@
     "distDir": "../dist"
   },
   "package": {
-    "productName": "log-quest",
+    "productName": "LogQuest",
     "version": "0.0.0"
   },
   "tauri": {
     "allowlist": {
       "all": false,
+      "dialog": {
+        "all": true
+      },
       "shell": {
         "all": false,
         "open": true
+      },
+      "process": {
+        "exit": true
       }
     },
     "windows": [
@@ -35,7 +41,8 @@
     "bundle": {
       "active": true,
       "targets": "all",
-      "identifier": "com.tauri.dev",
+      "publisher": "Tinkering Guild",
+      "identifier": "dev.LogQuest",
       "icon": [
         "icons/32x32.png",
         "icons/128x128.png",
