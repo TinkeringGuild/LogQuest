@@ -1,24 +1,37 @@
 // import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import { createSlice } from "@reduxjs/toolkit";
-import { AppConfig } from "../../types";
+import { ConfigWithMetadata } from "../../types";
 import { RootState } from "../../store";
 
-export const initialState: AppConfig = {
-    everquest_directory: "",
+export const configInitialState: ConfigWithMetadata = {
+    config_has_loaded: false,
+    config: {
+        everquest_directory: "",
+    },
 };
 
 const configSlice = createSlice({
     name: "config",
-    initialState,
+    initialState: configInitialState,
     reducers: {
+        updateConfig: (state, action) => {
+            state.config_has_loaded = true;
+            state.config = action.payload;
+        },
         updateEverQuestDirectory: (state, action) => {
-            state.everquest_directory = action.payload;
+            state.config.everquest_directory = action.payload;
         },
     },
 });
 
-export const selectEQDir = (state: RootState) =>
-    state.config.everquest_directory;
+export const selectConfigHasLoaded = (state: RootState) =>
+    state.config.config_has_loaded;
 
-export const { updateEverQuestDirectory } = configSlice.actions;
+export const selectEQDir = (state: RootState) =>
+    state.config.config.everquest_directory;
+
+export const selectNeedsSetup = (state: RootState) =>
+    !state.config.config.everquest_directory;
+
+export const { updateConfig, updateEverQuestDirectory } = configSlice.actions;
 export default configSlice.reducer;

@@ -1,0 +1,62 @@
+@import "./base.scss";
+
+@mixin control {
+    @include font-tiny5;
+    color: $global-color-control-text;
+    background-color: $color-control-background;
+    font-size: $font-size-button;
+    padding: $control-padding;
+    border-radius: 0;
+    cursor: normal;
+    box-shadow: 0 4px 6px $color-button-box-shadow;
+    user-select: none;
+
+    border: $control-border-size outset $color-control-border;
+    &:not([disabled]) {
+        transition: all 0.025s ease-in-out;
+        overflow: hidden;
+        position: relative;
+        &:hover {
+            border-color: #bbb;
+            box-shadow: 0 6px 8px $color-button-box-shadow; /* Slightly more raised on hover */
+        }
+        &:active {
+            background-color: $color-control-background-active;
+            box-shadow: 0 2px 3px $color-button-box-shadow; /* Pressed in effect */
+            border-style: inset;
+            transform: translateY(1px); /* Move the button down */
+        }
+        // &:focus::before {
+        //     content: "";
+        //     position: absolute;
+        //     top: 2px;
+        //     bottom: 2px;
+        //     left: 2px;
+        //     right: 2px;
+        //     border: 2px dotted rgba(black, 0.1);
+        // }
+    }
+    &[disabled] {
+        cursor: not-allowed;
+        color: rgba($global-color-control-text, 0.6);
+        background-color: darken($color-control-background, 10%);
+        border: $control-border-size groove $color-control-background-disabled;
+        // background-image: url(/checker-pattern.png);
+        // background-repeat: repeat;
+        // font-style: italic;
+        // text-decoration: line-through;
+    }
+}
+
+input[type="text"] {
+    border-radius: 0;
+}
+
+button,
+select {
+    @include control;
+}
+
+label:has(input[type="checkbox"]) {
+    @include font-tiny5;
+}

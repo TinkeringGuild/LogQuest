@@ -1,10 +1,10 @@
 .container {
   margin: 0;
-  /* padding-top: 10vh; */
   display: flex;
   flex-direction: column;
   justify-content: center;
   text-align: center;
+  width: 100vw;
 }
 
 .row {
@@ -19,6 +19,7 @@
   align-items: center;
 }
 
+/*
 a {
   font-weight: 500;
   color: #646cff;
@@ -63,6 +64,8 @@ input,
 button {
   outline: none;
 }
+
+*/
 
 /*
 @media (prefers-color-scheme: dark) {

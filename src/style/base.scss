@@ -1,0 +1,77 @@
+$global-color-text: black;
+$global-color-control-text: $global-color-text;
+$color-control-background: #9a9a9a;
+$color-control-background-active: lighten($color-control-background, 10%);
+$color-control-background-disabled: darken($color-control-background, 5%);
+$color-control-border: lighten($color-control-background, 7.5%);
+
+$color-button-box-shadow: rgba(255, 255, 255, 0.25);
+
+$font-size-button: 1.1em;
+$font-name-tiny5: "Tiny5";
+$font-name-jacquard: "Jacquard";
+$font-name-space-grotesk: "Space Grotesk";
+
+$control-border-size: 3px;
+$control-padding: 0.1em 0.6em;
+
+@font-face {
+    font-family: $font-name-jacquard;
+    font-weight: normal;
+    font-style: normal;
+    src:
+        url("/fonts/Jacquard_12/Jacquard12-Regular.woff2") format("woff2"),
+        url("/fonts/Jacquard_12/Jacquard12-Regular.woff") format("woff"),
+        url("/fonts/Jacquard_12/Jacquard12-Regular.ttf") format("truetype");
+}
+
+@font-face {
+    font-family: $font-name-tiny5;
+    font-weight: normal;
+    font-style: normal;
+    src:
+        url("/fonts/Tiny5/Tiny5-Regular.woff2") format("woff2"),
+        url("/fonts/Tiny5/Tiny5-Regular.woff") format("woff"),
+        url("/fonts/Tiny5/Tiny5-Regular.ttf") format("truetype");
+}
+
+@font-face {
+    font-family: $font-name-space-grotesk;
+    font-weight: normal;
+    font-style: normal;
+    src:
+        // url("/fonts/Space_Grotesk/Tiny5-Regular.woff2") format("woff2"),
+        // url("/fonts/Tiny5/Tiny5-Regular.woff") format("woff"),
+        url("/fonts/Space_Grotesk/SpaceGrotesk-VariableFont_wght.ttf")
+        format("truetype");
+}
+
+@mixin font-jacquard {
+    font-family: $font-name-jacquard, Georgia, Times, "Times New Roman", serif;
+}
+
+@mixin font-tiny5 {
+    font-family: $font-name-tiny5, Tahoma, sans-serif;
+}
+
+@mixin font-space-grotesk {
+    font-family: $font-name-space-grotesk, Tahoma, sans-serif;
+}
+
+/*
+:root {
+  font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 400;
+
+  color: #0f0f0f;
+  background-color: #f6f6f6;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
+}
+*/

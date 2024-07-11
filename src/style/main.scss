@@ -1,0 +1,27 @@
+@import "./base.scss";
+@import "./headers.scss";
+@import "./controls.scss";
+
+:root,
+html,
+body {
+    background-color: #ccc;
+    color: black;
+    margin: 0;
+    display: flex;
+    place-items: center;
+    min-width: 320px;
+    min-height: 100vh;
+}
+
+:root {
+    line-height: 1.5;
+    font-weight: 400;
+
+    // color-scheme: light dark;
+
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}

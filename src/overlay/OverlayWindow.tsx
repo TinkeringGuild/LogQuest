@@ -1,12 +1,13 @@
-import "../base.css";
-import "./OverlayWindow.css";
-import Countdown from "./Countdown";
-import DynamicContainer from "./DynamicContainer";
 import { listen } from "@tauri-apps/api/event";
 import { useState, useEffect, useReducer } from "react";
 import { SpellTimer } from "../types";
 import { pull } from "lodash";
 /* import { println } from "../util"; */
+
+import Countdown from "./Countdown";
+import DynamicContainer from "./DynamicContainer";
+
+import "./OverlayWindow.scss";
 
 interface OverlayDisplay {
   spells: SpellTimer[];

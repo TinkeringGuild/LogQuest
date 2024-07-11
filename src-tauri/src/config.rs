@@ -7,71 +7,75 @@ use std::path::PathBuf;
 
 const CONFIG_FILE_NAME: &str = "LogQuest.toml";
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct LogQuestConfig {
     pub everquest_directory: Option<String>,
+
+    #[serde(skip)]
+    pub config_file_path: PathBuf,
 }
 
 impl LogQuestConfig {
-    fn load_from_file_path(path: PathBuf) -> anyhow::Result<Self> {
+    fn new_with_path(config_file_path: &PathBuf) -> Self {
+        LogQuestConfig {
+            everquest_directory: None,
+            config_file_path: config_file_path.to_owned(),
+        }
+    }
+
+    fn load_from_file_path(path: &PathBuf) -> anyhow::Result<Self> {
         let raw_config_file = fs::read_to_string(path)?;
-        let config = toml::from_str(&raw_config_file)?;
+        let mut config: LogQuestConfig = toml::from_str(&raw_config_file)?;
+        config.config_file_path = path.to_owned();
         Ok(config)
     }
 
-    fn write_to_file_path(&self, path: PathBuf) -> anyhow::Result<()> {
+    pub fn save(&self) -> anyhow::Result<()> {
+        self.write_to_file_path(&self.config_file_path)
+    }
+
+    fn write_to_file_path(&self, path: &PathBuf) -> anyhow::Result<()> {
         let raw_toml = toml::to_string_pretty(&self)?;
-        let mut file = if path.exists() {
-            File::open(path)?
-        } else {
-            if let Some(parent) = path.parent() {
-                if !parent.exists() {
-                    println!("Creating directory {}", parent.display());
-                    fs::create_dir_all(&parent)?;
-                }
+
+        if let Some(parent) = path.parent() {
+            if !parent.exists() {
+                println!("Creating directory {}", parent.display());
+                fs::create_dir_all(&parent)?;
             }
-            println!("Creating file {}", path.display());
-            File::create(path)?
-        };
+        }
+        let mut file = File::create(path)?; // overwrites file if it already exists
         file.write_all(raw_toml.as_bytes())?;
         Ok(())
     }
 }
 
-impl Default for LogQuestConfig {
-    fn default() -> Self {
-        LogQuestConfig {
-            everquest_directory: None,
-        }
-    }
-}
+pub fn load_app_config(config_dir: &PathBuf) -> anyhow::Result<LogQuestConfig> {
+    let config_path = config_dir.join(&CONFIG_FILE_NAME);
 
-pub fn load_app_config(path_override: Option<PathBuf>) -> anyhow::Result<LogQuestConfig> {
-    let mut config_path = match path_override {
-        Some(path) => path,
-        None => get_config_dir()?,
-    };
-
-    config_path.push(&CONFIG_FILE_NAME);
-
-    if config_path.exists() {
-        LogQuestConfig::load_from_file_path(config_path)
+    let config = if config_path.exists() {
+        LogQuestConfig::load_from_file_path(&config_path)?
     } else {
-        let config = LogQuestConfig::default();
-        config.write_to_file_path(config_path)?;
-        Ok(config)
-    }
+        let config = LogQuestConfig::new_with_path(&config_path);
+        config.save()?;
+        config
+    };
+    Ok(config)
 }
 
-fn get_config_dir() -> anyhow::Result<PathBuf> {
-    let Some(mut config_dir) = config_dir() else {
-        bail!("Could not determine the config directory");
+pub fn get_config_dir_with_optional_override(
+    path_override: Option<&PathBuf>,
+) -> anyhow::Result<PathBuf> {
+    let config_dir = match path_override {
+        Some(overridden_dir) => overridden_dir.to_owned(),
+        None => match config_dir() {
+            Some(mut dir) => {
+                let app_name = env!("CARGO_PKG_NAME");
+                dir.push(app_name);
+                dir
+            }
+            None => bail!("Could not determine the config directory"),
+        },
     };
-
-    let app_name = env!("CARGO_PKG_NAME");
-    config_dir.push(app_name);
-
     fs::create_dir_all(&config_dir)?;
-
     Ok(config_dir)
 }

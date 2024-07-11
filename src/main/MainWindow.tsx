@@ -1,39 +1,64 @@
-/* import { exit as exitProcess } from "@tauri-apps/api/process"; */
 import {
   open as openDialog,
-  /* message as messageDialog, */
+  message as messageDialog,
 } from "@tauri-apps/api/dialog";
-/* import { emit } from "@tauri-apps/api/event"; */
+// import { emit } from "@tauri-apps/api/event";
+// import { exit as exitProcess } from "@tauri-apps/api/process";
 
-/* import { useEffect, useContext } from "react"; */
+import { useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
+import { isArray } from "lodash";
 
 import {
+  selectNeedsSetup,
+  selectConfigHasLoaded,
   selectEQDir,
+  updateConfig,
   updateEverQuestDirectory,
 } from "../features/config/configSlice";
-import { setEverQuestDirectory } from "../rpc";
-/* import { AppConfig } from "../types"; */
-/* import ReceiveBuffs from "./ReceiveBuffs"; */
-/* import LoadingIndicator from "../widgets/LoadingIndicator"; */
+import {
+  setEverQuestDirectory,
+  importGinaTriggersFile,
+  getConfig,
+} from "../rpc";
 
-import "../base.css";
-import "./MainWindow.css";
+import LoadingIndicator from "../widgets/LoadingIndicator";
+
+import "../style/main.scss";
+import "./MainWindow.scss";
 
 function MainWindow() {
-  const eqDir = useSelector(selectEQDir);
+  const configHasLoaded = useSelector(selectConfigHasLoaded);
+  const appNeedsSetup = useSelector(selectNeedsSetup);
   const dispatch = useDispatch();
+
+  useEffect(() => {
+    getConfig().then((config) => dispatch(updateConfig(config)));
+  }, []);
+
   return (
-    <div className="container">
-      {true && (
-        <div>
-          <h3>Select your EverQuest installation folder</h3>
-          <p>
-            <input type="text" value={eqDir} />
-            <button onClick={openEQFolderSelectionDialog}>Select Folder</button>
-          </p>
-        </div>
-      )}
+    <div>
+      <h1 className="title">LogQuest</h1>
+      <div className="container">
+        {configHasLoaded ? (
+          appNeedsSetup ? (
+            <Setup />
+          ) : (
+            <DefaultView />
+          )
+        ) : (
+          <div className="row">
+            <LoadingIndicator />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const DefaultView: React.FC<{}> = () => {
+  return (
+    <div>
       <div>
         <h3>Create new Triggers</h3>
         <button>Edit Triggers</button>
@@ -46,89 +71,76 @@ function MainWindow() {
     </div>
   );
 
+  async function openGINATriggerFileDialog() {
+    const ginaTriggersFile = await openDialog({
+      title: "Import a GINA Triggers Package file",
+      directory: false,
+      multiple: false,
+      filters: [
+        {
+          name: "GINA Triggers Package (.gtp) file",
+          extensions: ["gtp"],
+        },
+        {
+          name: "GINA Triggers Package SharedData.xml file",
+          extensions: ["xml"],
+        },
+      ],
+    });
+    if (ginaTriggersFile) {
+      const filePath: string = isArray(ginaTriggersFile)
+        ? ginaTriggersFile[0]
+        : ginaTriggersFile;
+      importGinaTriggersFile(filePath);
+    }
+  }
+};
+
+const Setup: React.FC<{}> = () => {
+  const eqDir = useSelector(selectEQDir);
+  const dispatch = useDispatch();
+  return (
+    <div>
+      <h2>Welcome!</h2>
+      <p>
+        To use LogQuest, select the directory of your EverQuest Titanium
+        installation:
+      </p>
+      {eqDir ? (
+        <div>
+          <code>{eqDir}</code>
+          <button onClick={openEQFolderSelectionDialog}>
+            Change Directory
+          </button>
+        </div>
+      ) : (
+        <>
+          <button onClick={openEQFolderSelectionDialog}>
+            Select Installation Directory
+          </button>
+        </>
+      )}
+    </div>
+  );
+
   async function openEQFolderSelectionDialog() {
     const selectedDir = await openDialog({
       title: "Select your EverQuest installation folder",
       directory: true,
     });
     if (selectedDir) {
-      const savedDir = await setEverQuestDirectory(selectedDir as string);
-      dispatch(updateEverQuestDirectory(savedDir));
+      try {
+        const savedDir = await setEverQuestDirectory(selectedDir as string);
+        dispatch(updateEverQuestDirectory(savedDir));
+      } catch (err) {
+        showErrorMessageAlert(err as string);
+      }
     }
   }
-}
+};
 
-function openGINATriggerFileDialog() {
-  return openDialog({
-    title: "Import a GINA Triggers Package file",
-    directory: false,
-    filters: [
-      {
-        name: "GINA Triggers Package (.gtp) file",
-        extensions: ["gtp"],
-      },
-      {
-        name: "GINA Triggers Package SharedData.xml file",
-        extensions: ["xml"],
-      },
-    ],
-  });
+function showErrorMessageAlert(message: string) {
+  messageDialog(message, { title: "Error", type: "error" });
 }
 
 export default MainWindow;
-
-/*
-function Initializer() {
-  const { appConfig, setAppConfig } = useContext(AppConfigContext);
-
-  useEffect(() => {
-    invoke<AppConfig>("get_config")
-      .then(setAppConfig)
-      .catch(() => {
-        // setTimeout is needed to prevent the app from locking up
-        setTimeout(showFatalErrorAlert, 0);
-      });
-  }, []);
-
-  if (appConfig === null) {
-    return (
-      <div className="container">
-        <div className="centered-content">
-          <LoadingIndicator />
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <AppConfigProvider>
-      <MainWindow />
-    </AppConfigProvider>
-  );
-}
-
-function showFatalErrorAlert() {
-  messageDialog(`LogQuest experienced a fatal error!\n\n${err}`, {
-    title: "FATAL ERROR",
-    okLabel: "Terminate",
-    type: "error",
-  }).finally(() => exitProcess(10));
-}
-
-export default Initializer;
-*/
-
-/* interface InitWithConfigAction {
- *   type: "InitWithConfig";
- *   config: AppConfig;
- * }
- *
- * function reducer(state: MainState, action: MainAction): MainState {
- *   switch (action.type) {
- *     case "InitWithConfig":
- *       return {
- *         ...state,
- *         app_config: action.config,
- *       };
- *   }
- * } */

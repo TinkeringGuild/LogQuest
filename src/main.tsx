@@ -9,7 +9,7 @@ const root = createRoot(container);
 
 root.render(
   <Provider store={store}>
-    <MainWindow />,
+    <MainWindow />
   </Provider>,
 );
 
