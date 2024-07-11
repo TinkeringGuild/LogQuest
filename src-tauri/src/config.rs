@@ -4,14 +4,16 @@ use serde::{Deserialize, Serialize};
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::PathBuf;
+use ts_rs::TS;
 
 const CONFIG_FILE_NAME: &str = "LogQuest.toml";
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, TS)]
 pub struct LogQuestConfig {
     pub everquest_directory: Option<String>,
 
     #[serde(skip)]
+    #[ts(skip)]
     pub config_file_path: PathBuf,
 }
 

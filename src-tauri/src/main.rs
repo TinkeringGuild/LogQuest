@@ -5,13 +5,14 @@ mod commands;
 mod config;
 mod gina;
 
-use std::{path::PathBuf, sync::Mutex};
+use std::{fs, path::PathBuf, sync::Mutex};
 
 use anyhow::bail;
 use clap::{arg, command, value_parser, Arg};
 use config::LogQuestConfig;
 use gina::load_gina_triggers_from_file_path;
 use tauri::{App, AppHandle, GlobalShortcutManager, Manager, WindowBuilder};
+use ts_rs::TS;
 
 struct AppState {
     overlay_state: OverlayState,
@@ -45,7 +46,7 @@ fn main() {
 }
 
 fn init_using_cli_params() -> anyhow::Result<()> {
-    let matches = command!("lq")
+    let mut cmd = command!("lq")
         .version("0.1.0")
         .author("Tinkering Guild")
         .about("EverQuest log parser, overlay, notification system, and Deluxe Toolbox for EQ-related assistance")
@@ -65,8 +66,23 @@ fn init_using_cli_params() -> anyhow::Result<()> {
                 .about("Import a file")
                 .arg(arg!(<FILE>).required(true).index(1).help("Path of the GINA triggers file to import")
                      .value_parser(value_parser!(PathBuf))),
-        )
-        .get_matches();
+        );
+
+    #[cfg(debug_assertions)]
+    {
+        // the "ts" sub-command should only exist for debug builds of LogQuest. This allows
+        // the file to be written to a specific directory (outside of the cargo root).
+        cmd = cmd.subcommand(command!("ts").about("Generate TypeScript from Rust types"));
+    }
+
+    let matches = cmd.get_matches();
+
+    #[cfg(debug_assertions)]
+    {
+        if matches.subcommand_matches("ts").is_some() {
+            return generate_typescript();
+        }
+    }
 
     let overridden_config_path = matches.get_one::<PathBuf>("config-dir");
     let config_path = config::get_config_dir_with_optional_override(overridden_config_path)?;
@@ -145,4 +161,34 @@ fn overlay_window_builder(app: &mut App) -> WindowBuilder {
         .fullscreen(true)
         .always_on_top(true)
         .skip_taskbar(true)
+}
+
+#[cfg(debug_assertions)]
+fn generate_typescript() -> anyhow::Result<()> {
+    let rust_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let out_dir = rust_dir.join("../src/generated/").canonicalize()?;
+    if !out_dir.exists() {
+        panic!("The src/generated/ dir does not exist!");
+    }
+    let out_file = out_dir.join("LogQuestConfig.ts");
+    if out_file.exists() {
+        println!(
+            "Deleting possibly stale file {}",
+            out_file.to_string_lossy()
+        );
+        if let Err(e) = fs::remove_file(&out_file) {
+            panic!(
+                "Could not delete the file {} [ {:?} ]",
+                out_file.to_string_lossy(),
+                e
+            );
+        }
+    }
+    if let Err(e) = LogQuestConfig::export_all_to(&out_dir) {
+        panic!("Could not export TypeScript! {:?}", e);
+    }
+
+    println!("Exported LogQuestConfig to {}", out_file.to_string_lossy());
+
+    Ok(())
 }

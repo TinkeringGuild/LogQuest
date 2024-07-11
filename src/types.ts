@@ -1,9 +1,8 @@
-export interface AppConfig {
-    everquest_directory: string;
-}
+import { LogQuestConfig } from "./generated/LogQuestConfig";
+export type { LogQuestConfig } from "./generated/LogQuestConfig";
 
 export interface ConfigWithMetadata {
-    config: AppConfig;
+    config: LogQuestConfig;
     config_has_loaded: boolean;
 }
 
