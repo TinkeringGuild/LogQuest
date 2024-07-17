@@ -4,11 +4,12 @@
 mod commands;
 mod config;
 mod gina;
+mod triggers;
 
-use std::{fs, path::PathBuf, sync::Mutex};
+use std::{fs, path::PathBuf, process::exit, sync::Mutex};
 
 use anyhow::bail;
-use clap::{arg, command, value_parser, Arg};
+use clap::{arg, command, value_parser, Arg, Command};
 use config::LogQuestConfig;
 use gina::load_gina_triggers_from_file_path;
 use tauri::{App, AppHandle, GlobalShortcutManager, Manager, WindowBuilder};
@@ -42,7 +43,10 @@ impl Default for OverlayState {
 }
 
 fn main() {
-    init_using_cli_params().expect("Could not initialize!");
+    if let Err(e) = init_using_cli_params() {
+        eprintln!("FATAL ERROR: {:#?}", e);
+        exit(1);
+    }
 }
 
 fn init_using_cli_params() -> anyhow::Result<()> {
@@ -58,20 +62,34 @@ fn init_using_cli_params() -> anyhow::Result<()> {
                 .help("Specify a specific directory to load LogQuest configs/state from")
                 .required(false)
                 .value_parser(value_parser!(PathBuf))
-                .global(true),
+                .global(true), // TODO: The arg should only be available when no other sub-command is given
         )
         .subcommand_required(false)
         .subcommand(
-            command!("import")
-                .about("Import a file")
-                .arg(arg!(<FILE>).required(true).index(1).help("Path of the GINA triggers file to import")
-                     .value_parser(value_parser!(PathBuf))),
+            Command::new("convert-gina")
+                .about("Parse a GINA .gtp or .xml file and output its data")
+                .arg(
+                    arg!(<FILE>)
+                        .required(true)
+                        .index(1)
+                        .help("Path of the GINA triggers file to import")
+                        .value_parser(value_parser!(PathBuf)))
+            .arg(
+                Arg::new("format")
+                    .short('f')
+                    .long("format")
+                    .help("Specify the format of the output")
+                    .value_name("format")
+                    .value_parser(["gina-internal", "gina-json", "internal", "json"])
+                    .default_value("json")
+            )
         );
 
     #[cfg(debug_assertions)]
     {
-        // the "ts" sub-command should only exist for debug builds of LogQuest. This allows
-        // the file to be written to a specific directory (outside of the cargo root).
+        // the "ts" sub-command only exists for debug builds of LogQuest. This allows
+        // the file to be written to a specific directory (outside of the cargo root)
+        // and avoids having to use "cargo test" to generate the TS files.
         cmd = cmd.subcommand(command!("ts").about("Generate TypeScript from Rust types"));
     }
 
@@ -84,22 +102,20 @@ fn init_using_cli_params() -> anyhow::Result<()> {
         }
     }
 
+    if let Some(convert_match) = matches.subcommand_matches("convert-gina") {
+        let file_path = convert_match.get_one::<PathBuf>("FILE").unwrap();
+        let format = convert_match.get_one::<String>("format").unwrap();
+        return translate_gina(file_path, &format);
+    }
+
     let overridden_config_path = matches.get_one::<PathBuf>("config-dir");
     let config_path = config::get_config_dir_with_optional_override(overridden_config_path)?;
     let Ok(config) = config::load_app_config(&config_path) else {
         bail!("Could not load config!");
     };
 
-    if let Some(import_match) = matches.subcommand_matches("import") {
-        let Some(file_path) = import_match.get_one::<PathBuf>("FILE") else {
-            panic!("No file path given to import?");
-        };
-        let gina_triggers = load_gina_triggers_from_file_path(file_path.to_owned());
-        println!("{:#?}", gina_triggers);
-    } else {
-        let app_state = AppState::init_from_config(config)?;
-        start_ui(app_state);
-    }
+    let app_state = AppState::init_from_config(config)?;
+    start_ui(app_state);
     Ok(())
 }
 
@@ -156,11 +172,43 @@ fn overlay_window_builder(app: &mut App) -> WindowBuilder {
     tauri::WindowBuilder::new(app, "overlay", tauri::WindowUrl::App("overlay.html".into()))
         .title("LogQuest Overlay")
         .transparent(true)
-        .decorations(false)
-        .focused(true)
-        .fullscreen(true)
-        .always_on_top(true)
-        .skip_taskbar(true)
+    // .decorations(false)
+    // .focused(true)
+    // .fullscreen(true)
+    // .always_on_top(true)
+    // .skip_taskbar(true)
+}
+
+fn translate_gina(path: &PathBuf, format: &str) -> anyhow::Result<()> {
+    let from_gina = load_gina_triggers_from_file_path(path)?;
+    if format == "gina-internal" {
+        println!("{from_gina:#?}");
+        return Ok(());
+    } else if format == "gina-json" {
+        match serde_json::to_string_pretty(&from_gina) {
+            Ok(raw_json) => {
+                println!("{raw_json}");
+                return Ok(());
+            }
+            Err(e) => {
+                eprintln!("Failed to serialize GINA types to JSON!");
+                bail!(e)
+            }
+        }
+    }
+    let root_trigger_group = from_gina.to_lq()?;
+    match format {
+        "internal" => println!("{root_trigger_group:#?}"),
+        "json" => match serde_json::to_string_pretty(&root_trigger_group) {
+            Ok(raw_json) => println!("{raw_json}"),
+            Err(e) => {
+                eprintln!("Failed to serialize to JSON!");
+                return Err(e.into());
+            }
+        },
+        _ => bail!("clap should guarantee a valid format parameter"),
+    }
+    Ok(())
 }
 
 #[cfg(debug_assertions)]
