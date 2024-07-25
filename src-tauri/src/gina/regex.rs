@@ -238,7 +238,6 @@ impl Index<String> for CapturesGINA {
   }
 }
 
-// TODO {S} should not be allowed to end in a space. What string lets me test that case?
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -411,7 +410,6 @@ mod tests {
 
   #[test]
   fn test_accessing_captures_by_index_as_string() {
-    // TODO: a numeric capture should be addressable as a string or a usize type.
     assert_pattern_matches(
       r"^Here're some words: (\w+), (\w+), (?<conjunction>\w+) (\w+)$",
       "Here're some words: one, two, and three",

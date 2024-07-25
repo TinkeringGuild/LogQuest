@@ -152,38 +152,3 @@ async fn determine_active_character_from_file_events_async(
   }
   debug!("Character change detection loop complete");
 }
-
-// pub async fn test_it(rt: Handle, logs_dir: &Path) -> anyhow::Result<()> {
-//     debug!("Spawning change monitor");
-//     let (mut change_receiver, _stopper) = detect_active_character(rt, )?;
-
-//     debug!("Starting test loop");
-//     loop {
-//         select! {
-//             change = change_receiver.changed() => {
-//                 debug!("Got a change");
-//                 match change {
-//                     Ok(()) => {
-//                         let value = change_receiver.borrow();
-//                         let value = value.deref();
-//                         match value {
-//                             Ok(Some(CharacterNameWithServer { character, ..})) => {
-//                                 println!("ACTIVE USER IS NOW: {character}");
-//                             },
-//                             Ok(None) => {
-//                                 println!("THERE IS NO ACTIVE USER");
-//                             }
-//                             Err(e) => {
-//                                println!("GOT ERROR: {e}");
-//                             }
-//                         }
-//                     }
-//                     Err(e) => {
-//                         println!("CHANGE WATCHER ERROR: {e}");
-//                     }
-//                 }
-
-//             }
-//         }
-//     }
-// }
