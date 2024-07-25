@@ -1,24 +1,44 @@
+use std::path::Path;
+
+use super::xml::load_gina_triggers_from_file_path;
 use super::{
-  GINAEarlyEnder, GINATimerStartBehavior, GINATimerTrigger, GINATimerType, GINATrigger,
+  GINAEarlyEnder, GINAImport, GINATimerStartBehavior, GINATimerTrigger, GINATimerType, GINATrigger,
   GINATriggerGroup, GINATriggers,
 };
-use crate::utils::random_id;
+use crate::common::duration::Duration;
+use crate::common::random_id;
+use crate::common::timestamp::Timestamp;
 use crate::{matchers, triggers};
 use anyhow::bail;
-use chrono::prelude::*;
+
+impl GINAImport {
+  pub fn load(file_path: &Path) -> anyhow::Result<Self> {
+    let import_time: Timestamp = Timestamp::now();
+    let from_gina = load_gina_triggers_from_file_path(file_path)?;
+    let file_path = file_path.to_owned();
+    let converted = from_gina.to_lq(&import_time)?;
+
+    Ok(Self {
+      file_path,
+      import_time,
+      from_gina,
+      converted,
+    })
+  }
+}
 
 impl GINATriggers {
-  pub fn to_lq(&self) -> anyhow::Result<Vec<triggers::TriggerGroup>> {
+  pub fn to_lq(&self, import_time: &Timestamp) -> anyhow::Result<Vec<triggers::TriggerGroup>> {
     let mut trigger_groups = Vec::with_capacity(self.trigger_groups.len());
     for tg in self.trigger_groups.iter() {
-      trigger_groups.push(tg.to_lq()?);
+      trigger_groups.push(tg.to_lq(&import_time)?);
     }
     Ok(trigger_groups)
   }
 }
 
 impl GINATriggerGroup {
-  fn to_lq(&self) -> anyhow::Result<triggers::TriggerGroup> {
+  fn to_lq(&self, import_time: &Timestamp) -> anyhow::Result<triggers::TriggerGroup> {
     // Assume enable_by_default is a shallow-enable, affecting only immediate descendants
     let enable_children = self.enable_by_default.unwrap_or(false);
 
@@ -27,10 +47,10 @@ impl GINATriggerGroup {
 
     // Assume TriggerGroups should be first in descendants list
     for tg in self.trigger_groups.iter() {
-      children.push(triggers::TriggerGroupDescendant::TG(tg.to_lq()?));
+      children.push(triggers::TriggerGroupDescendant::TG(tg.to_lq(import_time)?));
     }
     for t in self.triggers.iter() {
-      let mut trigger = t.to_lq()?;
+      let mut trigger = t.to_lq(import_time)?;
       if enable_children {
         trigger.enabled = true;
       }
@@ -43,7 +63,8 @@ impl GINATriggerGroup {
         .clone()
         .unwrap_or_else(|| untitled("Trigger Group")),
       comment: self.comments.clone(),
-      created_at: Utc::now(),
+      created_at: import_time.to_owned(),
+      updated_at: import_time.to_owned(),
       children,
     })
   }
@@ -51,15 +72,16 @@ impl GINATriggerGroup {
 
 impl GINATrigger {
   /// Converts this GINATrigger to a LogQuest Trigger
-  fn to_lq(&self) -> anyhow::Result<triggers::Trigger> {
+  fn to_lq(&self, import_time: &Timestamp) -> anyhow::Result<triggers::Trigger> {
     let trigger_name = self.name.clone().unwrap_or_else(|| untitled("Trigger"));
     Ok(triggers::Trigger {
       name: trigger_name.clone(),
       comment: self.comments.clone(),
       enabled: true,
-      last_modified: match self.modified {
-        Some(naive_datetime) => naive_datetime.and_utc(),
-        _ => Utc::now(),
+      created_at: import_time.to_owned(),
+      updated_at: match self.modified {
+        Some(naive_datetime) => naive_datetime.into(),
+        None => import_time.to_owned(),
       },
       filter: match (self.trigger_text.as_deref(), self.enable_regex) {
         (Some(""), _) => bail!("GINA trigger {} had no contents", &trigger_name),
@@ -127,8 +149,8 @@ impl GINATrigger {
               repeats: self.timer_type == Some(GINATimerType::RepeatingTimer),
               duration: match (self.timer_millisecond_duration, self.timer_duration) {
                 // Weirdly, GINA's XML has two redundant elements for duration. Prefer millis first
-                (Some(millis), _) => triggers::Duration::from_millis(millis),
-                (None, Some(secs)) => triggers::Duration::from_secs(secs),
+                (Some(millis), _) => Duration::from_millis(millis),
+                (None, Some(secs)) => Duration::from_secs(secs),
                 _ => bail!("Could not determine Timer duration for timer {timer_name}!",),
               },
               timer_start_behavior: match &self.timer_start_behavior {

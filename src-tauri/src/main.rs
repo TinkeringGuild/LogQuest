@@ -3,15 +3,16 @@
 
 mod active_character_detection;
 mod commands;
+mod common;
 mod config;
 mod gina;
 mod log_reader;
 mod matchers;
 mod triggers;
-mod utils;
 
 use anyhow::bail;
 use clap::{arg, command, value_parser, Arg, Command};
+use common::timestamp::Timestamp;
 use config::LogQuestConfig;
 use gina::xml::load_gina_triggers_from_file_path;
 use std::{fs, path::PathBuf, process::exit, sync::Mutex};
@@ -255,7 +256,7 @@ fn translate_gina(path: &PathBuf, format: &str) -> anyhow::Result<()> {
       }
     }
   }
-  let root_trigger_group = from_gina.to_lq()?;
+  let root_trigger_group = from_gina.to_lq(&Timestamp::now())?;
   match format {
     "internal" => println!("{root_trigger_group:#?}"),
     "json" => match serde_json::to_string_pretty(&root_trigger_group) {

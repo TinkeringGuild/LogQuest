@@ -1,13 +1,12 @@
-use lazy_static::lazy_static;
 use regex::Regex;
 use std::{
   collections::{HashMap, LinkedList},
   ops::Index,
 };
 
-use crate::utils::random_id;
+use crate::common::random_id;
 
-lazy_static! {
+lazy_static::lazy_static! {
   static ref NO_VALUE: String = String::new();
 
   // This enables regular expressions to support the weird GINA-style variables

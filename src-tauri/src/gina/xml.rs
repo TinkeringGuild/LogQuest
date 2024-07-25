@@ -8,10 +8,10 @@ use chrono::prelude::*;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::BufReader;
-use std::path::PathBuf;
+use std::path::Path;
 use zip::read::ZipArchive;
 
-pub fn load_gina_triggers_from_file_path(file_path: &PathBuf) -> anyhow::Result<GINATriggers> {
+pub fn load_gina_triggers_from_file_path(file_path: &Path) -> anyhow::Result<GINATriggers> {
   let shared_data = match file_path.extension().and_then(|s| s.to_str()) {
     Some("gtp") => {
       let file = File::open(file_path)?;

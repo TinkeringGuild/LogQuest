@@ -1,5 +1,5 @@
+use crate::common::LOG_FILE_PATTERN;
 use crate::log_reader::LogFileEvent;
-use crate::utils::LOG_FILE_PATTERN;
 use futures::FutureExt;
 use std::ops::Deref;
 use tokio::runtime::Handle;

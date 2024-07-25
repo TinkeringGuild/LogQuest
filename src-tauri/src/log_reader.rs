@@ -1,3 +1,4 @@
+use crate::common::{path_string, LOG_FILE_PATTERN};
 use anyhow::bail;
 use futures::FutureExt;
 use notify::{RecommendedWatcher, Watcher};
@@ -7,8 +8,6 @@ use tokio::select;
 use tokio::sync::oneshot;
 use tokio::{io::AsyncBufReadExt, io::AsyncSeekExt, sync::broadcast};
 use tracing::{debug, error, warn};
-
-use crate::utils::{path_string, LOG_FILE_PATTERN};
 
 const FILESYSTEM_EVENT_QUEUE_SIZE: usize = 100;
 

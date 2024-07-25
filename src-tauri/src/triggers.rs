@@ -1,10 +1,9 @@
+use crate::common::{duration::Duration, timestamp::Timestamp};
 use crate::matchers;
-use chrono::{DateTime, Utc};
-use lazy_static::lazy_static;
 use regex::Regex;
-use serde::{Deserialize, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 
-lazy_static! {
+lazy_static::lazy_static! {
   /// This matches strings that have vars in the form of ${}
   static ref TEMPLATE_VARS: Regex = Regex::new(r"\$\{\s*([\w_-]+)\s*\}").unwrap();
 }
@@ -71,8 +70,9 @@ pub enum TimerEffect {
 pub struct TriggerGroup {
   pub name: String,
   pub comment: Option<String>,
-  pub created_at: DateTime<Utc>,
   pub children: Vec<TriggerGroupDescendant>,
+  pub created_at: Timestamp,
+  pub updated_at: Timestamp,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -88,7 +88,8 @@ pub struct Trigger {
   pub enabled: bool,
   pub filter: matchers::Filter,
   pub effects: Vec<TriggerEffect>,
-  pub last_modified: DateTime<Utc>, // tags: Vec<Tag>
+  pub created_at: Timestamp,
+  pub updated_at: Timestamp, // tags: Vec<Tag>
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -161,37 +162,4 @@ pub struct CommandTemplate {
   pub command: TemplateString,
   pub params: Vec<TemplateString>,
   pub write_to_stdin: Option<TemplateString>,
-}
-
-#[derive(Debug, Clone)]
-pub struct Duration(u32);
-impl Duration {
-  pub fn from_millis(millis: u32) -> Self {
-    Duration(millis)
-  }
-  pub fn from_secs(secs: u32) -> Self {
-    Duration(secs * 1000)
-  }
-}
-impl Into<std::time::Duration> for Duration {
-  fn into(self) -> std::time::Duration {
-    std::time::Duration::from_millis(self.0.into())
-  }
-}
-impl Serialize for Duration {
-  fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-  where
-    S: Serializer,
-  {
-    serializer.serialize_u32(self.0)
-  }
-}
-impl<'de> Deserialize<'de> for Duration {
-  fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-  where
-    D: serde::Deserializer<'de>,
-  {
-    let value: u32 = Deserialize::deserialize(deserializer)?;
-    Ok(Duration(value))
-  }
 }

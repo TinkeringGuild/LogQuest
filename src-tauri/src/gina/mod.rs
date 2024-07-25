@@ -2,9 +2,19 @@ mod conversion;
 pub mod regex;
 pub mod xml;
 
+use crate::common::timestamp::Timestamp;
+use crate::triggers;
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 
-#[allow(unused)]
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GINAImport {
+  file_path: PathBuf,
+  import_time: Timestamp,
+  from_gina: GINATriggers,
+  converted: Vec<triggers::TriggerGroup>,
+}
+
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct GINATriggers {
   trigger_groups: Vec<GINATriggerGroup>,
