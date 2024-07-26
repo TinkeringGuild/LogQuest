@@ -1,4 +1,5 @@
 pub mod duration;
+pub mod serializable_regex;
 pub mod timestamp;
 
 use rand::Rng;

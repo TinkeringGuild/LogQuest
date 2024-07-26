@@ -1,6 +1,5 @@
-use std::time;
-
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::time;
 
 #[derive(Debug, Clone)]
 pub struct Duration(u32);

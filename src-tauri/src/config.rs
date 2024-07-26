@@ -1,9 +1,10 @@
 use anyhow::bail;
 use dirs::config_dir;
 use serde::{Deserialize, Serialize};
-use std::fs::{self, File};
-use std::io::Write;
-use std::path::PathBuf;
+use std::fs;
+use std::io::Write as _;
+use std::path::{Path, PathBuf};
+use tracing::info;
 use ts_rs::TS;
 
 const CONFIG_FILE_NAME: &str = "LogQuest.toml";
@@ -18,14 +19,14 @@ pub struct LogQuestConfig {
 }
 
 impl LogQuestConfig {
-  fn new_with_path(config_file_path: &PathBuf) -> Self {
+  fn new_with_path(config_file_path: &Path) -> Self {
     LogQuestConfig {
       everquest_directory: None,
       config_file_path: config_file_path.to_owned(),
     }
   }
 
-  fn load_from_file_path(path: &PathBuf) -> anyhow::Result<Self> {
+  fn load_from_file_path(path: &Path) -> anyhow::Result<Self> {
     let raw_config_file = fs::read_to_string(path)?;
     let mut config: LogQuestConfig = toml::from_str(&raw_config_file)?;
     config.config_file_path = path.to_owned();
@@ -36,16 +37,16 @@ impl LogQuestConfig {
     self.write_to_file_path(&self.config_file_path)
   }
 
-  fn write_to_file_path(&self, path: &PathBuf) -> anyhow::Result<()> {
+  fn write_to_file_path(&self, path: &Path) -> anyhow::Result<()> {
     let raw_toml = toml::to_string_pretty(&self)?;
 
     if let Some(parent) = path.parent() {
       if !parent.exists() {
-        println!("Creating directory {}", parent.display());
+        info!("Creating directory {}", parent.display());
         fs::create_dir_all(&parent)?;
       }
     }
-    let mut file = File::create(path)?; // overwrites file if it already exists
+    let mut file = fs::File::create(path)?; // overwrites file if it already exists
     file.write_all(raw_toml.as_bytes())?;
     Ok(())
   }

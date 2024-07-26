@@ -3,7 +3,7 @@ use super::{
   GINATriggerGroup, GINATriggers,
 };
 use ::xml::reader::{EventReader, XmlEvent};
-use anyhow::bail;
+use anyhow::{anyhow, bail};
 use chrono::prelude::*;
 use std::fs::File;
 use std::io::prelude::*;
@@ -12,13 +12,14 @@ use std::path::Path;
 use zip::read::ZipArchive;
 
 pub fn load_gina_triggers_from_file_path(file_path: &Path) -> anyhow::Result<GINATriggers> {
-  let shared_data = match file_path.extension().and_then(|s| s.to_str()) {
+  let file_extension = file_path.extension().and_then(std::ffi::OsStr::to_str);
+  let shared_data = match file_extension {
     Some("gtp") => {
       let file = File::open(file_path)?;
       let mut archive = ZipArchive::new(file)?;
       let share_data_xml = archive
         .by_name("ShareData.xml")
-        .map_err(|_| anyhow::anyhow!("Could not find a ShareData.xml file in the GTP archive"))?;
+        .map_err(|_| anyhow!("Could not find a ShareData.xml file in the GTP archive"))?;
       let mut reader = BufReader::new(share_data_xml);
       read_xml(&mut reader)?
     }
@@ -28,7 +29,7 @@ pub fn load_gina_triggers_from_file_path(file_path: &Path) -> anyhow::Result<GIN
       read_xml(&mut reader)?
     }
     Some(ext) => {
-      bail!("Unrecognized GINA trigger file format: {}", ext);
+      bail!("Unrecognized GINA trigger file format: {ext}");
     }
     None => {
       bail!("GINA trigger file must have a .gtp or .xml extension");
@@ -93,10 +94,7 @@ fn parse_trigger_group<R: std::io::Read>(
           break;
         }
       }
-      Err(e) => {
-        println!("Error: {}", e);
-        break;
-      }
+      Err(e) => bail!(e),
       _ => {}
     }
   }
@@ -113,11 +111,11 @@ fn parse_trigger<R: std::io::Read>(parser: &mut EventReader<R>) -> anyhow::Resul
       Ok(XmlEvent::StartElement { name, .. }) => {
         current_element = name.local_name;
         if current_element == "TimerEndingTrigger" {
-          trigger.timer_ending_trigger = Some(parse_timer_trigger(parser));
+          trigger.timer_ending_trigger = Some(parse_timer_trigger(parser)?);
         } else if current_element == "TimerEndedTrigger" {
-          trigger.timer_ended_trigger = Some(parse_timer_trigger(parser));
+          trigger.timer_ended_trigger = Some(parse_timer_trigger(parser)?);
         } else if current_element == "EarlyEnder" {
-          trigger.timer_early_enders.push(parse_early_ender(parser));
+          trigger.timer_early_enders.push(parse_early_ender(parser)?);
         }
       }
       Ok(XmlEvent::Characters(data)) => match current_element.as_str() {
@@ -139,7 +137,7 @@ fn parse_trigger<R: std::io::Read>(parser: &mut EventReader<R>) -> anyhow::Resul
             "NoTimer" => GINATimerType::NoTimer,
             "Stopwatch" => GINATimerType::Stopwatch,
             "RepeatingTimer" => GINATimerType::RepeatingTimer,
-            _ => bail!("Unrecognized TimerType: {}", data),
+            _ => bail!("Unrecognized TimerType: {data}"),
           })
         }
         "TimerName" => trigger.timer_name = Some(data),
@@ -152,7 +150,7 @@ fn parse_trigger<R: std::io::Read>(parser: &mut EventReader<R>) -> anyhow::Resul
             "StartNewTimer" => GINATimerStartBehavior::StartNewTimer,
             "RestartTimer" => GINATimerStartBehavior::RestartTimer,
             "IgnoreIfRunning" => GINATimerStartBehavior::IgnoreIfRunning,
-            _ => bail!("Unrecognized GINA start behavior: {}", data),
+            _ => bail!("Unrecognized GINA start behavior: {data}"),
           })
         }
         "TimerEndingTime" => trigger.timer_ending_time = parse_int(data),
@@ -170,10 +168,7 @@ fn parse_trigger<R: std::io::Read>(parser: &mut EventReader<R>) -> anyhow::Resul
           break;
         }
       }
-      Err(e) => {
-        println!("Error: {}", e);
-        break;
-      }
+      Err(e) => bail!(e),
       _ => {}
     }
   }
@@ -181,7 +176,9 @@ fn parse_trigger<R: std::io::Read>(parser: &mut EventReader<R>) -> anyhow::Resul
   Ok(trigger)
 }
 
-fn parse_timer_trigger<R: std::io::Read>(parser: &mut EventReader<R>) -> GINATimerTrigger {
+fn parse_timer_trigger<R: std::io::Read>(
+  parser: &mut EventReader<R>,
+) -> anyhow::Result<GINATimerTrigger> {
   let mut timer_trigger = GINATimerTrigger::new();
   let mut current_element = String::new();
 
@@ -204,18 +201,17 @@ fn parse_timer_trigger<R: std::io::Read>(parser: &mut EventReader<R>) -> GINATim
           break;
         }
       }
-      Err(e) => {
-        println!("Error: {}", e);
-        break;
-      }
+      Err(e) => bail!(e),
       _ => {}
     }
   }
 
-  timer_trigger
+  Ok(timer_trigger)
 }
 
-fn parse_early_ender<R: std::io::Read>(parser: &mut EventReader<R>) -> GINAEarlyEnder {
+fn parse_early_ender<R: std::io::Read>(
+  parser: &mut EventReader<R>,
+) -> anyhow::Result<GINAEarlyEnder> {
   let mut early_ender = GINAEarlyEnder::new();
   let mut current_element = String::new();
 
@@ -234,15 +230,12 @@ fn parse_early_ender<R: std::io::Read>(parser: &mut EventReader<R>) -> GINAEarly
           break;
         }
       }
-      Err(e) => {
-        println!("Error: {}", e);
-        break;
-      }
+      Err(e) => bail!(e),
       _ => {}
     }
   }
 
-  early_ender
+  Ok(early_ender)
 }
 
 fn parse_int(text: String) -> Option<u32> {

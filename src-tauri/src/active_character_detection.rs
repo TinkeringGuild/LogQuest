@@ -1,7 +1,7 @@
 use crate::common::LOG_FILE_PATTERN;
 use crate::log_reader::LogFileEvent;
-use futures::FutureExt;
-use std::ops::Deref;
+use futures::FutureExt as _;
+use std::ops::Deref as _;
 use tokio::runtime::Handle;
 use tokio::select;
 use tokio::sync::{broadcast, oneshot, watch};

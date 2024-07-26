@@ -1,8 +1,9 @@
-use crate::config::LogQuestConfig;
 use crate::AppState;
-use std::fs::canonicalize;
-use std::path::PathBuf;
+use crate::{common::path_string, config::LogQuestConfig};
+use anyhow::bail;
+use std::{fs::canonicalize, path::Path};
 use tauri::{AppHandle, Manager};
+use tracing::{event, info};
 
 pub fn handler() -> impl Fn(tauri::Invoke) {
   tauri::generate_handler![
@@ -34,24 +35,23 @@ fn import_gina_triggers_file(
 #[tauri::command]
 fn set_everquest_dir(app_handle: AppHandle, new_dir: String) -> Result<LogQuestConfig, String> {
   let Ok(new_dir) = canonicalize(new_dir) else {
-    return Err(String::from("Could not determine canonical path of EQ dir"));
+    return Err("Could not determine canonical path of EQ dir".to_owned());
   };
-  let new_dir = new_dir.to_str().unwrap();
-  validate_eq_dir(&PathBuf::from(new_dir))?;
+  validate_eq_dir(&new_dir).map_err(|e| e.to_string())?;
   with_config(&app_handle, |config| {
-    config.everquest_directory = Some(new_dir.to_string());
+    config.everquest_directory = Some(path_string(&new_dir));
     Ok(())
   })
 }
 
 #[tauri::command]
 fn print_to_stdout(message: String) {
-  println!("[UI] {}", message);
+  event!(target: "UI", tracing::Level::INFO, message);
 }
 
 #[tauri::command]
 fn print_to_stderr(message: String) {
-  eprintln!("[UI ERROR] {}", message);
+  event!(target: "UI", tracing::Level::ERROR, message);
 }
 
 /// Yields a mutable borrow to the LogQuestConfig and automatically saves the file if any changes are made.
@@ -67,23 +67,23 @@ where
   let config_before: LogQuestConfig = config_guard.clone();
   f(&mut *config_guard)?;
   if *config_guard != config_before {
-    println!(
+    info!(
       "SAVING CONFIG TO {}",
-      config_before.config_file_path.to_string_lossy()
+      config_before.config_file_path.display()
     );
     config_guard.save().map_err(|e| e.to_string())?;
   }
   Ok(config_guard.clone())
 }
 
-fn validate_eq_dir(path: &PathBuf) -> Result<(), String> {
+fn validate_eq_dir(path: &Path) -> anyhow::Result<()> {
   let eqclient_file = path.join("eqclient.ini");
   if eqclient_file.exists() {
     Ok(())
   } else {
-    Err(format!(
-      "The path '{}' is not a valid EverQuest directory!",
-      path.to_str().unwrap()
-    ))
+    bail!(
+      r#"The path "{}" is not a valid EverQuest directory!"#,
+      path.display()
+    )
   }
 }

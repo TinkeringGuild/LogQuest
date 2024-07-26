@@ -17,7 +17,7 @@ use config::LogQuestConfig;
 use gina::xml::load_gina_triggers_from_file_path;
 use std::{fs, path::PathBuf, process::exit, sync::Mutex};
 use tauri::{App, AppHandle, GlobalShortcutManager, Manager, WindowBuilder, WindowEvent};
-use tracing::info;
+use tracing::{error, info};
 use ts_rs::TS;
 
 struct AppState {
@@ -48,15 +48,17 @@ impl Default for OverlayState {
 }
 
 fn main() {
+  init_tracing();
+  if let Err(e) = init_using_cli_params() {
+    error!("FATAL ERROR: {e:#?}");
+    exit(1);
+  }
+}
+
+fn init_tracing() {
   tracing_subscriber::fmt()
     .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
     .init();
-
-  info!("Initializing...");
-  if let Err(e) = init_using_cli_params() {
-    eprintln!("FATAL ERROR: {:#?}", e);
-    exit(1);
-  }
 }
 
 fn init_using_cli_params() -> anyhow::Result<()> {
@@ -107,7 +109,15 @@ fn init_using_cli_params() -> anyhow::Result<()> {
     //     command!("watcher").about("Temporary testing tool for filesystem event watcher"),
     // );
 
-    cmd = cmd.subcommand(command!("tail").about("Tails a log file"));
+    cmd = cmd
+      .subcommand(command!("tail").about("Tails a log file"))
+      .arg(
+        arg!(<FILE>)
+          .required(true)
+          .index(1)
+          .help("Path of the logfile to tail")
+          .value_parser(value_parser!(PathBuf)),
+      )
   }
 
   let matches = cmd.get_matches();
@@ -118,15 +128,14 @@ fn init_using_cli_params() -> anyhow::Result<()> {
       return generate_typescript();
     }
 
-    if matches.subcommand_matches("tail").is_some() {
+    if let Some(tail) = matches.subcommand_matches("tail") {
       let rt = tokio::runtime::Runtime::new().unwrap();
-      let log_file_path =
-        PathBuf::from("/home/j/code/LogQuest/src-tauri/test_logs/eqlog_Laut_project1999.txt");
-      let mut fs_events = log_reader::LogEventBroadcaster::new(&log_file_path)?;
+      let logfile_path = tail.get_one::<PathBuf>("FILE").unwrap();
+      let mut fs_events = log_reader::LogEventBroadcaster::new(&logfile_path)?;
       fs_events.start()?;
       let fs_event_rx = fs_events.subscribe();
 
-      let reader = log_reader::LogReader::start(rt.handle().to_owned(), log_file_path, fs_event_rx);
+      let reader = log_reader::LogReader::start(rt.handle().to_owned(), &logfile_path, fs_event_rx);
       let mut rx = reader.subscribe();
       rt.spawn(async move {
         let sleep_secs = 10;
@@ -222,9 +231,9 @@ fn toggle_overlay_editable(handle: AppHandle) {
     .set_ignore_cursor_events(!inverse)
     .expect("Could not set_ignore_cursor_events!");
   if inverse {
-    println!("Overlay editing ENABLED");
+    info!("Overlay editing ENABLED");
   } else {
-    println!("Overlay editing DISABLED");
+    info!("Overlay editing DISABLED");
   }
 }
 
@@ -251,7 +260,7 @@ fn translate_gina(path: &PathBuf, format: &str) -> anyhow::Result<()> {
         return Ok(());
       }
       Err(e) => {
-        eprintln!("Failed to serialize GINA types to JSON!");
+        error!("Failed to serialize GINA types to JSON!");
         bail!(e)
       }
     }
@@ -262,7 +271,7 @@ fn translate_gina(path: &PathBuf, format: &str) -> anyhow::Result<()> {
     "json" => match serde_json::to_string_pretty(&root_trigger_group) {
       Ok(raw_json) => println!("{raw_json}"),
       Err(e) => {
-        eprintln!("Failed to serialize to JSON!");
+        error!("Failed to serialize to JSON!");
         return Err(e.into());
       }
     },
@@ -280,23 +289,20 @@ fn generate_typescript() -> anyhow::Result<()> {
   }
   let out_file = out_dir.join("LogQuestConfig.ts");
   if out_file.exists() {
-    println!(
-      "Deleting possibly stale file {}",
-      out_file.to_string_lossy()
-    );
+    info!("Deleting possibly stale file {}", out_file.display());
     if let Err(e) = fs::remove_file(&out_file) {
       panic!(
-        "Could not delete the file {} [ {:?} ]",
-        out_file.to_string_lossy(),
+        "Could not delete the file {} [ {:#?} ]",
+        out_file.display(),
         e
       );
     }
   }
   if let Err(e) = LogQuestConfig::export_all_to(&out_dir) {
-    panic!("Could not export TypeScript! {:?}", e);
+    panic!("Could not export TypeScript! {:#?}", e);
   }
 
-  println!("Exported LogQuestConfig to {}", out_file.to_string_lossy());
+  info!("Exported LogQuestConfig to {}", out_file.display());
 
   Ok(())
 }
