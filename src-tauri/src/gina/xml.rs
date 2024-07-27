@@ -5,6 +5,7 @@ use super::{
 use ::xml::reader::{EventReader, XmlEvent};
 use anyhow::{anyhow, bail};
 use chrono::prelude::*;
+use std::ffi::OsStr;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::BufReader;
@@ -12,7 +13,7 @@ use std::path::Path;
 use zip::read::ZipArchive;
 
 pub fn load_gina_triggers_from_file_path(file_path: &Path) -> anyhow::Result<GINATriggers> {
-  let file_extension = file_path.extension().and_then(std::ffi::OsStr::to_str);
+  let file_extension = file_path.extension().and_then(OsStr::to_str);
   let shared_data = match file_extension {
     Some("gtp") => {
       let file = File::open(file_path)?;

@@ -1,5 +1,4 @@
-use anyhow::bail;
-use dirs::config_dir;
+use anyhow::anyhow;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::Write as _;
@@ -9,7 +8,7 @@ use ts_rs::TS;
 
 const CONFIG_FILE_NAME: &str = "LogQuest.toml";
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, TS)]
+#[derive(TS, Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct LogQuestConfig {
   pub everquest_directory: Option<String>,
 
@@ -52,7 +51,7 @@ impl LogQuestConfig {
   }
 }
 
-pub fn load_app_config(config_dir: &PathBuf) -> anyhow::Result<LogQuestConfig> {
+pub fn load_or_create_app_config_from_dir(config_dir: &PathBuf) -> anyhow::Result<LogQuestConfig> {
   let config_path = config_dir.join(&CONFIG_FILE_NAME);
 
   let config = if config_path.exists() {
@@ -66,19 +65,19 @@ pub fn load_app_config(config_dir: &PathBuf) -> anyhow::Result<LogQuestConfig> {
 }
 
 pub fn get_config_dir_with_optional_override(
-  path_override: Option<&PathBuf>,
+  path_override: Option<PathBuf>,
 ) -> anyhow::Result<PathBuf> {
   let config_dir = match path_override {
-    Some(overridden_dir) => overridden_dir.to_owned(),
-    None => match config_dir() {
-      Some(mut dir) => {
-        let app_name = env!("CARGO_PKG_NAME");
-        dir.push(app_name);
-        dir
-      }
-      None => bail!("Could not determine the config directory"),
-    },
+    Some(overridden_dir) => overridden_dir,
+    None => default_config_dir()?,
   };
   fs::create_dir_all(&config_dir)?;
   Ok(config_dir)
+}
+
+pub fn default_config_dir() -> anyhow::Result<PathBuf> {
+  let mut cfg_dir = dirs::config_dir().ok_or_else(|| anyhow!("Could not determine the config directory. Please set the config directory manually with the --config-dir flag"))?;
+  let app_name = env!("CARGO_PKG_NAME");
+  cfg_dir.push(app_name);
+  Ok(cfg_dir)
 }

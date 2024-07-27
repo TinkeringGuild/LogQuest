@@ -4,10 +4,10 @@ use futures::FutureExt as _;
 use notify::{RecommendedWatcher, Watcher};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
+use tokio::io::{AsyncBufReadExt as _, AsyncSeekExt as _};
 use tokio::runtime::Handle;
 use tokio::select;
 use tokio::sync::{broadcast, oneshot};
-use tokio::{io::AsyncBufReadExt as _, io::AsyncSeekExt as _};
 use tracing::{debug, error, warn};
 
 const FILESYSTEM_EVENT_QUEUE_SIZE: usize = 100;
