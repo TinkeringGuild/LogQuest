@@ -11,6 +11,7 @@ use crate::common::timestamp::Timestamp;
 use crate::{matchers, triggers};
 use anyhow::bail;
 
+#[allow(unused)]
 impl GINAImport {
   pub fn load(file_path: &Path) -> anyhow::Result<Self> {
     let import_time: Timestamp = Timestamp::now();
@@ -86,7 +87,7 @@ impl GINATrigger {
       filter: match (self.trigger_text.as_deref(), self.enable_regex) {
         (Some(""), _) => bail!("GINA trigger {} had no contents", &trigger_name),
         (Some(text), Some(true)) => {
-          vec![matchers::Matcher::GINAPattern(text.to_owned())]
+          vec![matchers::Matcher::gina(text)?]
         }
         (Some(text), Some(false)) | (Some(text), None) => {
           vec![matchers::Matcher::WholeLine(text.to_owned())]
@@ -307,7 +308,7 @@ impl GINATimerTrigger {
 impl GINAEarlyEnder {
   fn to_lq(&self) -> anyhow::Result<matchers::Matcher> {
     Ok(match (self.enable_regex, self.early_end_text.clone()) {
-      (Some(true), Some(pattern)) => matchers::Matcher::GINAPattern(pattern),
+      (Some(true), Some(pattern)) => matchers::Matcher::gina(&pattern)?,
       (Some(false), Some(line)) => matchers::Matcher::WholeLine(line),
       _ => bail!("Invalid Early Ender"),
     })

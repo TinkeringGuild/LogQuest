@@ -1,5 +1,6 @@
 use crate::common::random_id;
 use regex::Regex;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::{HashMap, LinkedList};
 use std::ops::Index;
 
@@ -14,11 +15,24 @@ lazy_static::lazy_static! {
   static ref GENERATED_NAMED_CAPTURE_NAME: Regex = Regex::new(r"^LQ[A-Z0-9]{8}$").unwrap();
 }
 
-struct RegexGINA {
+#[derive(Debug)]
+pub struct RegexGINA {
+  raw: String,
   compiled: Regex,
   named_projections: HashMap<String, String>,
   positional_projections: Vec<usize>,
-  conditions: LinkedList<Box<dyn Fn(&regex::Captures) -> bool>>,
+  conditions: Conditions,
+}
+
+type ConditionsList = LinkedList<Box<dyn Fn(&regex::Captures) -> bool + Send + 'static>>;
+
+struct Conditions(ConditionsList);
+
+impl std::fmt::Debug for Conditions {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    write!(f, "Conditions(len={})", self.0.len())?;
+    Ok(())
+  }
 }
 
 impl RegexGINA {
@@ -31,7 +45,7 @@ impl RegexGINA {
   pub fn from_str(pattern: &str) -> anyhow::Result<Self> {
     let mut named_projections: HashMap<String, String> = HashMap::new();
 
-    let mut conditions: LinkedList<Box<dyn Fn(&regex::Captures) -> bool>> = LinkedList::new();
+    let mut conditions: ConditionsList = LinkedList::new();
     let with_replacements = REGEX_VARS.replace_all(pattern, |captures: &regex::Captures| {
       let projected_from = Self::generate_named_capture_name();
 
@@ -44,25 +58,9 @@ impl RegexGINA {
           .parse()
           .expect("regex is supposed to guarantee numeric type!");
         let projected_to = projected_name.as_str().to_uppercase();
-        let projected_from_ = projected_from.clone();
         named_projections.insert(projected_from.clone(), projected_to.clone());
-        let condition = move |caps: &regex::Captures| -> bool {
-          if let Some(value) = caps.name(&projected_from_) {
-            let value: i64 = value
-              .as_str()
-              .parse()
-              .expect("regex should be validating this is numeric!");
-            return match operator.as_str() {
-              "=" => value == operand,
-              "<=" => value <= operand,
-              ">=" => value >= operand,
-              ">" => value > operand,
-              "<" => value < operand,
-              _ => unreachable!(/* REGEX_VARS only allows the operators above */),
-            };
-          }
-          true
-        };
+        let condition =
+          Self::condition_for_numeric_constraints(operator, operand, projected_from.clone());
         conditions.push_back(Box::new(condition));
         Self::pattern_for_number_capture(&projected_from)
       } else if let Some(projected_to) = captures.get(2) {
@@ -101,10 +99,11 @@ impl RegexGINA {
     }
 
     Ok(Self {
+      raw: pattern.to_owned(),
       compiled,
       named_projections,
       positional_projections,
-      conditions,
+      conditions: Conditions(conditions),
     })
   }
 
@@ -114,7 +113,7 @@ impl RegexGINA {
       None => return None,
     };
 
-    for condition in self.conditions.iter() {
+    for condition in self.conditions.0.iter() {
       if !condition(&direct_captures) {
         return None;
       }
@@ -162,17 +161,6 @@ impl RegexGINA {
     format!("LQ{}", random_id(8)) // 8 makes chance of two collisions approx 1/2.8e12
   }
 
-  fn group_values_by_key(hashmap: &HashMap<String, String>) -> HashMap<String, Vec<String>> {
-    let mut returned: HashMap<String, Vec<String>> = HashMap::new();
-    for (key, value) in hashmap {
-      returned
-        .entry(value.to_owned())
-        .or_insert_with(Vec::new)
-        .push(key.to_owned());
-    }
-    returned
-  }
-
   fn pattern_for_number_capture(capture_name: &str) -> String {
     format!(r"(?<{capture_name}>-?\d+)")
   }
@@ -185,9 +173,42 @@ impl RegexGINA {
   fn pattern_for_character_name_capture(capture_name: &str) -> String {
     format!(r"(?<{}>{})", capture_name, r"[A-Za-z]{3,15}") // On P99, 3-letter toon names do exist
   }
+
+  fn condition_for_numeric_constraints(
+    operator: String,
+    operand: i64,
+    projected_from: String,
+  ) -> impl Fn(&regex::Captures) -> bool + Send + 'static {
+    move |caps: &regex::Captures| {
+      Self::test_numeric_constraints(operator.clone(), operand, projected_from.clone(), caps)
+    }
+  }
+
+  fn test_numeric_constraints(
+    operator: String,
+    operand: i64,
+    projected_from: String,
+    caps: &regex::Captures,
+  ) -> bool {
+    if let Some(value) = caps.name(&projected_from) {
+      let value: i64 = value
+        .as_str()
+        .parse()
+        .expect("regex should be validating this is numeric!");
+      return match operator.as_str() {
+        "=" => value == operand,
+        "<=" => value <= operand,
+        ">=" => value >= operand,
+        ">" => value > operand,
+        "<" => value < operand,
+        _ => unreachable!(/* REGEX_VARS only allows the operators above */),
+      };
+    }
+    true
+  }
 }
 
-struct CapturesGINA {
+pub struct CapturesGINA {
   character_name: String,
   positional_captures: Vec<Option<String>>,
   named_captures: HashMap<String, String>,
@@ -226,6 +247,33 @@ impl Index<String> for CapturesGINA {
 
   fn index(&self, key: String) -> &Self::Output {
     &self[key.as_str()]
+  }
+}
+
+impl Serialize for RegexGINA {
+  fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+  where
+    S: Serializer,
+  {
+    serializer.serialize_str(self.raw.as_str())
+  }
+}
+
+impl<'de> Deserialize<'de> for RegexGINA {
+  fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+  where
+    D: Deserializer<'de>,
+  {
+    let value: &str = Deserialize::deserialize(deserializer)?;
+    let value: anyhow::Result<RegexGINA> = RegexGINA::from_str(value);
+    let value: RegexGINA = value.map_err(serde::de::Error::custom)?;
+    Ok(value)
+  }
+}
+
+impl Clone for RegexGINA {
+  fn clone(&self) -> Self {
+    RegexGINA::from_str(&self.raw).unwrap() // unwrap is safe since raw has been compiled before
   }
 }
 

@@ -18,8 +18,7 @@ mod debug_only;
 
 use cli::{Commands, StartCommand};
 use state::AppState;
-use std::{path::PathBuf, process::exit};
-use tracing::error;
+use std::path::PathBuf;
 
 fn init_tracing() {
   let env_filter = tracing_subscriber::EnvFilter::from_default_env();
@@ -58,6 +57,6 @@ fn start(config_dir: Option<PathBuf>) -> anyhow::Result<()> {
   ) {
     common::fatal_error(&e.to_string());
   }
-  // ui::start_ui(app_state);
+  ui::start_ui(app_state);
   Ok(())
 }

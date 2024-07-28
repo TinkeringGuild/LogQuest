@@ -1,4 +1,5 @@
 use crate::common::{duration::Duration, timestamp::Timestamp};
+use crate::gina::regex::CapturesGINA;
 use crate::matchers;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -91,6 +92,18 @@ pub struct Trigger {
   pub created_at: Timestamp,
   pub updated_at: Timestamp, // tags: Vec<Tag>
 }
+impl Trigger {
+  pub fn captures(&self, line: &str, char_name: &str) -> Option<CapturesGINA> {
+    for matcher in self.filter.iter() {
+      if let matchers::Matcher::GINA(regex_gina) = matcher {
+        if let Some(captures_gina) = regex_gina.test(line, char_name) {
+          return Some(captures_gina);
+        }
+      }
+    }
+    None
+  }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Stopwatch {
@@ -132,6 +145,7 @@ impl TimerTag {
   }
 }
 
+// TODO: WHEN I IMPLEMENT {L}, I NEED TO MAKE SURE IT HAVE \p{L} BEFORE IT
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TemplateString {
   tmpl: String,
