@@ -1,4 +1,3 @@
-use crate::common::fatal_error;
 use crate::common::timestamp::Timestamp;
 use crate::gina::regex::RegexGINA;
 use crate::logs::active_character_detection::{ActiveCharacterDetector, CharacterNameWithServer};
@@ -8,7 +7,8 @@ use crate::logs::Line;
 use crate::matchers;
 use crate::triggers::{Trigger, TriggerEffect, TriggerGroup, TriggerGroupDescendant};
 use std::path::Path;
-use tokio::runtime::Handle;
+use tauri::async_runtime::spawn;
+use tauri::async_runtime::JoinHandle;
 use tokio::select;
 use tokio::sync::{broadcast, mpsc};
 use tracing::{debug, info};
@@ -18,19 +18,16 @@ enum ReactorEvent {
   SetActiveCharacter(Option<CharacterNameWithServer>),
 }
 
-pub fn spawn(rt: &Handle, logs_dir: &Path) -> anyhow::Result<()> {
+pub fn start(logs_dir: &Path) -> anyhow::Result<JoinHandle<()>> {
   let log_events = LogEventBroadcaster::new(&logs_dir)?;
-  let active_detector = ActiveCharacterDetector::start(rt, log_events.subscribe());
+  let active_detector = ActiveCharacterDetector::start(log_events.subscribe());
   let (reactor_tx, reactor_rx) = mpsc::channel::<ReactorEvent>(256);
-  let _ = rt.spawn(react_to_active_character_change(
+  let _ = spawn(react_to_active_character_change(
     active_detector,
     reactor_tx,
   ));
-  let join_handle = rt.spawn(event_loop(rt.clone(), log_events, reactor_rx));
-  if let Err(e) = rt.block_on(join_handle) {
-    fatal_error(&e.to_string());
-  }
-  Ok(())
+  let join_handle = spawn(event_loop(log_events, reactor_rx));
+  Ok(join_handle)
 }
 
 // TODO: At the moment, because filesystem events are used to begin reading a log file, the very
@@ -44,7 +41,6 @@ pub fn spawn(rt: &Handle, logs_dir: &Path) -> anyhow::Result<()> {
 // Currently the code assumes that active character detection is enabled, so to support multiple
 // concurrent overlays, the logic might become considerably more complex.
 async fn event_loop(
-  rt: Handle,
   mut log_event_broadcaster: LogEventBroadcaster,
   mut reactor_rx: mpsc::Receiver<ReactorEvent>,
 ) {
@@ -73,7 +69,7 @@ async fn event_loop(
         match reactor_event {
           None => break,
           Some(ReactorEvent::SetActiveCharacter(Some(new_char))) => {
-            let new_log_reader = LogReader::start(rt.clone(), &new_char.log_file_pathbuf(), log_event_broadcaster.subscribe());
+            let new_log_reader = LogReader::start(&new_char.log_file_pathbuf(), log_event_broadcaster.subscribe());
             line_chan = (None, new_log_reader.subscribe());
             log_reader = new_log_reader;
             current_character = Some(new_char);
@@ -168,12 +164,7 @@ fn test_trigger_group() -> TriggerGroup {
       re(r"^([A-Za-z]+) -> {C}: (.+)$"),
       re(r"^([A-Za-z]+) says, 'Hail, {C}'$"),
     ],
-    effects: vec![
-      TriggerEffect::PlayAudioFile(Some(
-        "/home/j/Downloads/sound effects/hail/hail-exclaim-callum.mp3".into(),
-      )),
-      TriggerEffect::OverlayMessage("💬{1}: {2}".into()),
-    ],
+    effects: vec![TriggerEffect::OverlayMessage("💬{1}: {2}".into())],
   };
 
   TriggerGroup {

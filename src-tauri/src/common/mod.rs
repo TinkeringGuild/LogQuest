@@ -21,7 +21,15 @@ pub(crate) fn random_id(length: u16) -> String {
     .collect()
 }
 
-pub(crate) fn fatal_error(message: &str) {
+pub(crate) fn fatal_error(message: &str) -> ! {
   tracing::error!(message);
   std::process::exit(2);
+}
+
+pub(crate) fn ternary<T>(condition: bool, if_true: T, if_false: T) -> T {
+  if condition {
+    if_true
+  } else {
+    if_false
+  }
 }

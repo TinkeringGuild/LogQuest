@@ -12,14 +12,14 @@ use tracing::info;
 use ts_rs::TS as _;
 
 #[cfg(debug_assertions)]
-pub fn tail(logfile_path: &std::path::Path) -> anyhow::Result<()> {
+pub fn tail(log_file_path: &std::path::Path) -> anyhow::Result<()> {
   info!("In tail");
   let rt = tokio::runtime::Runtime::new().unwrap();
-  let mut fs_events = LogEventBroadcaster::new(&logfile_path)?;
+  let mut fs_events = LogEventBroadcaster::new(&log_file_path)?;
   fs_events.start()?;
   let fs_event_rx = fs_events.subscribe();
 
-  let reader = LogReader::start(rt.handle().to_owned(), &logfile_path, fs_event_rx);
+  let reader = LogReader::start(&log_file_path, fs_event_rx);
   let mut rx = reader.subscribe();
 
   info!("Spawning task");

@@ -47,6 +47,10 @@ pub(crate) struct StartCommand {
   #[arg(long = "config-dir", short = 'C')]
   /// Override the path to the LogQuest configuration directory
   pub(crate) config_dir: Option<PathBuf>,
+
+  /// Override the path to EverQuest's logs
+  #[arg(long = "logs-dir", short = 'L')]
+  pub(crate) logs_dir: Option<PathBuf>,
 }
 
 #[test]

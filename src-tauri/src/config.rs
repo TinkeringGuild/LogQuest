@@ -49,6 +49,13 @@ impl LogQuestConfig {
     file.write_all(raw_toml.as_bytes())?;
     Ok(())
   }
+
+  pub fn logs_dir(&self) -> Option<PathBuf> {
+    self
+      .everquest_directory
+      .as_ref()
+      .and_then(|dir| Some([dir, "Logs"].iter().collect()))
+  }
 }
 
 pub fn load_or_create_app_config_from_dir(config_dir: &PathBuf) -> anyhow::Result<LogQuestConfig> {
