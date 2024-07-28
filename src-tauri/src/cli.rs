@@ -26,6 +26,9 @@ pub(crate) enum Commands {
   #[cfg(debug_assertions)]
   TS,
 
+  #[cfg(debug_assertions)]
+  Tail { file: PathBuf },
+
   /// (DEBUG BUILDS ONLY) Utiliy for inspecting or converting a GINA .xml or .gtp file
   #[cfg(debug_assertions)]
   ConvertGINA {

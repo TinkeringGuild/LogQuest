@@ -1,18 +1,16 @@
-use regex::Regex;
-use std::{
-  collections::{HashMap, LinkedList},
-  ops::Index,
-};
-
 use crate::common::random_id;
+use regex::Regex;
+use std::collections::{HashMap, LinkedList};
+use std::ops::Index;
 
 lazy_static::lazy_static! {
   static ref NO_VALUE: String = String::new();
 
-  // This enables regular expressions to support the weird GINA-style variables
+  /// For extracting out GINA variable placeholders from a GINA regex (e.g. {S}, {N>100}, {C}, {S2})
   static ref REGEX_VARS: Regex =
     Regex::new(r"\{\s*(?:([Cc]|[Ss]\d*)|(?:([Nn]\d*)\s*(?:(>=|<=|=|>|<)\s*(-?\d+))?))\s*\}").unwrap();
 
+  /// Named capture groups are generated and injected into the converted Regex; this matches the generated names
   static ref GENERATED_NAMED_CAPTURE_NAME: Regex = Regex::new(r"^LQ[A-Z0-9]{8}$").unwrap();
 }
 
@@ -24,14 +22,13 @@ struct RegexGINA {
 }
 
 impl RegexGINA {
+  // A lot of the complexity here comes from how special GINA tokens
+  // like {S} or {N>=10} are extracted using named capture groups, but
+  // the inclusion of these capture groups must be invisible to the
+  // end-user writing a Filter; notably, they should be able to address
+  // their regex's capture groups by index without these dynamically
+  // interpolated capture groups affecting the indices they'd expect.
   pub fn from_str(pattern: &str) -> anyhow::Result<Self> {
-    // A lot of the complexity here comes from how special GINA tokens
-    // like {S} or {N>=10} are extracted using named capture groups, but
-    // the inclusion of these capture groups must be invisible to the
-    // end-user writing a Filter; notably, they should be able to address
-    // their regex's capture groups by index without these dynamically
-    // interpolated capture groups affecting the indices they'd expect.
-
     let mut named_projections: HashMap<String, String> = HashMap::new();
 
     let mut conditions: LinkedList<Box<dyn Fn(&regex::Captures) -> bool>> = LinkedList::new();
@@ -55,17 +52,16 @@ impl RegexGINA {
               .as_str()
               .parse()
               .expect("regex should be validating this is numeric!");
-            match operator.as_str() {
+            return match operator.as_str() {
               "=" => value == operand,
               "<=" => value <= operand,
               ">=" => value >= operand,
               ">" => value > operand,
               "<" => value < operand,
               _ => unreachable!(/* REGEX_VARS only allows the operators above */),
-            }
-          } else {
-            true
+            };
           }
+          true
         };
         conditions.push_back(Box::new(condition));
         Self::pattern_for_number_capture(&projected_from)
@@ -90,7 +86,6 @@ impl RegexGINA {
 
     let compiled = Regex::new(&with_replacements)?;
 
-    // Look up an index to get the index from the Captures that corresponds to the index
     let mut positional_projections = vec![0];
     for (index, cap) in compiled.capture_names().enumerate() {
       if index == 0 {
@@ -162,8 +157,9 @@ impl RegexGINA {
     })
   }
 
+  // This must be consistent with GENERATED_NAMED_CAPTURE_NAME
   fn generate_named_capture_name() -> String {
-    format!("LQ{}", random_id(8)) // This must be consistent with GENERATED_NAMED_CAPTURE_NAME
+    format!("LQ{}", random_id(8)) // 8 makes chance of two collisions approx 1/2.8e12
   }
 
   fn group_values_by_key(hashmap: &HashMap<String, String>) -> HashMap<String, Vec<String>> {
@@ -182,8 +178,8 @@ impl RegexGINA {
   }
 
   fn pattern_for_string_capture(capture_name: &str) -> String {
-    // This pattern MIGHT also need to capture underscores if a good example can be found for it.
-    format!(r"(?<{capture_name}>[\w'`-](?:[ \w'`-]*[\w'`-]+)?)") // ensures {S} never ends in a space
+    // TODO: This pattern MIGHT also need to capture underscores if a good example can be found for it.
+    format!(r"(?<{capture_name}>[\w'`-](?:[ \w'`-]*[\w'`-])?)") // ensures {S} never ends in a space
   }
 
   fn pattern_for_character_name_capture(capture_name: &str) -> String {
@@ -221,11 +217,7 @@ impl Index<&str> for CapturesGINA {
     if key == "C" {
       return &self.character_name;
     }
-    if let Some(value) = self.named_captures.get(&key) {
-      value
-    } else {
-      &NO_VALUE
-    }
+    self.named_captures.get(&key).unwrap_or(&NO_VALUE)
   }
 }
 

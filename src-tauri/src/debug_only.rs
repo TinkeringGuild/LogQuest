@@ -1,6 +1,10 @@
+/// This file contains only code that is available in debug builds of LogQuest.
 use crate::cli;
+use crate::common::timestamp::Timestamp;
 use crate::config;
 use crate::gina::xml::load_gina_triggers_from_file_path;
+use crate::logs::log_event_broadcaster::LogEventBroadcaster;
+use crate::logs::log_reader::LogReader;
 use anyhow::bail;
 use std::{fs, path::PathBuf};
 use tracing::error;
@@ -8,9 +12,39 @@ use tracing::info;
 use ts_rs::TS as _;
 
 #[cfg(debug_assertions)]
-pub fn convert_gina(path: &PathBuf, format: cli::ConvertGinaFormat) -> anyhow::Result<()> {
-  use crate::common::timestamp::Timestamp;
+pub fn tail(logfile_path: &std::path::Path) -> anyhow::Result<()> {
+  info!("In tail");
+  let rt = tokio::runtime::Runtime::new().unwrap();
+  let mut fs_events = LogEventBroadcaster::new(&logfile_path)?;
+  fs_events.start()?;
+  let fs_event_rx = fs_events.subscribe();
 
+  let reader = LogReader::start(rt.handle().to_owned(), &logfile_path, fs_event_rx);
+  let mut rx = reader.subscribe();
+
+  info!("Spawning task");
+  rt.spawn(async move {
+    let sleep_secs = 30;
+    info!("Sleeping for {sleep_secs} seconds, then stopping the log reader");
+    tokio::time::sleep(std::time::Duration::from_secs(sleep_secs)).await;
+    info!("Stopping log reader now");
+    reader.stop();
+  });
+
+  rt.block_on(async move {
+    loop {
+      tokio::select! {
+          line = rx.recv() => {
+              info!("{line:#?}");
+          }
+      }
+    }
+  });
+  Ok(())
+}
+
+#[cfg(debug_assertions)]
+pub fn convert_gina(path: &PathBuf, format: cli::ConvertGinaFormat) -> anyhow::Result<()> {
   let from_gina = load_gina_triggers_from_file_path(path)?;
   match format {
     cli::ConvertGinaFormat::GinaInternal => {
