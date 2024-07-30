@@ -15,6 +15,9 @@ lazy_static::lazy_static! {
   static ref GENERATED_NAMED_CAPTURE_NAME: Regex = Regex::new(r"^LQ[A-Z0-9]{8}$").unwrap();
 }
 
+type ConditionsList = LinkedList<Box<dyn Fn(&regex::Captures) -> bool + Send + Sync + 'static>>;
+struct Conditions(ConditionsList);
+
 #[derive(Debug)]
 pub struct RegexGINA {
   raw: String,
@@ -24,15 +27,10 @@ pub struct RegexGINA {
   conditions: Conditions,
 }
 
-type ConditionsList = LinkedList<Box<dyn Fn(&regex::Captures) -> bool + Send + 'static>>;
-
-struct Conditions(ConditionsList);
-
-impl std::fmt::Debug for Conditions {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    write!(f, "Conditions(len={})", self.0.len())?;
-    Ok(())
-  }
+pub struct CapturesGINA {
+  character_name: String,
+  positional_captures: Vec<Option<String>>,
+  named_captures: HashMap<String, String>,
 }
 
 impl RegexGINA {
@@ -60,7 +58,7 @@ impl RegexGINA {
         let projected_to = projected_name.as_str().to_uppercase();
         named_projections.insert(projected_from.clone(), projected_to.clone());
         let condition =
-          Self::condition_for_numeric_constraints(operator, operand, projected_from.clone());
+          Self::create_condition_for_numeric_constraints(operator, operand, projected_from.clone());
         conditions.push_back(Box::new(condition));
         Self::pattern_for_number_capture(&projected_from)
       } else if let Some(projected_to) = captures.get(2) {
@@ -107,7 +105,7 @@ impl RegexGINA {
     })
   }
 
-  pub fn test(&self, haystack: &str, character_name: &str) -> Option<CapturesGINA> {
+  pub fn check(&self, haystack: &str, character_name: &str) -> Option<CapturesGINA> {
     let direct_captures: regex::Captures = match self.compiled.captures(haystack) {
       Some(captures) => captures,
       None => return None,
@@ -174,17 +172,17 @@ impl RegexGINA {
     format!(r"(?<{}>{})", capture_name, r"[A-Za-z]{3,15}") // On P99, 3-letter toon names do exist
   }
 
-  fn condition_for_numeric_constraints(
+  fn create_condition_for_numeric_constraints(
     operator: String,
     operand: i64,
     projected_from: String,
   ) -> impl Fn(&regex::Captures) -> bool + Send + 'static {
     move |caps: &regex::Captures| {
-      Self::test_numeric_constraints(operator.clone(), operand, projected_from.clone(), caps)
+      Self::check_numeric_constraints(operator.clone(), operand, projected_from.clone(), caps)
     }
   }
 
-  fn test_numeric_constraints(
+  fn check_numeric_constraints(
     operator: String,
     operand: i64,
     projected_from: String,
@@ -206,12 +204,6 @@ impl RegexGINA {
     }
     true
   }
-}
-
-pub struct CapturesGINA {
-  character_name: String,
-  positional_captures: Vec<Option<String>>,
-  named_captures: HashMap<String, String>,
 }
 
 impl Index<usize> for CapturesGINA {
@@ -274,6 +266,13 @@ impl<'de> Deserialize<'de> for RegexGINA {
 impl Clone for RegexGINA {
   fn clone(&self) -> Self {
     RegexGINA::from_str(&self.raw).unwrap() // unwrap is safe since raw has been compiled before
+  }
+}
+
+impl std::fmt::Debug for Conditions {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    write!(f, "Conditions(len={})", self.0.len())?;
+    Ok(())
   }
 }
 
@@ -483,7 +482,7 @@ mod tests {
 
     let rg = RegexGINA::from_str(pattern).expect("Invalid regex pattern");
     let result = rg
-      .test(text, TEST_CHARACTER_NAME)
+      .check(text, TEST_CHARACTER_NAME)
       .expect("RegexGINA did not match!");
 
     assert_eq!(result[1], "one");
@@ -496,14 +495,14 @@ mod tests {
   fn assert_pattern_does_not_match(pattern: &str, texts: &[&str]) {
     let rg = RegexGINA::from_str(pattern).expect("Invalid regex pattern");
     for text in texts {
-      assert!(rg.test(*text, TEST_CHARACTER_NAME).is_none());
+      assert!(rg.check(*text, TEST_CHARACTER_NAME).is_none());
     }
   }
 
   fn assert_pattern_matches(pattern: &str, text: &str, expectations: &[(&str, &str)]) {
     let rg = RegexGINA::from_str(pattern).expect("Invalid regex pattern");
     let result = rg
-      .test(text, TEST_CHARACTER_NAME)
+      .check(text, TEST_CHARACTER_NAME)
       .expect("RegexGINA did not match!");
     for (key, value) in expectations {
       assert_eq!(result[*key], *value);

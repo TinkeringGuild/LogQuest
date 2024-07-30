@@ -17,7 +17,7 @@ pub fn launch(app_state: AppState) {
     .run(tauri::generate_context!());
 
   if let Err(e) = result {
-    fatal_error(&e.to_string());
+    fatal_error(e);
   }
 }
 

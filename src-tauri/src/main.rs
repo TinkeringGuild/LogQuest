@@ -3,6 +3,7 @@
 #[cfg(debug_assertions)]
 mod debug_only;
 
+mod audio;
 mod cli;
 mod commands;
 mod common;
@@ -38,6 +39,8 @@ fn main() {
       logs_dir,
     }) => start(config_dir, logs_dir),
 
+    Commands::PrintAudioDevices => print_audio_devices(),
+
     #[cfg(debug_assertions)]
     Commands::TS => debug_only::generate_typescript(),
 
@@ -48,7 +51,7 @@ fn main() {
     Commands::ConvertGINA { file, format } => debug_only::convert_gina(&file, format),
   };
   if let Err(e) = result {
-    common::fatal_error(&format!("{:?}", e));
+    fatal_error(format!("{:?}", e));
   }
 }
 
@@ -65,10 +68,23 @@ fn start(
   };
 
   if let Err(e) = reactor::start(&logs_dir) {
-    fatal_error(&e.to_string());
+    fatal_error(e);
   }
 
   let app_state = AppState::init_from_config(config)?;
   ui::launch(app_state);
   Ok(())
+}
+
+fn print_audio_devices() -> ! {
+  let devices = audio::get_device_names();
+  if devices.is_empty() {
+    fatal_error("No audio devices found!");
+  }
+  println!("\nAudio devices detected:\n");
+  for device_name in devices.iter() {
+    println!(" - {device_name}");
+  }
+  println!("");
+  std::process::exit(0);
 }

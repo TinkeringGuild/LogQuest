@@ -2,8 +2,24 @@ use clap::{command, Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
 
 pub(crate) fn cmd() -> Commands {
-  let cli = CLI::parse();
-  cli.command.unwrap_or_else(default_command)
+  if let Ok(cli) = CLI::try_parse() {
+    return cli.command.unwrap_or_else(default_command); // the ...or_else case happens when called with zero args
+  }
+
+  // To support passing "start" subcommand params without specifying "start" as the first CLI arg, the
+  // logic needs to try parsing the CLI with "start" prepended to the params list.
+  let mut args: Vec<String> = std::env::args().collect();
+  args.insert(1, "start".into()); // the 0th index is the program path
+  if let Ok(cli) = CLI::try_parse_from(args.iter()) {
+    return cli
+      .command
+      .expect(r#""start" was inserted into args! The command should be "start"!"#);
+  }
+
+  // Since neither parse attempt worked, call CLI::parse() again and it let exit the program for us
+  // and report the help text normally.
+  CLI::parse();
+  unreachable!();
 }
 
 #[derive(Parser)]
@@ -22,10 +38,14 @@ pub(crate) enum Commands {
   /// Start LogQuest normally
   Start(StartCommand),
 
+  /// Prints out all detected audio devices
+  PrintAudioDevices,
+
   /// (DEBUG BUILDS ONLY) Generate and save TypeScript type definition files
   #[cfg(debug_assertions)]
   TS,
 
+  /// (DEBUG BUILDS ONLY) Specify a file path to watch filesystem create/modify/delete events
   #[cfg(debug_assertions)]
   Tail { file: PathBuf },
 
@@ -42,6 +62,15 @@ pub(crate) enum Commands {
   },
 }
 
+#[cfg(debug_assertions)]
+#[derive(ValueEnum, Debug, Clone)]
+pub(crate) enum ConvertGinaFormat {
+  JSON,
+  Internal,
+  GinaInternal,
+  GinaJSON,
+}
+
 #[derive(Parser, Debug, Clone)]
 pub(crate) struct StartCommand {
   #[arg(long = "config-dir", short = 'C')]
@@ -53,21 +82,12 @@ pub(crate) struct StartCommand {
   pub(crate) logs_dir: Option<PathBuf>,
 }
 
-#[test]
-fn verify_cli() {
-  use clap::CommandFactory;
-  CLI::command().debug_assert();
-}
-
 fn default_command() -> Commands {
   Commands::Start(StartCommand::parse_from(std::env::args()))
 }
 
-#[cfg(debug_assertions)]
-#[derive(ValueEnum, Debug, Clone)]
-pub(crate) enum ConvertGinaFormat {
-  JSON,
-  Internal,
-  GinaInternal,
-  GinaJSON,
+#[test]
+fn verify_cli() {
+  use clap::CommandFactory;
+  CLI::command().debug_assert();
 }

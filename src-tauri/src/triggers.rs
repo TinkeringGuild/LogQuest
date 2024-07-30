@@ -5,8 +5,9 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 
 lazy_static::lazy_static! {
-  /// This matches strings that have vars in the form of ${}
-  static ref TEMPLATE_VARS: Regex = Regex::new(r"\$\{\s*([\w_-]+)\s*\}").unwrap();
+  static ref TEMPLATE_VARS: Regex = Regex::new(r"\$\{\s*C\s*\}").unwrap();
+  // /// This matches strings that have vars in the form of ${}
+  // static ref TEMPLATE_VARS: Regex = Regex::new(r"\$\{\s*([\w_-]+)\s*\}").unwrap();
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -96,7 +97,7 @@ impl Trigger {
   pub fn captures(&self, line: &str, char_name: &str) -> Option<CapturesGINA> {
     for matcher in self.filter.iter() {
       if let matchers::Matcher::GINA(regex_gina) = matcher {
-        if let Some(captures_gina) = regex_gina.test(line, char_name) {
+        if let Some(captures_gina) = regex_gina.check(line, char_name) {
           return Some(captures_gina);
         }
       }
@@ -145,11 +146,16 @@ impl TimerTag {
   }
 }
 
-// TODO: WHEN I IMPLEMENT {L}, I NEED TO MAKE SURE IT HAVE \p{L} BEFORE IT
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TemplateString {
   tmpl: String,
   param_names: Vec<String>,
+}
+
+impl TemplateString {
+  pub fn render(&self, char_name: &str) -> String {
+    TEMPLATE_VARS.replace_all(&self.tmpl, char_name).to_string()
+  }
 }
 
 impl From<&str> for TemplateString {

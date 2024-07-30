@@ -10,7 +10,7 @@ pub(crate) fn path_string(path: &Path) -> String {
   path.to_string_lossy().to_string()
 }
 
-pub(crate) fn random_id(length: u16) -> String {
+pub(crate) fn random_id(length: u8) -> String {
   const RANDOM_ID_CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
   let mut rng = rand::thread_rng();
   (0..length)
@@ -21,8 +21,9 @@ pub(crate) fn random_id(length: u16) -> String {
     .collect()
 }
 
-pub(crate) fn fatal_error(message: &str) -> ! {
-  tracing::error!(message);
+pub(crate) fn fatal_error<T: ToString>(message: T) -> ! {
+  let message: String = message.to_string();
+  tracing::error!("{}", message);
   std::process::exit(2);
 }
 

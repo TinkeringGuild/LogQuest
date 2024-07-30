@@ -5,11 +5,47 @@ use crate::config;
 use crate::gina::xml::load_gina_triggers_from_file_path;
 use crate::logs::log_event_broadcaster::LogEventBroadcaster;
 use crate::logs::log_reader::LogReader;
+use crate::{matchers, triggers};
 use anyhow::bail;
 use std::{fs, path::PathBuf};
 use tracing::error;
 use tracing::info;
 use ts_rs::TS as _;
+
+#[cfg(debug_assertions)]
+pub fn test_trigger_group() -> triggers::TriggerGroup {
+  let now = Timestamp::now;
+
+  fn re(s: &str) -> matchers::Matcher {
+    matchers::Matcher::GINA(crate::gina::regex::RegexGINA::from_str(s).unwrap())
+  }
+
+  let trigger = triggers::Trigger {
+    name: "Tells / Hail".to_owned(),
+    comment: None,
+    created_at: now(),
+    updated_at: now(),
+    enabled: true,
+    filter: vec![
+      re(r"^([A-Za-z]+) -> {C}: (.+)$"),
+      re(r"^([A-Za-z]+) says, 'Hail, {C}'$"),
+    ],
+    effects: vec![
+      triggers::TriggerEffect::PlayAudioFile(Some(
+        "/home/j/Downloads/sound effects/hail/hail-exclaim-callum.ogg".into(),
+      )),
+      triggers::TriggerEffect::OverlayMessage("💬${1}: ${2}".into()),
+    ],
+  };
+
+  triggers::TriggerGroup {
+    name: "Test".to_owned(),
+    children: vec![triggers::TriggerGroupDescendant::T(trigger)],
+    comment: None,
+    created_at: now(),
+    updated_at: now(),
+  }
+}
 
 #[cfg(debug_assertions)]
 pub fn tail(log_file_path: &std::path::Path) -> anyhow::Result<()> {
