@@ -32,10 +32,11 @@ pub fn test_trigger_group() -> triggers::TriggerGroup {
       re(r"^([A-Za-z]+) says, 'Hail, {C}'$"),
     ],
     effects: vec![
-      triggers::TriggerEffect::PlayAudioFile(Some(
-        "/home/j/Downloads/sound effects/hail/hail-exclaim-callum.ogg".into(),
-      )),
-      triggers::TriggerEffect::OverlayMessage("💬${1}: ${2}".into()),
+      triggers::TriggerEffect::TextToSpeech("Hail, ${C}!".into()),
+      // triggers::TriggerEffect::PlayAudioFile(Some(
+      //   "/home/j/Downloads/sound effects/hail/hail-exclaim-callum.ogg".into(),
+      // )),
+      // triggers::TriggerEffect::OverlayMessage("💬${1}: ${2}".into()),
     ],
   };
 

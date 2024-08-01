@@ -13,6 +13,7 @@ mod matchers;
 mod reactor;
 mod state;
 mod triggers;
+mod tts;
 mod ui;
 
 use crate::state::config;

@@ -8,6 +8,7 @@ use crate::{
   },
   state::state_handle::StateHandle,
   triggers::{TriggerEffect, TriggerGroup, TriggerGroupDescendant},
+  tts::Speak,
 };
 use anyhow::bail;
 use std::collections::LinkedList;
@@ -23,6 +24,7 @@ struct EventLoop {
   reactor_tx: mpsc::Sender<ReactorEvent>,
   reactor_rx: mpsc::Receiver<ReactorEvent>,
   mixer: AudioMixer,
+  t2s_tx: mpsc::Sender<Speak>,
   state: StateHandle,
 }
 
@@ -90,12 +92,15 @@ impl EventLoop {
     reactor_rx: mpsc::Receiver<ReactorEvent>,
     state: StateHandle,
   ) -> Self {
+    let t2s_tx = create_tts_engine(state.clone());
+    let mixer = AudioMixer::new();
     Self {
       state,
       log_events,
       reactor_tx,
       reactor_rx,
-      mixer: AudioMixer::new(),
+      t2s_tx,
+      mixer,
     }
   }
 
@@ -213,7 +218,9 @@ impl EventLoop {
   fn send(&self, event: ReactorEvent) {
     let tx = self.reactor_tx.clone();
     spawn(async move {
-      let _ = tx.send(event).await;
+      if let Err(_) = tx.send(event).await {
+        error!("Tried to send a message to the Reactor but its channel is closed!");
+      }
     });
   }
 
@@ -222,6 +229,12 @@ impl EventLoop {
       TriggerEffect::PlayAudioFile(Some(file_path)) => {
         if let Err(e) = self.mixer.play_file(&file_path.render(&character.name)) {
           error!("Error playing file! {e:?}");
+        }
+      }
+      TriggerEffect::TextToSpeech(template) => {
+        let message = template.render(&character.name);
+        if let Err(_) = self.t2s_tx.send(Speak::text(message.clone())).await {
+          error!(r#"Text-to-Speech channel closed! Ignoring TTS message: "{message}""#);
         }
       }
       _ => {}
@@ -250,6 +263,17 @@ async fn react_to_active_character_change(
   }
   info!("Active character change detector stopping");
   active_character_detector.stop();
+}
+
+fn create_tts_engine(state: StateHandle) -> mpsc::Sender<Speak> {
+  let (tx, rx) = mpsc::channel::<Speak>(100);
+  if let Err(e) = crate::tts::spawn(state, rx) {
+    // If TTS does not initialize, the receiver will be closed, so attempts to send messages will
+    // result in a send error. This is an acceptable failure mode. Errors are printed if the
+    // messages get dropped.
+    error!("Could not initialize Text-to-Speech engine! Feature will be disabled. Error: {e:?}");
+  }
+  tx
 }
 
 fn idle_line_chan() -> (Option<broadcast::Sender<Line>>, broadcast::Receiver<Line>) {

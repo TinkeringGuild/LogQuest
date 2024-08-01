@@ -12,24 +12,30 @@ LogQuest will always remain compatible with the rules of Project 1999.
 
 ## How to run
 
-At the moment there are no release binaries published.
+At the moment there are no release binaries published. LogQuest is not ready for that yet.
 
-You will need to have Rust, Tauri and NPM installed on your system to run LogQuest. Follow [the Tauri Prerequisites guide](https://tauri.app/v1/guides/getting-started/prerequisites) for instructions on how to set that up for your system.
+### Build dependencies
 
-### Debian dependencies
+You will need to have Rust, Tauri and NPM installed on your system to build LogQuest. Follow the [Tauri Prerequisites Guide](https://tauri.app/v1/guides/getting-started/prerequisites) for instructions on how to set that up for your system.
 
-On a Debian system, you will probably need to install (at least) these dependencies:
+LogQuest uses the cross-platform [tts](https://crates.io/crates/tts) crate for text-to-speech.
 
-    sudo apt install librust-pangocairo-dev librust-atk-dev libjavascriptcoregtk-4.0-dev librust-gdk-pixbuf-dev librust-gdk-sys-dev libwebkit2gtk-4.0-dev
+Building on Linux requires having `speech-dispatcher` v0.11 installed. This should be available in your package manager. To build on Arch Linux, you simply need to `pacman -S speech-dispatcher`. If you prefer using Nix packages and have Nix setup properly to integrate with your C/C++ compiler environment variables, you can probably install the [speechd](https://search.nixos.org/packages?from=0&size=50&sort=relevance&type=packages&query=speech-dispatcher) Nix package.
 
-### Running the desktop app in development mode
+For building on Windows or macOS, you *might* need some first-party developer tools installed to build LogQuest using the platform-specific TTS engine. This is unconfirmed at the moment; if you resolve build problems on these systems, please open an Issue with what you learned so this README can be updated with the correct information.
 
-Once everything is installed, you simply run:
+### Running the desktop app
+
+Once everything is installed, you can simply run:
 
 ```
 cd LogQuest
 npm run tauri dev
 ```
+
+This builds the program in `debug` mode, launches the application, and automatically reloads/restarts the application when TypeScript or Rust files are changed. It is a very convenient development environment, so feel free to tinker!
+
+To build a `release` binary of LogQuest, you run `npm run tauri build`.
 
 # The Tinkering Guild
 

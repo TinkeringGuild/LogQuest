@@ -39,6 +39,7 @@ zip = { version = "2.1.3", default-features = false, features = ["deflate"] }
 notify = { version = "6", default-features = false, features = [
   "macos_kqueue",
 ] }
+tts = "0.26.3"
 
 [build-dependencies]
 tauri-build = { version = "1", features = [] }
