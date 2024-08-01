@@ -1,8 +1,6 @@
 use super::config::LogQuestConfig;
-use crate::{
-  debug_only::test_trigger_group, logs::active_character_detection::Character,
-  triggers::TriggerGroup,
-};
+use crate::logs::active_character_detection::Character;
+use crate::triggers::TriggerGroup;
 use std::sync::Mutex;
 
 pub struct StateTree {
@@ -34,7 +32,7 @@ impl StateTree {
 impl Default for ReactorState {
   fn default() -> Self {
     Self {
-      trigger_groups: vec![test_trigger_group()],
+      trigger_groups: default_trigger_groups(),
       current_character: None,
     }
   }
@@ -46,4 +44,14 @@ impl Default for OverlayState {
       overlay_editable: false,
     }
   }
+}
+
+#[cfg(not(debug_assertions))]
+fn default_trigger_groups() -> Vec<TriggerGroup> {
+  vec![]
+}
+
+#[cfg(debug_assertions)]
+fn default_trigger_groups() -> Vec<TriggerGroup> {
+  vec![crate::debug_only::test_trigger_group()]
 }
