@@ -15,20 +15,33 @@ pub struct LogQuestConfig {
   #[serde(skip)]
   #[ts(skip)]
   pub config_file_path: PathBuf,
+
+  /// By default the logs dir can be inferred from the everquest_directory
+  /// but the Logs dir can be overridden at the CLI, so it should always
+  /// be accessed here for the correct value.
+  #[serde(skip)]
+  #[ts(skip)]
+  pub logs_dir_path: Option<PathBuf>,
 }
 
 impl LogQuestConfig {
-  fn new_with_path(config_file_path: &Path) -> Self {
+  fn new_with_config_file_path(config_file_path: &Path) -> Self {
     LogQuestConfig {
       everquest_directory: None,
       config_file_path: config_file_path.to_owned(),
+      logs_dir_path: None,
     }
   }
 
-  fn load_from_file_path(path: &Path) -> anyhow::Result<Self> {
+  fn load_from_file_path(path: &Path, logs_dir_override: &Option<PathBuf>) -> anyhow::Result<Self> {
     let raw_config_file = fs::read_to_string(path)?;
     let mut config: LogQuestConfig = toml::from_str(&raw_config_file)?;
     config.config_file_path = path.to_owned();
+    config.logs_dir_path = match (config.everquest_directory.as_deref(), logs_dir_override) {
+      (_, Some(logs_dir)) => Some(logs_dir.to_owned()),
+      (Some(eq_dir), _) => Some(default_logs_dir_from_eq_dir(&PathBuf::from(eq_dir))),
+      _ => None,
+    };
     Ok(config)
   }
 
@@ -49,26 +62,25 @@ impl LogQuestConfig {
     file.write_all(raw_toml.as_bytes())?;
     Ok(())
   }
-
-  pub fn logs_dir(&self) -> Option<PathBuf> {
-    self
-      .everquest_directory
-      .as_ref()
-      .and_then(|dir| Some([dir, "Logs"].iter().collect()))
-  }
 }
 
-pub fn load_or_create_app_config_from_dir(config_dir: &PathBuf) -> anyhow::Result<LogQuestConfig> {
+pub fn load_or_create_app_config_from_dir(
+  config_dir: &PathBuf,
+  logs_dir_override: &Option<PathBuf>,
+) -> anyhow::Result<LogQuestConfig> {
   let config_path = config_dir.join(&CONFIG_FILE_NAME);
-
   let config = if config_path.exists() {
-    LogQuestConfig::load_from_file_path(&config_path)?
+    LogQuestConfig::load_from_file_path(&config_path, logs_dir_override)?
   } else {
-    let config = LogQuestConfig::new_with_path(&config_path);
+    let config = LogQuestConfig::new_with_config_file_path(&config_path);
     config.save()?;
     config
   };
   Ok(config)
+}
+
+fn default_logs_dir_from_eq_dir(eq_path: &Path) -> PathBuf {
+  eq_path.join("Logs")
 }
 
 pub fn get_config_dir_with_optional_override(

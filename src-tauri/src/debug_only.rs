@@ -1,15 +1,16 @@
 /// This file contains only code that is available in debug builds of LogQuest.
-use crate::cli;
-use crate::common::timestamp::Timestamp;
-use crate::config;
-use crate::gina::xml::load_gina_triggers_from_file_path;
-use crate::logs::log_event_broadcaster::LogEventBroadcaster;
-use crate::logs::log_reader::LogReader;
-use crate::{matchers, triggers};
+use crate::{
+  cli,
+  common::timestamp::Timestamp,
+  gina::xml::load_gina_triggers_from_file_path,
+  logs::log_event_broadcaster::LogEventBroadcaster,
+  logs::log_reader::LogReader,
+  state::config,
+  {matchers, triggers},
+};
 use anyhow::bail;
 use std::{fs, path::PathBuf};
-use tracing::error;
-use tracing::info;
+use tracing::{error, info};
 use ts_rs::TS as _;
 
 #[cfg(debug_assertions)]

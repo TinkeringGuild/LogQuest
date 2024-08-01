@@ -7,7 +7,6 @@ mod audio;
 mod cli;
 mod commands;
 mod common;
-mod config;
 mod gina;
 mod logs;
 mod matchers;
@@ -16,9 +15,11 @@ mod state;
 mod triggers;
 mod ui;
 
+use crate::state::config;
 use cli::{Commands, StartCommand};
 use common::fatal_error;
-use state::AppState;
+use state::state_handle::StateHandle;
+use state::state_tree::StateTree;
 use std::path::PathBuf;
 use tracing_subscriber::EnvFilter;
 
@@ -60,19 +61,11 @@ fn start(
   logs_dir_override: Option<PathBuf>,
 ) -> anyhow::Result<()> {
   let config_dir = config::get_config_dir_with_optional_override(config_dir_override)?;
-  let config = config::load_or_create_app_config_from_dir(&config_dir)?;
+  let config = config::load_or_create_app_config_from_dir(&config_dir, &logs_dir_override)?;
+  let state_tree = StateTree::init_from_config(config)?;
+  let state_handle = StateHandle::new(state_tree);
 
-  let logs_dir = logs_dir_override.or_else(|| config.logs_dir());
-  let Some(logs_dir) = logs_dir else {
-    fatal_error("Your config file does not have an EverQuest directory, not did you specify the Logs dir path with -L");
-  };
-
-  if let Err(e) = reactor::start(&logs_dir) {
-    fatal_error(e);
-  }
-
-  let app_state = AppState::init_from_config(config)?;
-  ui::launch(app_state);
+  ui::launch(state_handle);
   Ok(())
 }
 

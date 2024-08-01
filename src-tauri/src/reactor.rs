@@ -1,48 +1,101 @@
-use crate::audio::AudioMixer;
-use crate::logs::active_character_detection::{ActiveCharacterDetector, Character};
-use crate::logs::log_event_broadcaster::LogEventBroadcaster;
-use crate::logs::log_reader::LogReader;
-use crate::logs::Line;
-use crate::triggers::{Trigger, TriggerEffect, TriggerGroup, TriggerGroupDescendant};
-use std::collections::LinkedList;
-use std::path::Path;
+use crate::{
+  audio::AudioMixer,
+  logs::{
+    active_character_detection::{ActiveCharacterDetector, Character},
+    log_event_broadcaster::LogEventBroadcaster,
+    log_reader::LogReader,
+    Line,
+  },
+  state::state_handle::StateHandle,
+  triggers::{TriggerEffect, TriggerGroup, TriggerGroupDescendant},
+};
+use anyhow::bail;
+use futures::future::join_all;
+use std::{collections::LinkedList, future::Future, pin::Pin};
 use tauri::async_runtime::spawn;
-use tauri::async_runtime::JoinHandle;
 use tokio::select;
 use tokio::sync::{broadcast, mpsc};
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
+
+/// This is intentionally high because the reactor can deadlock if the queue becomes full.
+const REACTOR_EVENT_QUEUE_DEPTH: usize = 5000;
+
+struct EventLoop {
+  log_events: LogEventBroadcaster,
+  reactor_tx: mpsc::Sender<ReactorEvent>,
+  reactor_rx: mpsc::Receiver<ReactorEvent>,
+  mixer: AudioMixer,
+  state: StateHandle,
+}
 
 #[derive(Debug)]
 enum ReactorEvent {
   SetActiveCharacter(Option<Character>),
+  ExecTriggerEffect {
+    effect: TriggerEffect,
+    character: Character,
+  },
+  Shutdown,
 }
 
-pub fn start(logs_dir: &Path) -> anyhow::Result<JoinHandle<()>> {
+type StopReactor = Box<dyn FnOnce() + 'static + Send + Sync>;
+
+pub fn start(state_handle: StateHandle) -> anyhow::Result<StopReactor> {
+  let Some(logs_dir) = state_handle.select_config(|config| &config.logs_dir_path) else {
+    bail!("No logs dir is available yet!");
+  };
   let log_events = LogEventBroadcaster::new(&logs_dir)?;
   let active_detector = ActiveCharacterDetector::start(log_events.subscribe());
-  let (reactor_tx, reactor_rx) = mpsc::channel::<ReactorEvent>(256);
+  let (reactor_tx, reactor_rx) = mpsc::channel::<ReactorEvent>(REACTOR_EVENT_QUEUE_DEPTH);
+
+  let reactor_tx_ = reactor_tx.clone();
   let _ = spawn(react_to_active_character_change(
+    state_handle.clone(),
     active_detector,
-    reactor_tx,
+    reactor_tx_,
   ));
-  let join_handle = spawn(run_event_loop(log_events, reactor_rx));
-  Ok(join_handle)
+
+  let join_handle = spawn(run_event_loop(
+    log_events,
+    reactor_tx.clone(),
+    reactor_rx,
+    state_handle,
+  ));
+
+  let reactor_tx_ = reactor_tx.clone();
+  let stopper = move || {
+    let rt = tauri::async_runtime::handle();
+    let _ = reactor_tx_.blocking_send(ReactorEvent::Shutdown);
+    if let Err(e) = rt.block_on(join_handle) {
+      error!("Error blocking on the reactor shutdown join handle! {e:?}");
+    }
+  };
+
+  Ok(Box::new(stopper))
 }
 
-async fn run_event_loop(log_events: LogEventBroadcaster, reactor_rx: mpsc::Receiver<ReactorEvent>) {
-  let event_loop = EventLoop::new(log_events, reactor_rx);
+async fn run_event_loop(
+  log_events: LogEventBroadcaster,
+  reactor_tx: mpsc::Sender<ReactorEvent>,
+  reactor_rx: mpsc::Receiver<ReactorEvent>,
+  state: StateHandle,
+) {
+  let event_loop = EventLoop::new(log_events, reactor_tx, reactor_rx, state);
+  // TODO: Create a startup sound to test the audio playback.
   event_loop.run().await;
 }
 
-struct EventLoop {
-  log_events: LogEventBroadcaster,
-  reactor_rx: mpsc::Receiver<ReactorEvent>,
-  mixer: AudioMixer,
-}
 impl EventLoop {
-  fn new(log_events: LogEventBroadcaster, reactor_rx: mpsc::Receiver<ReactorEvent>) -> Self {
+  fn new(
+    log_events: LogEventBroadcaster,
+    reactor_tx: mpsc::Sender<ReactorEvent>,
+    reactor_rx: mpsc::Receiver<ReactorEvent>,
+    state: StateHandle,
+  ) -> Self {
     Self {
+      state,
       log_events,
+      reactor_tx,
       reactor_rx,
       mixer: AudioMixer::new(),
     }
@@ -66,8 +119,6 @@ impl EventLoop {
 
     debug!("Initializing reactor event loop");
 
-    let mut current_character = None::<Character>;
-
     let mut log_reader: LogReader = LogReader::idle();
 
     // When there is no active LogReader, a temporary broadcast::Receiver<Line> must be
@@ -78,40 +129,43 @@ impl EventLoop {
     let mut line_chan: (Option<broadcast::Sender<Line>>, broadcast::Receiver<Line>) =
       idle_line_chan();
 
-    let tg = crate::debug_only::test_trigger_group();
-
     loop {
+      debug!("TICK...");
       select! {
         reactor_event = self.reactor_rx.recv() => {
           debug!("GOT REACTOR EVENT: {reactor_event:?}");
           match reactor_event {
             None => break,
+            Some(ReactorEvent::Shutdown) => {
+              debug!("Reactor shutting down");
+              break;
+            }
             Some(ReactorEvent::SetActiveCharacter(Some(new_char))) => {
               let new_log_reader = LogReader::start(&new_char.log_file_pathbuf(), self.log_events.subscribe());
               line_chan = (None, new_log_reader.subscribe());
               log_reader = new_log_reader;
-              current_character = Some(new_char);
+              self.state.with_reactor(|r| r.current_character = Some(new_char));
             }
             Some(ReactorEvent::SetActiveCharacter(None)) => {
               log_reader.stop();
               log_reader = LogReader::idle();
               line_chan = idle_line_chan();
-              current_character = None;
+              self.state.with_reactor(|r| r.current_character = None);
+            }
+            Some(ReactorEvent::ExecTriggerEffect{effect, character}) => {
+              self.exec_effect(&effect, &character).await;
             }
           }
         }
         line = line_chan.1.recv() => {
-          if let Some(Character { name, .. }) = &current_character {
-            match line {
-              Ok(line) => {
-                debug!("LINE: {:?}", line);
-                self.react_to_line(&line, &vec![&tg], &name).await;
-              }
-              Err(_recv_error) => {
-                // LINE_CHAN IS CLOSED! NEED TO DE-DUPLICATE LOOP RESET LOGIC
-              }
+          match line {
+            Ok(line) => {
+              debug!("LINE: {:?}", line);
+              self.react_to_line(&line).await;
             }
-
+            Err(_recv_error) => {
+              // LINE_CHAN IS CLOSED! NEED TO DE-DUPLICATE LOOP RESET LOGIC
+            }
           }
         }
       }
@@ -120,53 +174,56 @@ impl EventLoop {
     debug!("Event Loop finished");
   }
 
-  async fn react_to_line(&self, line: &Line, trigger_groups: &Vec<&TriggerGroup>, char_name: &str) {
-    for tg in trigger_groups.iter() {
-      self
-        .react_to_line_with_trigger_group(line, tg, char_name)
-        .await;
-    }
-  }
+  async fn react_to_line(&self, line: &Line) {
+    let mut futures_queue: LinkedList<Pin<Box<dyn Future<Output = _> + Send>>> = LinkedList::new();
 
-  // Async functions in Rust cannot be recursive (at least not without some serious complexity).
-  // This function descends the Trigger/TriggerGroup tree in a different way that
-  async fn react_to_line_with_trigger_group(
-    &self,
-    line: &Line,
-    trigger_group: &TriggerGroup,
-    char_name: &str,
-  ) {
-    let mut queue = LinkedList::from([trigger_group]);
-    // NOTE!
-    while let Some(dequeued_tg) = queue.pop_front() {
-      for tgd in dequeued_tg.children.iter() {
-        match tgd {
-          TriggerGroupDescendant::T(trigger) => {
-            self
-              .react_to_line_with_trigger(line, trigger, char_name)
-              .await;
-          }
-          TriggerGroupDescendant::TG(tg) => {
-            queue.push_back(tg);
+    self.state.with_reactor(|reactor_state| {
+      let trigger_groups = &reactor_state.trigger_groups;
+      let mut next_groups: LinkedList<&TriggerGroup> = LinkedList::from_iter(trigger_groups.iter());
+
+      let Some(character) = &reactor_state.current_character else {
+        warn!("Cannot process line! No current character detected!");
+        return;
+      };
+
+      while let Some(dequeued_tg) = next_groups.pop_front() {
+        for tgd in dequeued_tg.children.iter() {
+          match tgd {
+            TriggerGroupDescendant::T(trigger) => {
+              if !trigger.enabled {
+                continue;
+              }
+              if let Some(_captures) = trigger.captures(&line.content, &character.name) {
+                for effect in trigger.effects.iter() {
+                  debug!("TRIGGER EFFECT: {effect:?}");
+                  let send_future = self
+                    .reactor_tx
+                    // blocking_send is needed here because the mutex-locking with_reactor() function does
+                    // not accept an async callback. Using blocking_send here could lock the event loop if
+                    // the queue becomes too full, however using await would also cause the same problem.
+                    // The queue depth of the channel is made large to mitigate this risk.
+                    .send(ReactorEvent::ExecTriggerEffect {
+                      effect: effect.clone(),
+                      character: character.clone(),
+                    });
+                  futures_queue.push_back(Box::pin(send_future));
+                }
+              }
+            }
+            TriggerGroupDescendant::TG(tg) => {
+              next_groups.push_back(tg);
+            }
           }
         }
       }
-    }
+    });
+    join_all(futures_queue).await;
   }
 
-  async fn react_to_line_with_trigger(&self, line: &Line, trigger: &Trigger, char_name: &str) {
-    if let Some(_captures) = trigger.captures(&line.content, char_name) {
-      for effect in trigger.effects.iter() {
-        debug!("TRIGGER EFFECT: {effect:?}");
-        self.exec_effect(effect, char_name).await;
-      }
-    }
-  }
-
-  async fn exec_effect(&self, effect: &TriggerEffect, char_name: &str) {
+  async fn exec_effect(&self, effect: &TriggerEffect, character: &Character) {
     match effect {
       TriggerEffect::PlayAudioFile(Some(file_path)) => {
-        if let Err(e) = self.mixer.play_file(&file_path.render(char_name)) {
+        if let Err(e) = self.mixer.play_file(&file_path.render(&character.name)) {
           error!("Error playing file! {e:?}");
         }
       }
@@ -176,6 +233,7 @@ impl EventLoop {
 }
 
 async fn react_to_active_character_change(
+  state_handle: StateHandle,
   mut active_character_detector: ActiveCharacterDetector,
   tx: mpsc::Sender<ReactorEvent>,
 ) {
@@ -185,10 +243,13 @@ async fn react_to_active_character_change(
       _signal = active_character_detector.changed() => {
         let new_current_char = active_character_detector.current();
         info!("{:#?}", new_current_char);
-        match tx.send(ReactorEvent::SetActiveCharacter(new_current_char)).await {
+        match tx.send(ReactorEvent::SetActiveCharacter(new_current_char.clone())).await {
           Err(mpsc::error::SendError(_)) =>  break,
           _ => {}
         }
+        state_handle.with_reactor(|state| {
+          state.current_character = new_current_char;
+        });
       }
     }
   }

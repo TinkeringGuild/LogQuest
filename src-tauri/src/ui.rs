@@ -1,18 +1,23 @@
 use crate::{
   commands,
   common::{fatal_error, ternary},
-  state::AppState,
+  reactor,
+  state::state_handle::StateHandle,
 };
-use std::sync::{Mutex, MutexGuard};
 use tauri::{App, AppHandle, GlobalShortcutManager, Manager, Window, WindowBuilder, WindowEvent};
 use tracing::info;
 
 const TOGGLE_OVERLAY_ACCELERATOR: &str = "CommandOrControl+Alt+Shift+L";
 
-pub fn launch(app_state: AppState) {
+pub fn launch(state: StateHandle) {
   let result = tauri::Builder::default()
-    .manage(app_state)
-    .setup(setup)
+    .manage(state.clone())
+    .setup(move |app: &mut App| {
+      if let Err(e) = reactor::start(state) {
+        fatal_error(e);
+      }
+      setup(app)
+    })
     .invoke_handler(commands::handler())
     .run(tauri::generate_context!());
 
@@ -39,22 +44,10 @@ fn overlay_window_builder(app: &mut App) -> WindowBuilder {
     .skip_taskbar(true)
 }
 
-// fn select_state<F, T>(app: &mut App, f: F) -> T where F: FnOnce(&AppState) -> T { f(&app.state::<AppState>()) }
-
-fn select_mutex_value<F, T>(app: &mut App, f: F) -> T
-where
-  F: FnOnce(&AppState) -> &Mutex<T>,
-  T: Clone,
-{
-  let state = app.state::<AppState>();
-  let mutex = f(&state);
-  let value = mutex.lock().expect("mutex deadlocked?");
-  value.clone()
-}
-
 fn create_overlay_window(app: &mut App) -> tauri::Window {
   let overlay_window = overlay_window_builder(app).build().unwrap();
-  let is_editable = select_mutex_value(app, |state| &state.overlay_state.overlay_editable);
+  let state = app.state::<StateHandle>();
+  let is_editable = state.select_overlay(|overlay| &overlay.overlay_editable);
   overlay_window
     .set_ignore_cursor_events(!is_editable)
     .expect("Failed to set_ignore_cursor_events");
@@ -87,38 +80,24 @@ fn register_global_shortcut_manager(app: AppHandle) {
     .expect("Failed registering a global shortcut!");
 }
 
-fn set_locked_state_value<S, T, E>(app: AppHandle, selector: S, edit: E)
-where
-  S: FnOnce(&AppState) -> &Mutex<T>,
-  E: FnOnce(&MutexGuard<T>) -> T,
-{
-  let state = app.state::<AppState>();
-  let mutex = selector(&state);
-  let mut lock = mutex.lock().expect("mutex deadlocked?");
-  let new_value = edit(&lock);
-  *lock = new_value;
-}
-
 fn toggle_overlay_editable(app: AppHandle) {
   let handle = app.app_handle();
-  set_locked_state_value(
-    app,
-    |state: &AppState| &state.overlay_state.overlay_editable,
-    move |overlay_editable| {
-      let inverse = !**overlay_editable;
-      if let Some(overlay_window) = handle.get_window("overlay") {
-        let _ = overlay_window.emit("editable-changed", inverse);
+  let state = app.state::<StateHandle>();
+  state.with_overlay(move |overlay| {
+    let inverse = !overlay.overlay_editable;
+    overlay.overlay_editable = inverse;
+    if let Some(overlay_window) = handle.get_window("overlay") {
+      // TODO: Instead of an event, this should send a state change through the reducer
+      let _ = overlay_window.emit("editable-changed", inverse);
 
-        overlay_window
-          .set_ignore_cursor_events(!inverse) // set_ignore_cursor_events takes a bool opposite of how it's stored in AppState
-          .expect("Could not set_ignore_cursor_events!");
+      overlay_window
+        .set_ignore_cursor_events(!inverse) // set_ignore_cursor_events takes a bool opposite of how it's stored in OverlayState
+        .expect("Could not set_ignore_cursor_events!");
 
-        info!(
-          "Overlay editing {}",
-          ternary(inverse, "ENABLED", "DISABLED")
-        )
-      }
-      inverse
-    },
-  );
+      info!(
+        "Overlay editing {}",
+        ternary(inverse, "ENABLED", "DISABLED")
+      )
+    }
+  });
 }

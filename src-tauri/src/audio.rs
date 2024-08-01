@@ -1,11 +1,13 @@
+use crate::common::fatal_error;
 use anyhow::bail;
+use awedio::backends::CpalBackend;
+use awedio::manager::Manager;
 use cpal::traits::{DeviceTrait as _, HostTrait as _};
 use std::path::PathBuf;
 use std::thread;
+use tauri::async_runtime::spawn;
 use tokio::sync::mpsc;
-use tracing::{debug, error, info};
-
-use crate::common::fatal_error;
+use tracing::{debug, error};
 
 const AUDIO_MIXER_CHANNEL_SIZE: usize = 10;
 
@@ -30,7 +32,7 @@ impl AudioMixer {
     let join_handle = thread::Builder::new()
       .name("LogQuest AudioMixer".into())
       .spawn(move || mixer_loop(rx))
-      .expect("Cannot create AudioMixer thread!"); // thread-creation-failure is worthy of a panic
+      .expect("Cannot create AudioMixer thread!"); // panic-worthy
 
     Self {
       join_handle,
@@ -44,9 +46,9 @@ impl AudioMixer {
       bail!("Sound file does not exist: {}", file_path.display());
     }
 
-    let sender_ = self.sender.clone();
-    tokio::spawn(async move {
-      if let Err(_send_error) = sender_.send(AudioMixerEvent::PlayFile(file_path)).await {
+    let sender = self.sender.clone();
+    spawn(async move {
+      if let Err(_send_error) = sender.send(AudioMixerEvent::PlayFile(file_path)).await {
         error!("Could not send PlayFile message to the AudioMixer!");
       }
     });
@@ -68,21 +70,29 @@ impl AudioMixer {
 }
 
 fn mixer_loop(mut rx: mpsc::Receiver<AudioMixerEvent>) {
+  // The CpalBackend value needs to be kept around for the audio engine to work.
+  let player: (Manager, CpalBackend) =
+    awedio::start().expect("Could not create the audio backend and manager!"); // panic-worthy
+
+  let mut manager = player.0;
+
   debug!("Starting AudioMixer event loop");
-  let (mut manager, _backend) = awedio::start().unwrap();
-  'start: loop {
-    loop {
-      match rx.blocking_recv() {
-        Some(AudioMixerEvent::Reset) => continue 'start,
-        Some(AudioMixerEvent::Terminate) | None => {
-          debug!("AudioMixer terminated");
-          return;
-        }
-        Some(AudioMixerEvent::PlayFile(next_file)) => {
-          info!("Playing audio file: {}", next_file.display());
-          let file = awedio::sounds::open_file(next_file);
-          let file = file.unwrap();
+  loop {
+    match rx.blocking_recv() {
+      Some(AudioMixerEvent::Reset) => {
+        debug!("AudioMixer reset");
+        manager.clear()
+      }
+      Some(AudioMixerEvent::Terminate) | None => {
+        debug!("AudioMixer terminated");
+        return;
+      }
+      Some(AudioMixerEvent::PlayFile(next_file)) => {
+        if let Ok(file) = awedio::sounds::open_file(&next_file) {
+          debug!("Playing audio file: {}", next_file.display());
           manager.play(file);
+        } else {
+          error!("Could not open audio file: {}", next_file.display());
         }
       }
     }

@@ -1,11 +1,15 @@
-use crate::common::{duration::Duration, timestamp::Timestamp};
-use crate::gina::regex::CapturesGINA;
-use crate::matchers;
+use crate::{
+  common::{duration::Duration, timestamp::Timestamp},
+  gina::regex::CapturesGINA,
+  matchers,
+};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
 lazy_static::lazy_static! {
+
   static ref TEMPLATE_VARS: Regex = Regex::new(r"\$\{\s*C\s*\}").unwrap();
+
   // /// This matches strings that have vars in the form of ${}
   // static ref TEMPLATE_VARS: Regex = Regex::new(r"\$\{\s*([\w_-]+)\s*\}").unwrap();
 }

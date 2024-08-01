@@ -1,5 +1,3 @@
-use std::path::Path;
-
 use super::xml::load_gina_triggers_from_file_path;
 use super::{
   GINAEarlyEnder, GINAImport, GINATimerStartBehavior, GINATimerTrigger, GINATimerType, GINATrigger,
@@ -10,6 +8,7 @@ use crate::common::random_id;
 use crate::common::timestamp::Timestamp;
 use crate::{matchers, triggers};
 use anyhow::bail;
+use std::path::Path;
 
 #[allow(unused)]
 impl GINAImport {
