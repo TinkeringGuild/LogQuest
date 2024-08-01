@@ -17,7 +17,7 @@ mod tts;
 mod ui;
 
 use crate::state::config;
-use cli::{Commands, StartCommand};
+use cli::{Commands, StartCommand, TTSCommand};
 use common::fatal_error;
 use state::state_handle::StateHandle;
 use state::state_tree::StateTree;
@@ -43,8 +43,13 @@ fn main() {
 
     Commands::PrintAudioDevices => print_audio_devices(),
 
+    Commands::TTS(tts) => match tts {
+      TTSCommand::Speak { message, voice } => tts::speak_once(message, voice),
+      TTSCommand::ListVoices => tts::print_voices(),
+    },
+
     #[cfg(debug_assertions)]
-    Commands::TS => debug_only::generate_typescript(),
+    Commands::TypeScript => debug_only::generate_typescript(),
 
     #[cfg(debug_assertions)]
     Commands::Tail { file } => debug_only::tail(&file),

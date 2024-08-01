@@ -33,7 +33,7 @@ pub(crate) struct CLI {
   command: Option<Commands>,
 }
 
-#[derive(Debug, Subcommand, Clone)]
+#[derive(Subcommand, Debug, Clone)]
 pub(crate) enum Commands {
   /// Start LogQuest normally
   Start(StartCommand),
@@ -41,9 +41,14 @@ pub(crate) enum Commands {
   /// Prints out all detected audio devices
   PrintAudioDevices,
 
+  /// Utilities for tinkering with the LogQuest text-to-speech engine
+  #[command(subcommand)]
+  TTS(TTSCommand),
+
   /// (DEBUG BUILDS ONLY) Generate and save TypeScript type definition files
   #[cfg(debug_assertions)]
-  TS,
+  #[command(name = "typescript")]
+  TypeScript,
 
   /// (DEBUG BUILDS ONLY) Specify a file path to watch filesystem create/modify/delete events
   #[cfg(debug_assertions)]
@@ -73,13 +78,27 @@ pub(crate) enum ConvertGinaFormat {
 
 #[derive(Parser, Debug, Clone)]
 pub(crate) struct StartCommand {
-  #[arg(long = "config-dir", short = 'C')]
   /// Override the path to the LogQuest configuration directory
+  #[arg(long = "config-dir", short = 'C')]
   pub(crate) config_dir: Option<PathBuf>,
 
   /// Override the path to EverQuest's logs
   #[arg(long = "logs-dir", short = 'L')]
   pub(crate) logs_dir: Option<PathBuf>,
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub(crate) enum TTSCommand {
+  /// Speak a message with text-to-speech. You can specify a specific voice.
+  Speak {
+    /// Provide a quoted string to speak
+    message: String,
+    /// Specify a specific voice. Use "tts list-voices" subcommand to see available options.
+    #[arg(long)]
+    voice: Option<String>,
+  },
+  /// Prints out the available voices for your system's text-to-speech engine in CSV format
+  ListVoices,
 }
 
 fn default_command() -> Commands {
