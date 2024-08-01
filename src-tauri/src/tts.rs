@@ -2,26 +2,17 @@ use crate::{common::fatal_error, state::state_handle::StateHandle};
 use anyhow::bail;
 use std::thread;
 use tokio::sync::mpsc;
-use tracing::error;
+use tracing::{error, info};
 use tts::{Gender, Tts};
 
 #[derive(Debug, Clone)]
-pub struct Speak {
-  text: String,
-  interrupt: bool,
-  // voice_id: Option<String>,
-}
-impl Speak {
-  pub fn text(text: String) -> Self {
-    Speak {
-      text,
-      interrupt: false,
-      // voice_id: None,
-    }
-  }
+pub enum TTS {
+  Interrupt,
+  Speak { text: String, interrupt: bool },
+  SetVoice(String),
 }
 
-pub fn spawn(state_handle: StateHandle, rx: mpsc::Receiver<Speak>) -> anyhow::Result<()> {
+pub fn spawn(state_handle: StateHandle, rx: mpsc::Receiver<TTS>) -> anyhow::Result<()> {
   let t2s = tts::Tts::default()?;
   thread::Builder::new()
     .name("LogQuest Text-to-Speech".into())
@@ -29,18 +20,42 @@ pub fn spawn(state_handle: StateHandle, rx: mpsc::Receiver<Speak>) -> anyhow::Re
   Ok(())
 }
 
-fn thread_loop(mut t2s: Tts, _state_handle: StateHandle, mut rx: mpsc::Receiver<Speak>) {
-  let voices = t2s.voices();
-  if let Err(e) = voices {
-    error!("Could not load text-to-speech voices! Error: {e:?}");
-  };
+fn thread_loop(mut t2s: Tts, _state_handle: StateHandle, mut rx: mpsc::Receiver<TTS>) {
   // TODO: I should set voices into the state handle with a mutex lock on it while voices fetch.
-  while let Some(Speak {
-    text, interrupt, ..
-  }) = rx.blocking_recv()
-  {
-    if let Err(e) = t2s.speak(text.clone(), interrupt) {
-      error!(r#"Text-to-Speech engine FAILED to speak: "{text}" [ ERROR: {e:?} ]"#);
+  let voices = match t2s.voices() {
+    Ok(v) => v,
+    Err(e) => {
+      error!("Could not load text-to-speech voices! [ ERROR: {e:?} ]");
+      return;
+    }
+  };
+  loop {
+    match rx.blocking_recv() {
+      Some(TTS::Speak { text, interrupt }) => {
+        if let Err(e) = t2s.speak(text.clone(), interrupt) {
+          error!(r#"Text-to-Speech engine FAILED to speak: "{text}" [ ERROR: {e:?} ]"#);
+        }
+      }
+      Some(TTS::SetVoice(voice_id)) => {
+        // TODO: IF set_voice() IS CALLED ON THE TTS ENGINE WHILE IT IS SPEAKING, DOES THAT
+        // AFFECT THE CURRENT SPEECH OR DOES IT ONLY AFFECT NEW CALLS TO SPEAK?
+        let Some(voice) = voices.iter().find(|v| v.id() == voice_id) else {
+          error!("Tried setting voice to an unknown ID: {voice_id}");
+          continue;
+        };
+        if let Err(e) = t2s.set_voice(voice) {
+          error!(r#"Could not set voice to voice ID "{voice_id}" [ ERROR: {e:?} ]"#);
+        }
+      }
+      Some(TTS::Interrupt) => {
+        if let Err(e) = t2s.stop() {
+          error!("Could not stop the text-to-speech engine! [ ERROR: {e:?} ]");
+        }
+      }
+      None => {
+        info!("Text-to-Speech engine stopping (channel closed)");
+        return;
+      }
     }
   }
 }

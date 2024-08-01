@@ -8,7 +8,7 @@ use crate::{
   },
   state::state_handle::StateHandle,
   triggers::{TriggerEffect, TriggerGroup, TriggerGroupDescendant},
-  tts::Speak,
+  tts::TTS,
 };
 use anyhow::bail;
 use std::collections::LinkedList;
@@ -24,7 +24,7 @@ struct EventLoop {
   reactor_tx: mpsc::Sender<ReactorEvent>,
   reactor_rx: mpsc::Receiver<ReactorEvent>,
   mixer: AudioMixer,
-  t2s_tx: mpsc::Sender<Speak>,
+  t2s_tx: mpsc::Sender<TTS>,
   state: StateHandle,
 }
 
@@ -233,7 +233,14 @@ impl EventLoop {
       }
       TriggerEffect::TextToSpeech(template) => {
         let message = template.render(&character.name);
-        if let Err(_) = self.t2s_tx.send(Speak::text(message.clone())).await {
+        if let Err(_) = self
+          .t2s_tx
+          .send(TTS::Speak {
+            text: message.clone(),
+            interrupt: false,
+          })
+          .await
+        {
           error!(r#"Text-to-Speech channel closed! Ignoring TTS message: "{message}""#);
         }
       }
@@ -265,8 +272,8 @@ async fn react_to_active_character_change(
   active_character_detector.stop();
 }
 
-fn create_tts_engine(state: StateHandle) -> mpsc::Sender<Speak> {
-  let (tx, rx) = mpsc::channel::<Speak>(100);
+fn create_tts_engine(state: StateHandle) -> mpsc::Sender<TTS> {
+  let (tx, rx) = mpsc::channel::<TTS>(100);
   if let Err(e) = crate::tts::spawn(state, rx) {
     // If TTS does not initialize, the receiver will be closed, so attempts to send messages will
     // result in a send error. This is an acceptable failure mode. Errors are printed if the
