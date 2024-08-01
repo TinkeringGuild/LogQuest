@@ -10,15 +10,13 @@ use crate::{
   triggers::{TriggerEffect, TriggerGroup, TriggerGroupDescendant},
 };
 use anyhow::bail;
-use futures::future::join_all;
-use std::{collections::LinkedList, future::Future, pin::Pin};
+use std::collections::LinkedList;
 use tauri::async_runtime::spawn;
 use tokio::select;
 use tokio::sync::{broadcast, mpsc};
 use tracing::{debug, error, info, warn};
 
-/// This is intentionally high because the reactor can deadlock if the queue becomes full.
-const REACTOR_EVENT_QUEUE_DEPTH: usize = 5000;
+const REACTOR_EVENT_QUEUE_DEPTH: usize = 1000;
 
 struct EventLoop {
   log_events: LogEventBroadcaster,
@@ -144,12 +142,14 @@ impl EventLoop {
               let new_log_reader = LogReader::start(&new_char.log_file_pathbuf(), self.log_events.subscribe());
               line_chan = (None, new_log_reader.subscribe());
               log_reader = new_log_reader;
+              info!("Setting reactor state for new current character: {new_char:?}");
               self.state.with_reactor(|r| r.current_character = Some(new_char));
             }
             Some(ReactorEvent::SetActiveCharacter(None)) => {
               log_reader.stop();
               log_reader = LogReader::idle();
               line_chan = idle_line_chan();
+              info!("Setting reactor state to have no current character");
               self.state.with_reactor(|r| r.current_character = None);
             }
             Some(ReactorEvent::ExecTriggerEffect{effect, character}) => {
@@ -175,8 +175,6 @@ impl EventLoop {
   }
 
   async fn react_to_line(&self, line: &Line) {
-    let mut futures_queue: LinkedList<Pin<Box<dyn Future<Output = _> + Send>>> = LinkedList::new();
-
     self.state.with_reactor(|reactor_state| {
       let trigger_groups = &reactor_state.trigger_groups;
       let mut next_groups: LinkedList<&TriggerGroup> = LinkedList::from_iter(trigger_groups.iter());
@@ -196,17 +194,10 @@ impl EventLoop {
               if let Some(_captures) = trigger.captures(&line.content, &character.name) {
                 for effect in trigger.effects.iter() {
                   debug!("TRIGGER EFFECT: {effect:?}");
-                  let send_future = self
-                    .reactor_tx
-                    // blocking_send is needed here because the mutex-locking with_reactor() function does
-                    // not accept an async callback. Using blocking_send here could lock the event loop if
-                    // the queue becomes too full, however using await would also cause the same problem.
-                    // The queue depth of the channel is made large to mitigate this risk.
-                    .send(ReactorEvent::ExecTriggerEffect {
-                      effect: effect.clone(),
-                      character: character.clone(),
-                    });
-                  futures_queue.push_back(Box::pin(send_future));
+                  self.send(ReactorEvent::ExecTriggerEffect {
+                    effect: effect.clone(),
+                    character: character.clone(),
+                  });
                 }
               }
             }
@@ -217,7 +208,13 @@ impl EventLoop {
         }
       }
     });
-    join_all(futures_queue).await;
+  }
+
+  fn send(&self, event: ReactorEvent) {
+    let tx = self.reactor_tx.clone();
+    spawn(async move {
+      let _ = tx.send(event).await;
+    });
   }
 
   async fn exec_effect(&self, effect: &TriggerEffect, character: &Character) {
@@ -242,10 +239,8 @@ async fn react_to_active_character_change(
     select! {
       _signal = active_character_detector.changed() => {
         let new_current_char = active_character_detector.current();
-        info!("{:#?}", new_current_char);
-        match tx.send(ReactorEvent::SetActiveCharacter(new_current_char.clone())).await {
-          Err(mpsc::error::SendError(_)) =>  break,
-          _ => {}
+        if let Err(mpsc::error::SendError(_)) = tx.send(ReactorEvent::SetActiveCharacter(new_current_char.clone())).await {
+          break;
         }
         state_handle.with_reactor(|state| {
           state.current_character = new_current_char;
@@ -253,6 +248,7 @@ async fn react_to_active_character_change(
       }
     }
   }
+  info!("Active character change detector stopping");
   active_character_detector.stop();
 }
 
