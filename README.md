@@ -16,7 +16,7 @@ At the moment there are no release binaries published. LogQuest is not ready for
 
 ### Building LogQuest
 
-You will need to have Rust, Tauri CLI, and NPM installed on your system to build LogQuest (unless you use Docker/Podman on Linux, as mentioned below). Follow the [Tauri Prerequisites Guide](https://tauri.app/v1/guides/getting-started/prerequisites) for instructions on how to set those up for your system. If you prefer a different JavaScript package manager than NPM, such as Yarn or PNPM, those should work as well.
+You will need to have Rust and NPM installed on your system to build LogQuest (unless you use Docker/Podman on Linux, as mentioned below). Follow the [Tauri Prerequisites Guide](https://tauri.app/v1/guides/getting-started/prerequisites) for instructions on how to set those up for your system. If you prefer a different JavaScript package manager than NPM, such as Yarn or PNPM, those should work as well.
 
 See the documentation below for additional platform-specific dependencies.
 
@@ -48,30 +48,43 @@ The advantage of using this method is that all build dependencies are automatica
 In your `git clone`d directory of LogQuest, run...
 
 ```bash
-# This creates an image containing all files and dependencies
-podman build --file builder.dockerfile --tag log-quest-builder
+# This builds LogQuest inside a Docker/Podman image
+podman build --file builder.debian.dockerfile --tag log-quest-builder
 
-# Runs the BUILD script inside a container
-podman run --name build-log-quest log-quest-builder BUILD
+# Copy the file out of the image
+podman run --rm log-quest-builder cat LogQuest.zip > LogQuest.zip
 
-# Copies the ZIP file out of the container
-podman cp build-log-quest:/home/builder/LogQuest.zip LogQuest.zip
-
-# Cleans up the builder container and image
-podman rm build-log-quest
+# Deletes the image from your system
 podman rmi log-quest-builder
+
+# NOTE! You will still have the base image installed. To remove it as
+# well, get its "IMAGE ID" by running...
+podman images
+
+# ...and removing it specifically...
+podman rmi <PUT IMAGE ID HERE>
+
+# Alternatively, you can just remove all installed images:
+podman rmi --all
 ```
 
-#### Building for Linux without Docker/Podman
+If you use Docker, you'd run the same commands but replacing `podman` with `docker`.
 
-LogQuest uses the cross-platform [tts](https://crates.io/crates/tts) crate for text-to-speech.
+There is also a `builder.archlinux.dockerfile` that does the same thing but with Arch Linux as the base distro.
 
-On Linux, this depends on `speech-dispatcher` v0.11, an API abstraction over various other text-to-speech engines. By default, when you install `speech-dispatcher` with your distro package manager, you will probably get `festival` and/or `espeak-ng` backends installed as dependencies, though more options may exist for you to choose.
+#### Build dependencies for Linux without Docker/Podman
 
-On Arch Linux, you can install it with `pacman -S speech-dispatcher`.
+Below are the dependencies needed for Arch Linux and Debian...
 
-If you prefer using Nix packages and have Nix setup properly to integrate with your C/C++ compiler environment variables, you can probably install the [speechd](https://search.nixos.org/packages?from=0&size=50&sort=relevance&type=packages&query=speech-dispatcher) Nix package.
+``` bash
+# On Arch Linux
+pacman -S zip wget base-devel clang webkit2gtk npm speech-dispatcher
 
+# On Debian (and Debian variants, e.g. Ubuntu or Linux Mint)
+apt install file zip wget curl build-essential libssl-dev pkg-config libclang-dev libgtk-3-dev libwebkit2gtk-4.0-dev libasound2-dev libspeechd-dev speech-dispatcher libappimage-dev npm
+```
+
+With these installed, you should be able to run a development environment or build release binaries.
 
 # The Tinkering Guild
 
