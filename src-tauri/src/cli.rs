@@ -1,4 +1,4 @@
-use clap::{command, Parser, Subcommand, ValueEnum};
+use clap::{command, Parser, Subcommand};
 use std::path::PathBuf;
 
 pub(crate) fn cmd() -> Commands {
@@ -68,7 +68,7 @@ pub(crate) enum Commands {
 }
 
 #[cfg(debug_assertions)]
-#[derive(ValueEnum, Debug, Clone)]
+#[derive(clap::ValueEnum, Debug, Clone)]
 pub(crate) enum ConvertGinaFormat {
   JSON,
   Internal,
