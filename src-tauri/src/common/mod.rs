@@ -3,7 +3,17 @@ pub mod serializable_regex;
 pub mod timestamp;
 
 use rand::Rng;
+use serde::{Deserialize, Serialize};
 use std::path::Path;
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct UUID(String);
+
+impl UUID {
+  pub fn new() -> UUID {
+    UUID(::uuid::Uuid::new_v4().to_string())
+  }
+}
 
 pub(crate) fn path_string(path: &Path) -> String {
   let path = path.canonicalize().unwrap_or_else(|_| path.to_owned());

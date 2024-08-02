@@ -1,10 +1,10 @@
-use anyhow::anyhow;
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::io::Write as _;
 use std::path::{Path, PathBuf};
 use tracing::info;
 use ts_rs::TS;
+
+use crate::common::fatal_error;
 
 const CONFIG_FILE_NAME: &str = "LogQuest.toml";
 
@@ -23,16 +23,40 @@ pub struct LogQuestConfig {
   #[ts(skip)]
   pub logs_dir_path: Option<PathBuf>,
 }
-
 impl LogQuestConfig {
+  /// Given the config directory, load the LogQuestConfig from it or
+  /// create a new one on-disk and return it.
+  pub fn load_or_create_in_dir(
+    config_dir: &PathBuf,
+    logs_dir_override: &Option<PathBuf>,
+  ) -> anyhow::Result<LogQuestConfig> {
+    let config_path = config_dir.join(&CONFIG_FILE_NAME);
+    let config = if config_path.exists() {
+      LogQuestConfig::load_from_file_path(&config_path, logs_dir_override)?
+    } else {
+      let config = LogQuestConfig::new_with_config_file_path(&config_path);
+      config.save()?;
+      config
+    };
+    Ok(config)
+  }
+
+  /// Initializes a new LogQuestConfig for when none could be loaded from the filesystem
   fn new_with_config_file_path(config_file_path: &Path) -> Self {
+    if !config_file_path.exists() {
+      fatal_error(format!(
+        "Config file path does not exist! Path: {}",
+        config_file_path.display()
+      ));
+    }
     LogQuestConfig {
-      everquest_directory: None,
       config_file_path: config_file_path.to_owned(),
       logs_dir_path: None,
+      everquest_directory: None,
     }
   }
 
+  /// Loads a LogQuestConfig from the given path.
   fn load_from_file_path(path: &Path, logs_dir_override: &Option<PathBuf>) -> anyhow::Result<Self> {
     let raw_config_file = fs::read_to_string(path)?;
     let mut config: LogQuestConfig = toml::from_str(&raw_config_file)?;
@@ -59,44 +83,42 @@ impl LogQuestConfig {
       }
     }
     let mut file = fs::File::create(path)?; // overwrites file if it already exists
-    file.write_all(raw_toml.as_bytes())?;
+
+    std::io::Write::write_all(&mut file, raw_toml.as_bytes())?;
+
     Ok(())
   }
 }
 
-pub fn load_or_create_app_config_from_dir(
-  config_dir: &PathBuf,
-  logs_dir_override: &Option<PathBuf>,
-) -> anyhow::Result<LogQuestConfig> {
-  let config_path = config_dir.join(&CONFIG_FILE_NAME);
-  let config = if config_path.exists() {
-    LogQuestConfig::load_from_file_path(&config_path, logs_dir_override)?
-  } else {
-    let config = LogQuestConfig::new_with_config_file_path(&config_path);
-    config.save()?;
-    config
+/// By default, this uses the platform-specific conventional config directory as the parent
+/// directory of the config dir.
+///
+/// On Linux/macOS, this should be `$XDG_CONFIG_HOME` or `~/.config`
+/// On Windows, this should be `C:\Users\<Username>\AppData\Roaming`
+///
+/// Since the path can be overridden at the LQ CLI, this is a convenience method that takes
+/// the `Option` directly and decides whether how to use it.
+///
+/// This function also ensures the directory and any parent directories are created.
+pub fn get_config_dir_with_optional_override(path_override: Option<PathBuf>) -> PathBuf {
+  let config_dir = path_override.unwrap_or_else(default_config_dir);
+  if let Err(e) = fs::create_dir_all(&config_dir) {
+    fatal_error(format!(
+      "Creating config dir failed: {}  [ ERROR: {e:?} ]",
+      config_dir.display()
+    ));
+  }
+  config_dir
+}
+
+pub fn default_config_dir() -> PathBuf {
+  let Some(cfg_dir) = dirs::config_dir() else {
+    fatal_error("Could not determine the config directory. Please set the config directory manually with the --config-dir flag");
   };
-  Ok(config)
+  let app_name = env!("CARGO_PKG_NAME");
+  cfg_dir.join(app_name)
 }
 
 fn default_logs_dir_from_eq_dir(eq_path: &Path) -> PathBuf {
   eq_path.join("Logs")
-}
-
-pub fn get_config_dir_with_optional_override(
-  path_override: Option<PathBuf>,
-) -> anyhow::Result<PathBuf> {
-  let config_dir = match path_override {
-    Some(overridden_dir) => overridden_dir,
-    None => default_config_dir()?,
-  };
-  fs::create_dir_all(&config_dir)?;
-  Ok(config_dir)
-}
-
-pub fn default_config_dir() -> anyhow::Result<PathBuf> {
-  let mut cfg_dir = dirs::config_dir().ok_or_else(|| anyhow!("Could not determine the config directory. Please set the config directory manually with the --config-dir flag"))?;
-  let app_name = env!("CARGO_PKG_NAME");
-  cfg_dir.push(app_name);
-  Ok(cfg_dir)
 }

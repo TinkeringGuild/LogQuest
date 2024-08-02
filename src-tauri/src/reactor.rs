@@ -181,37 +181,39 @@ impl EventLoop {
 
   async fn react_to_line(&self, line: &Line) {
     self.state.with_reactor(|reactor_state| {
-      let trigger_groups = &reactor_state.trigger_groups;
-      let mut next_groups: LinkedList<&TriggerGroup> = LinkedList::from_iter(trigger_groups.iter());
+      self.state.with_triggers(|trigger_groups| {
+        let mut next_groups: LinkedList<&TriggerGroup> =
+          LinkedList::from_iter(trigger_groups.iter());
 
-      let Some(character) = &reactor_state.current_character else {
-        warn!("Cannot process line! No current character detected!");
-        return;
-      };
+        let Some(character) = &reactor_state.current_character else {
+          warn!("Cannot process line! No current character detected!");
+          return;
+        };
 
-      while let Some(dequeued_tg) = next_groups.pop_front() {
-        for tgd in dequeued_tg.children.iter() {
-          match tgd {
-            TriggerGroupDescendant::T(trigger) => {
-              if !trigger.enabled {
-                continue;
-              }
-              if let Some(_captures) = trigger.captures(&line.content, &character.name) {
-                for effect in trigger.effects.iter() {
-                  debug!("TRIGGER EFFECT: {effect:?}");
-                  self.send(ReactorEvent::ExecTriggerEffect {
-                    effect: effect.clone(),
-                    character: character.clone(),
-                  });
+        while let Some(dequeued_tg) = next_groups.pop_front() {
+          for tgd in dequeued_tg.children.iter() {
+            match tgd {
+              TriggerGroupDescendant::T(trigger) => {
+                if !trigger.enabled {
+                  continue;
+                }
+                if let Some(_captures) = trigger.captures(&line.content, &character.name) {
+                  for effect in trigger.effects.iter() {
+                    debug!("TRIGGER EFFECT: {effect:?}");
+                    self.send(ReactorEvent::ExecTriggerEffect {
+                      effect: effect.clone(),
+                      character: character.clone(),
+                    });
+                  }
                 }
               }
-            }
-            TriggerGroupDescendant::TG(tg) => {
-              next_groups.push_back(tg);
+              TriggerGroupDescendant::TG(tg) => {
+                next_groups.push_back(tg);
+              }
             }
           }
         }
-      }
+      });
     });
   }
 

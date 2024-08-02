@@ -19,6 +19,7 @@ mod ui;
 use crate::state::config;
 use cli::{Commands, StartCommand, TTSCommand};
 use common::fatal_error;
+use state::config::LogQuestConfig;
 use state::state_handle::StateHandle;
 use state::state_tree::StateTree;
 use std::path::PathBuf;
@@ -66,9 +67,10 @@ fn start(
   config_dir_override: Option<PathBuf>,
   logs_dir_override: Option<PathBuf>,
 ) -> anyhow::Result<()> {
-  let config_dir = config::get_config_dir_with_optional_override(config_dir_override)?;
-  let config = config::load_or_create_app_config_from_dir(&config_dir, &logs_dir_override)?;
-  let state_tree = StateTree::init_from_config(config)?;
+  let config_dir = config::get_config_dir_with_optional_override(config_dir_override);
+  let config = LogQuestConfig::load_or_create_in_dir(&config_dir, &logs_dir_override)?;
+  let triggers = triggers::load_or_create_relative_to_config(&config)?; // TODO: Need to report JSON parse errors somewhere
+  let state_tree = StateTree::init_from_configs(config, triggers)?;
   let state_handle = StateHandle::new(state_tree);
 
   ui::launch(state_handle);

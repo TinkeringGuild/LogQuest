@@ -269,6 +269,13 @@ impl Clone for RegexGINA {
   }
 }
 
+impl Eq for RegexGINA {}
+impl PartialEq for RegexGINA {
+  fn eq(&self, other: &Self) -> bool {
+    self.raw == other.raw
+  }
+}
+
 impl std::fmt::Debug for Conditions {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     write!(f, "Conditions(len={})", self.0.len())?;

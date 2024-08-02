@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 pub type Filter = Vec<Matcher>;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum Matcher {
   WholeLine(String),
   PartialLine(String),

@@ -1,10 +1,15 @@
 use crate::{
-  common::{duration::Duration, timestamp::Timestamp},
+  common::{duration::Duration, timestamp::Timestamp, UUID},
   gina::regex::CapturesGINA,
   matchers,
+  state::config::LogQuestConfig,
 };
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use std::{fs::File, io::BufReader};
+use tracing::info;
+
+const TRIGGERS_FILE_NAME: &str = "Triggers.json";
 
 lazy_static::lazy_static! {
 
@@ -14,15 +19,7 @@ lazy_static::lazy_static! {
   // static ref TEMPLATE_VARS: Regex = Regex::new(r"\$\{\s*([\w_-]+)\s*\}").unwrap();
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum TimerStartPolicy {
-  AlwaysStartNewTimer,
-  DoNothingIfTimerRunning,
-  StartAndReplacesAllTimers,
-  StartAndReplacesAnyTimerWithName(String), // maybe this should be TemplateString?
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum TriggerEffect {
   Parallel(Vec<TriggerEffect>),
   Sequence(Vec<TriggerEffect>),
@@ -46,7 +43,7 @@ pub enum TriggerEffect {
   DoNothing,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub enum TimerEffect {
   Parallel(Vec<TimerEffect>),
   Sequence(Vec<TimerEffect>),
@@ -72,8 +69,9 @@ pub enum TimerEffect {
   ClearTimer,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub struct TriggerGroup {
+  pub id: UUID,
   pub name: String,
   pub comment: Option<String>,
   pub children: Vec<TriggerGroupDescendant>,
@@ -81,14 +79,15 @@ pub struct TriggerGroup {
   pub updated_at: Timestamp,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum TriggerGroupDescendant {
   T(Trigger),
   TG(TriggerGroup),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Trigger {
+  pub id: UUID,
   pub name: String,
   pub comment: Option<String>,
   pub enabled: bool,
@@ -110,14 +109,22 @@ impl Trigger {
   }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum TimerStartPolicy {
+  AlwaysStartNewTimer,
+  DoNothingIfTimerRunning,
+  StartAndReplacesAllTimers,
+  StartAndReplacesAnyTimerHavingName(String), // TODO: Maybe this should be TemplateString?
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Stopwatch {
   pub name: String,
   pub tags: Vec<TimerTag>,
   pub updates: Vec<TimerEffect>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Timer {
   pub name: String,
   pub tags: Vec<TimerTag>,
@@ -130,14 +137,14 @@ pub struct Timer {
   pub updates: Vec<TimerEffect>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum TimerStartBehavior {
   StartNewTimer,
   RestartTimer,
   IgnoreIfRunning,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct TimerTag(String);
 impl TimerTag {
   pub fn new(name: &str) -> Self {
@@ -150,7 +157,7 @@ impl TimerTag {
   }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct TemplateString {
   tmpl: String,
   param_names: Vec<String>,
@@ -164,7 +171,6 @@ impl TemplateString {
 
 impl From<&str> for TemplateString {
   fn from(tmpl: &str) -> Self {
-    // TODO: Compile this regex at compilation time with lazy_static or a macro
     let param_names: Vec<String> = TEMPLATE_VARS
       .captures_iter(tmpl)
       .filter_map(|capture| capture.get(1).map(|c| c.as_str().to_owned()))
@@ -181,9 +187,98 @@ impl From<String> for TemplateString {
   }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct CommandTemplate {
   pub command: TemplateString,
   pub params: Vec<TemplateString>,
   pub write_to_stdin: Option<TemplateString>,
+}
+
+impl From<TriggerGroup> for TriggerGroupDescendant {
+  fn from(value: TriggerGroup) -> Self {
+    TriggerGroupDescendant::TG(value)
+  }
+}
+
+impl From<Trigger> for TriggerGroupDescendant {
+  fn from(value: Trigger) -> Self {
+    TriggerGroupDescendant::T(value)
+  }
+}
+
+pub fn load_or_create_relative_to_config(
+  config: &LogQuestConfig,
+) -> anyhow::Result<Vec<TriggerGroup>> {
+  let triggers_file_path = config
+    .config_file_path
+    .parent()
+    .expect("Could not determine parent directory of the config file!")
+    .join(TRIGGERS_FILE_NAME);
+
+  if triggers_file_path.exists() {
+    info!("TRIGGERS FILE EXISTS: {}", triggers_file_path.display());
+    let reader = BufReader::new(File::open(triggers_file_path)?);
+    Ok(serde_json::from_reader(reader)?)
+  } else {
+    let triggers = default_triggers();
+    let raw_json = serde_json::to_string_pretty(&triggers)?;
+    let mut file = File::create(&triggers_file_path)?;
+    std::io::Write::write_all(&mut file, raw_json.as_bytes())?;
+    info!("CREATED TRIGGERS FILE: {}", triggers_file_path.display());
+    Ok(triggers)
+  }
+}
+
+#[cfg(not(debug_assertions))]
+pub fn default_triggers() -> Vec<TriggerGroup> {
+  vec![]
+}
+
+#[cfg(debug_assertions)]
+pub fn default_triggers() -> Vec<TriggerGroup> {
+  vec![crate::debug_only::test_trigger_group()]
+}
+
+#[cfg(test)]
+mod test {
+  use super::{Trigger, TriggerEffect, TriggerGroup};
+  use crate::{
+    common::{timestamp::Timestamp, UUID},
+    matchers::Matcher,
+  };
+
+  #[test]
+  fn test_serde() {
+    let tg_before = simple_sample();
+    let raw_json =
+      serde_json::to_string_pretty(&tg_before).expect("Could not convert TriggerGroup to JSON");
+    let tg_after: TriggerGroup =
+      serde_json::from_str(&raw_json).expect("Could not parse TriggerGroup JSON!");
+    assert_eq!(tg_before, tg_after);
+  }
+
+  fn simple_sample() -> TriggerGroup {
+    let now = Timestamp::now();
+    let trigger = Trigger {
+      id: UUID::new(),
+      name: "Simple Sample Trigger 1".into(),
+      enabled: true,
+      comment: None,
+      created_at: now.clone(),
+      updated_at: now.clone(),
+      filter: vec![Matcher::gina("^{S1} hits {S2}").unwrap()],
+      effects: vec![TriggerEffect::Sequence(vec![
+        TriggerEffect::TextToSpeech("This is only a test.".into()),
+        TriggerEffect::PlayAudioFile(Some("/dev/null".into())),
+      ])],
+    };
+    TriggerGroup {
+      id: UUID::new(),
+      name: "Simple Sample Trigger Group".into(),
+      comment: Some("I am a comment".into()),
+      created_at: now.clone(),
+      updated_at: now,
+      children: vec![trigger.into()],
+    }
+  }
 }

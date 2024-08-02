@@ -1,5 +1,7 @@
 use tracing::{error, info};
 
+use crate::triggers::TriggerGroup;
+
 use super::config::LogQuestConfig;
 use super::state_tree::{OverlayState, ReactorState, StateTree};
 use std::sync::{Arc, Mutex};
@@ -25,20 +27,27 @@ impl StateHandle {
     F: FnOnce(&OverlayState) -> &T,
     T: Clone,
   {
-    self.select_branch(&self.0.overlay_state, selector)
+    self.select_branch(&self.0.overlay, selector)
   }
   pub fn with_reactor<F>(&self, func: F)
   where
     F: for<'a> FnOnce(&'a mut ReactorState),
   {
-    self.with_branch(&self.0.reactor_state, func)
+    self.with_branch(&self.0.reactor, func)
+  }
+
+  pub fn with_triggers<F>(&self, func: F)
+  where
+    F: for<'a> FnOnce(&'a mut Vec<TriggerGroup>),
+  {
+    self.with_branch(&self.0.triggers, func)
   }
 
   pub fn with_overlay<F>(&self, func: F)
   where
     F: for<'a> FnOnce(&'a mut OverlayState),
   {
-    self.with_branch(&self.0.overlay_state, func)
+    self.with_branch(&self.0.overlay, func)
   }
 
   /// Automatically saves the config if a change is detected

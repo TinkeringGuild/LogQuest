@@ -7,8 +7,8 @@ use tts::{Gender, Tts};
 
 #[derive(Debug, Clone)]
 pub enum TTS {
-  Interrupt,
   Speak { text: String, interrupt: bool },
+  Interrupt,
   SetVoice(String),
 }
 

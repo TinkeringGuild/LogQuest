@@ -4,8 +4,8 @@ use super::{
   GINATriggerGroup, GINATriggers,
 };
 use crate::common::duration::Duration;
-use crate::common::random_id;
 use crate::common::timestamp::Timestamp;
+use crate::common::{random_id, UUID};
 use crate::{matchers, triggers};
 use anyhow::bail;
 use std::path::Path;
@@ -58,6 +58,7 @@ impl GINATriggerGroup {
     }
 
     Ok(triggers::TriggerGroup {
+      id: UUID::new(),
       name: self
         .name
         .clone()
@@ -75,6 +76,7 @@ impl GINATrigger {
   fn to_lq(&self, import_time: &Timestamp) -> anyhow::Result<triggers::Trigger> {
     let trigger_name = self.name.clone().unwrap_or_else(|| untitled("Trigger"));
     Ok(triggers::Trigger {
+      id: UUID::new(),
       name: trigger_name.clone(),
       comment: self.comments.clone(),
       enabled: true,
@@ -214,7 +216,7 @@ impl GINATrigger {
                 triggers::TimerStartPolicy::DoNothingIfTimerRunning
               }
               (Some(GINATimerStartBehavior::StartNewTimer), Some(true)) => {
-                triggers::TimerStartPolicy::StartAndReplacesAnyTimerWithName(timer_name)
+                triggers::TimerStartPolicy::StartAndReplacesAnyTimerHavingName(timer_name)
               }
               (Some(GINATimerStartBehavior::StartNewTimer), Some(false) | None) => {
                 triggers::TimerStartPolicy::AlwaysStartNewTimer

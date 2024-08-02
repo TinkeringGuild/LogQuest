@@ -1,7 +1,8 @@
-/// This file contains only code that is available in debug builds of LogQuest.
+//! This file contains only code that is available in debug builds of LogQuest.
 use crate::{
   cli,
   common::timestamp::Timestamp,
+  common::UUID,
   gina::xml::load_gina_triggers_from_file_path,
   logs::log_event_broadcaster::LogEventBroadcaster,
   logs::log_reader::LogReader,
@@ -22,6 +23,7 @@ pub fn test_trigger_group() -> triggers::TriggerGroup {
   }
 
   let trigger = triggers::Trigger {
+    id: UUID::new(),
     name: "Tells / Hail".to_owned(),
     comment: None,
     created_at: now(),
@@ -41,6 +43,7 @@ pub fn test_trigger_group() -> triggers::TriggerGroup {
   };
 
   triggers::TriggerGroup {
+    id: UUID::new(),
     name: "Test".to_owned(),
     children: vec![triggers::TriggerGroupDescendant::T(trigger)],
     comment: None,
