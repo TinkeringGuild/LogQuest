@@ -4,7 +4,7 @@ use crate::{
   matchers,
   state::config::LogQuestConfig,
 };
-use regex::Regex;
+use fancy_regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::{fs::File, io::BufReader};
 use tracing::info;
@@ -173,7 +173,9 @@ impl From<&str> for TemplateString {
   fn from(tmpl: &str) -> Self {
     let param_names: Vec<String> = TEMPLATE_VARS
       .captures_iter(tmpl)
-      .filter_map(|capture| capture.get(1).map(|c| c.as_str().to_owned()))
+      .filter_map(|c| c.ok()) // fancy_regex yields captures wrapped in Results
+      .filter_map(|captures| captures.get(1))
+      .map(|mtch| mtch.as_str().to_owned())
       .collect();
     TemplateString {
       tmpl: tmpl.to_owned(),

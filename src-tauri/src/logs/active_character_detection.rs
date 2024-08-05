@@ -70,7 +70,8 @@ impl Character {
   fn from(input: &str) -> Self {
     let captures = LOG_FILE_PATTERN
       .captures(input)
-      .expect("CharacterNameWithServer given invalid file path!");
+      .expect("Character struct given invalid file path!")
+      .unwrap();
     Self {
       name: captures
         .get(1)

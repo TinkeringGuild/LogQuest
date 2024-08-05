@@ -57,7 +57,7 @@ fn new_notify_event_handler(
           event
             .paths
             .iter()
-            .filter(|p| LOG_FILE_PATTERN.is_match(&p.to_string_lossy()))
+            .filter(|p| is_valid_log_file_name(p))
             .map(|p| LogFileEvent::Created(path_string(p)))
             .for_each(|e| {
               let _ = sender.send(e);
@@ -68,7 +68,7 @@ fn new_notify_event_handler(
           event
             .paths
             .iter()
-            .filter(|p| LOG_FILE_PATTERN.is_match(&p.to_string_lossy()))
+            .filter(|p| is_valid_log_file_name(p))
             .map(|p| LogFileEvent::Updated(path_string(p)))
             .for_each(|e| {
               let _ = sender.send(e);
@@ -79,7 +79,7 @@ fn new_notify_event_handler(
           event
             .paths
             .iter()
-            .filter(|p| LOG_FILE_PATTERN.is_match(&p.to_string_lossy()))
+            .filter(|p| is_valid_log_file_name(p))
             .map(|p| LogFileEvent::Deleted(path_string(p)))
             .for_each(|e| {
               let _ = sender.send(e);
@@ -93,4 +93,9 @@ fn new_notify_event_handler(
       }
     }
   }
+}
+
+fn is_valid_log_file_name(path: &Path) -> bool {
+  let path = path.to_string_lossy();
+  LOG_FILE_PATTERN.is_match(&path).is_ok_and(|b| b)
 }

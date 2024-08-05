@@ -1,5 +1,5 @@
 use crate::common::random_id;
-use regex::Regex;
+use fancy_regex::{Captures, Regex};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::{HashMap, LinkedList};
 use std::ops::Index;
@@ -15,7 +15,7 @@ lazy_static::lazy_static! {
   static ref GENERATED_NAMED_CAPTURE_NAME: Regex = Regex::new(r"^LQ[A-Z0-9]{8}$").unwrap();
 }
 
-type ConditionsList = LinkedList<Box<dyn Fn(&regex::Captures) -> bool + Send + Sync + 'static>>;
+type ConditionsList = LinkedList<Box<dyn Fn(&Captures) -> bool + Send + Sync + 'static>>;
 struct Conditions(ConditionsList);
 
 #[derive(Debug)]
@@ -44,8 +44,8 @@ impl RegexGINA {
     let mut named_projections: HashMap<String, String> = HashMap::new();
 
     let mut conditions: ConditionsList = LinkedList::new();
-    let with_replacements = REGEX_VARS.replace_all(pattern, |captures: &regex::Captures| {
-      let projected_from = Self::generate_named_capture_name();
+    let with_replacements = REGEX_VARS.replace_all(pattern, |captures: &Captures| {
+      let projected_from = generate_named_capture_name();
 
       if let (Some(projected_name), Some(operator), Some(operand)) =
         (captures.get(2), captures.get(3), captures.get(4))
@@ -88,7 +88,7 @@ impl RegexGINA {
         continue;
       }
       if let Some(capture_name) = cap {
-        if GENERATED_NAMED_CAPTURE_NAME.is_match(capture_name) {
+        if is_generated_capture_name(capture_name) {
           continue;
         }
         named_projections.insert(capture_name.to_owned(), capture_name.to_owned());
@@ -106,9 +106,10 @@ impl RegexGINA {
   }
 
   pub fn check(&self, haystack: &str, character_name: &str) -> Option<CapturesGINA> {
-    let direct_captures: regex::Captures = match self.compiled.captures(haystack) {
-      Some(captures) => captures,
-      None => return None,
+    let direct_captures: Captures = match self.compiled.captures(haystack) {
+      Ok(Some(captures)) => captures,
+      Ok(None) => return None,
+      Err(_) => return None,
     };
 
     for condition in self.conditions.0.iter() {
@@ -154,11 +155,6 @@ impl RegexGINA {
     })
   }
 
-  // This must be consistent with GENERATED_NAMED_CAPTURE_NAME
-  fn generate_named_capture_name() -> String {
-    format!("LQ{}", random_id(8)) // 8 makes chance of two collisions approx 1/2.8e12
-  }
-
   fn pattern_for_number_capture(capture_name: &str) -> String {
     format!(r"(?<{capture_name}>-?\d+)")
   }
@@ -176,8 +172,8 @@ impl RegexGINA {
     operator: String,
     operand: i64,
     projected_from: String,
-  ) -> impl Fn(&regex::Captures) -> bool + Send + 'static {
-    move |caps: &regex::Captures| {
+  ) -> impl Fn(&Captures) -> bool + Send + 'static {
+    move |caps: &Captures| {
       Self::check_numeric_constraints(operator.clone(), operand, projected_from.clone(), caps)
     }
   }
@@ -186,7 +182,7 @@ impl RegexGINA {
     operator: String,
     operand: i64,
     projected_from: String,
-    caps: &regex::Captures,
+    caps: &Captures,
   ) -> bool {
     if let Some(value) = caps.name(&projected_from) {
       let value: i64 = value
@@ -204,6 +200,17 @@ impl RegexGINA {
     }
     true
   }
+}
+
+// This must be consistent with GENERATED_NAMED_CAPTURE_NAME
+fn generate_named_capture_name() -> String {
+  format!("LQ{}", random_id(8)) // 8 makes chance of two collisions approx 1/2.8e12
+}
+
+fn is_generated_capture_name(capture_name: &str) -> bool {
+  GENERATED_NAMED_CAPTURE_NAME
+    .is_match(capture_name)
+    .is_ok_and(|boolean| boolean)
 }
 
 impl Index<usize> for CapturesGINA {

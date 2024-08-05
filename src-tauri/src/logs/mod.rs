@@ -3,7 +3,7 @@ pub mod log_event_broadcaster;
 pub mod log_reader;
 
 use anyhow::bail;
-use regex::Regex;
+use fancy_regex::Regex;
 
 /// This determines how many Lines and LogFileEvents can be buffered
 const FILESYSTEM_EVENT_QUEUE_SIZE: usize = 500;

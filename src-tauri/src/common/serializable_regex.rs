@@ -1,19 +1,26 @@
-use regex::Regex;
+use fancy_regex::Regex;
 use serde::{Deserialize, Serialize, Serializer};
 
 #[derive(Debug, Clone)]
-pub struct SerializableRegex(Regex);
+pub struct SerializableRegex {
+  pattern: String,
+  compiled: Regex,
+}
+
+impl TryFrom<&str> for SerializableRegex {
+  type Error = fancy_regex::Error;
+
+  fn try_from(pattern: &str) -> Result<Self, Self::Error> {
+    let compiled = Regex::new(pattern)?;
+    let pattern = pattern.to_owned();
+    Ok(Self { pattern, compiled })
+  }
+}
 
 impl Eq for SerializableRegex {}
 impl PartialEq for SerializableRegex {
   fn eq(&self, other: &Self) -> bool {
-    self.0.to_string() == other.0.to_string()
-  }
-}
-
-impl From<Regex> for SerializableRegex {
-  fn from(value: Regex) -> Self {
-    Self(value)
+    self.pattern == other.pattern
   }
 }
 
@@ -22,7 +29,7 @@ impl Serialize for SerializableRegex {
   where
     S: Serializer,
   {
-    serializer.serialize_str(self.0.as_str())
+    serializer.serialize_str(&self.pattern)
   }
 }
 
@@ -31,9 +38,9 @@ impl<'de> Deserialize<'de> for SerializableRegex {
   where
     D: serde::Deserializer<'de>,
   {
-    let regex_string: String = Deserialize::deserialize(deserializer)?;
-    let regex = Regex::new(&regex_string).map_err(serde::de::Error::custom)?;
-    Ok(Self(regex))
+    let pattern: String = Deserialize::deserialize(deserializer)?;
+    let compiled = Regex::new(&pattern).map_err(serde::de::Error::custom)?;
+    Ok(Self { pattern, compiled })
   }
 }
 
@@ -43,9 +50,7 @@ mod test {
 
   #[test]
   fn test_serde() {
-    let before: SerializableRegex = regex::Regex::new("(?i)^This is only a test$")
-      .unwrap()
-      .into();
+    let before: SerializableRegex = "(?i)^This is only a test$".try_into().unwrap();
     let raw_json = serde_json::to_string(&before).expect("Could not serialize SerializableRegex!");
     let after: SerializableRegex =
       serde_json::from_str(&raw_json).expect("Could not deserialize SerializableRegex!");
