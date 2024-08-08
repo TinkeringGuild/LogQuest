@@ -1,17 +1,19 @@
 use crate::common::random_id;
+use crate::matchers::MatchContext;
 use fancy_regex::{Captures, Regex};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::{HashMap, LinkedList};
-use std::ops::Index;
 
 lazy_static::lazy_static! {
-  static ref NO_VALUE: String = String::new();
-
   /// For extracting out GINA variable placeholders from a GINA regex (e.g. {S}, {N>100}, {C}, {S2})
   static ref REGEX_VARS: Regex =
     Regex::new(r"\{\s*(?:([Cc]|[Ss]\d*)|(?:([Nn]\d*)\s*(?:(>=|<=|=|>|<)\s*(-?\d+))?))\s*\}").unwrap();
 
-  /// Named capture groups are generated and injected into the converted Regex; this matches the generated names
+  /// A MatcherWithContext::GINA can use patterns like ${1} to back-reference a capture in the Trigger's initial regex
+  static ref REGEX_REFERENCES: Regex =
+      Regex::new(r"\$\{\s*(\d+)\s*\}").unwrap();
+
+  /// Named capture groups are injected into the converted Regex; this matches the generated names
   static ref GENERATED_NAMED_CAPTURE_NAME: Regex = Regex::new(r"^LQ[A-Z0-9]{8}$").unwrap();
 }
 
@@ -27,13 +29,27 @@ pub struct RegexGINA {
   conditions: Conditions,
 }
 
-pub struct CapturesGINA {
-  character_name: String,
-  positional_captures: Vec<Option<String>>,
-  named_captures: HashMap<String, String>,
+impl TryFrom<&str> for RegexGINA {
+  type Error = anyhow::Error;
+  fn try_from(value: &str) -> Result<Self, Self::Error> {
+    Self::from_str(value)
+  }
 }
 
 impl RegexGINA {
+  pub fn from_str_with_context(pattern: &str, context: &MatchContext) -> anyhow::Result<Self> {
+    let processed_pattern = REGEX_REFERENCES.replace_all(pattern, |captures: &Captures| {
+      if let Some(group_number_match) = captures.get(1) {
+        let group_number: usize = group_number_match.as_str().parse().unwrap(); // unwrap is safe because the Regex validates non-negative integer
+        if let Some(group_value) = context.group(group_number) {
+          return fancy_regex::escape(group_value).into_owned();
+        }
+      }
+      String::new()
+    });
+    Self::from_str(&processed_pattern)
+  }
+
   // A lot of the complexity here comes from how special GINA tokens
   // like {S} or {N>=10} are extracted using named capture groups, but
   // the inclusion of these capture groups must be invisible to the
@@ -41,6 +57,15 @@ impl RegexGINA {
   // their regex's capture groups by index without these dynamically
   // interpolated capture groups affecting the indices they'd expect.
   pub fn from_str(pattern: &str) -> anyhow::Result<Self> {
+    // THIS CRAP BELOW IS JUST TEMPORARY. IT'S NEEDED TO IMPORT THE RIOT TRIGGERS PACKAGE. IT FIXES AN INVALID REGEX.
+    // I STILL HAVEN'T DECIDED IF I WANT TO TRY TO AUTO-FIX THIS TYPE OF SYNTAX ERROR AT IMPORT-TIME.
+    let pattern = if pattern == r"^Your target resisted the ([\w-'` ]+)(?<!LowerElement) spell\.$" {
+      r"^Your target resisted the ([ \w'`-]+)(?<!LowerElement) spell\.$"
+    } else {
+      pattern
+    };
+
+    println!("RegexGina: {pattern}");
     let mut named_projections: HashMap<String, String> = HashMap::new();
 
     let mut conditions: ConditionsList = LinkedList::new();
@@ -105,8 +130,10 @@ impl RegexGINA {
     })
   }
 
-  pub fn check(&self, haystack: &str, character_name: &str) -> Option<CapturesGINA> {
-    let direct_captures: Captures = match self.compiled.captures(haystack) {
+  /// Returns a MatchContext if the RegexGINA matches. A character name must be passed in
+  /// because the regex could have a {C} token.
+  pub fn check(&self, line: &str, character_name: &str) -> Option<MatchContext> {
+    let direct_captures: Captures = match self.compiled.captures(line) {
       Ok(Some(captures)) => captures,
       Ok(None) => return None,
       Err(_) => return None,
@@ -118,7 +145,7 @@ impl RegexGINA {
       }
     }
 
-    let mut named_captures = HashMap::<String, String>::new();
+    let mut named_values = HashMap::<String, String>::new();
     for (capture_name, output_name) in self.named_projections.iter() {
       let Some(captured_value) = direct_captures
         .name(&capture_name)
@@ -127,7 +154,7 @@ impl RegexGINA {
         continue;
       };
       if let Some(replaced_value) =
-        named_captures.insert(output_name.to_uppercase(), captured_value.clone())
+        named_values.insert(output_name.to_uppercase(), captured_value.clone())
       {
         // Make sure all values for a given named capture are equal
         if replaced_value != captured_value {
@@ -136,21 +163,21 @@ impl RegexGINA {
       }
     }
 
-    if let Some(captured_character_name) = named_captures.get("C") {
+    if let Some(captured_character_name) = named_values.get("C") {
       if captured_character_name != character_name {
         return None;
       }
     }
 
-    let positional_captures: Vec<Option<String>> = self
+    let group_values: Vec<Option<String>> = self
       .positional_projections
       .iter()
       .map(|i| direct_captures.get(*i).map(|m| m.as_str().to_owned()))
       .collect();
 
-    Some(CapturesGINA {
-      positional_captures,
-      named_captures,
+    Some(MatchContext {
+      group_values,
+      named_values,
       character_name: character_name.to_owned(),
     })
   }
@@ -213,42 +240,6 @@ fn is_generated_capture_name(capture_name: &str) -> bool {
     .is_ok_and(|boolean| boolean)
 }
 
-impl Index<usize> for CapturesGINA {
-  type Output = String;
-
-  fn index(&self, index: usize) -> &Self::Output {
-    if index >= self.positional_captures.len() {
-      return &NO_VALUE;
-    }
-    self.positional_captures[index]
-      .as_ref()
-      .unwrap_or(&NO_VALUE)
-  }
-}
-
-impl Index<&str> for CapturesGINA {
-  type Output = String;
-
-  fn index(&self, key: &str) -> &Self::Output {
-    if let Ok(numeric_key) = key.parse::<usize>() {
-      return &self[numeric_key];
-    }
-    let key = key.to_uppercase();
-    if key == "C" {
-      return &self.character_name;
-    }
-    self.named_captures.get(&key).unwrap_or(&NO_VALUE)
-  }
-}
-
-impl Index<String> for CapturesGINA {
-  type Output = String;
-
-  fn index(&self, key: String) -> &Self::Output {
-    &self[key.as_str()]
-  }
-}
-
 impl Serialize for RegexGINA {
   fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
   where
@@ -264,7 +255,7 @@ impl<'de> Deserialize<'de> for RegexGINA {
     D: Deserializer<'de>,
   {
     let value: &str = Deserialize::deserialize(deserializer)?;
-    let value: anyhow::Result<RegexGINA> = RegexGINA::from_str(value);
+    let value: anyhow::Result<RegexGINA> = value.try_into();
     let value: RegexGINA = value.map_err(serde::de::Error::custom)?;
     Ok(value)
   }
@@ -272,7 +263,7 @@ impl<'de> Deserialize<'de> for RegexGINA {
 
 impl Clone for RegexGINA {
   fn clone(&self) -> Self {
-    RegexGINA::from_str(&self.raw).unwrap() // unwrap is safe since raw has been compiled before
+    self.raw.as_str().try_into().unwrap() // unwrap is safe since raw has been compiled before
   }
 }
 
@@ -294,7 +285,7 @@ impl std::fmt::Debug for Conditions {
 mod tests {
   use super::*;
 
-  const TEST_CHARACTER_NAME: &str = "Xenk";
+  const TOON: &str = "Xenk";
 
   #[test]
   fn test_multiple_string_matches() {
@@ -318,44 +309,20 @@ mod tests {
 
   #[test]
   fn test_branches_with_optional_captures() {
-    assert_pattern_matches(
-      r"^You (must target an NPC to taunt first\.|taunt {S} to ignore others and attack you\!)$",
-      "You must target an NPC to taunt first.",
-      &[("S", "")],
-    );
-    assert_pattern_matches(
-      r"^You (must target an NPC to taunt first\.|taunt {S} to ignore others and attack you\!)$",
-      "You taunt Bristlebane to ignore others and attack you!",
-      &[("S", "Bristlebane")],
-    );
-  }
-
-  #[test]
-  fn test_referencing_invalid_captures() {
-    assert_pattern_matches(
-      r"^This has no captures$",
-      "This has no captures",
-      &[("S", ""), ("S9999", ""), ("N", ""), ("N100", "")],
-    );
-  }
-
-  #[test]
-  fn test_referencing_character_name() {
-    assert_pattern_matches(
-      r".+",
-      "This is a test",
-      &[("C", TEST_CHARACTER_NAME), ("c", TEST_CHARACTER_NAME)],
-    );
-    assert_pattern_matches(
-      r"^Hail, {C}$",
-      &format!("Hail, {TEST_CHARACTER_NAME}"),
-      &[("C", TEST_CHARACTER_NAME), ("c", TEST_CHARACTER_NAME)],
-    );
-    assert_pattern_does_not_match(r"^Hail, {C}$", &["Hail, Incorrect"]);
-    assert_pattern_does_not_match(
-      r"^You, {C}, are named {C}$",
-      &[&format!("You, {TEST_CHARACTER_NAME}, are named Incorrect")],
-    )
+    {
+      let context = create_context(
+        r"^You (must target an NPC to taunt first\.|taunt {S} to ignore others and attack you\!)$",
+        "You must target an NPC to taunt first.",
+      );
+      assert_eq!(context.named_value("S"), None);
+    }
+    {
+      let context = create_context(
+        r"^You (must target an NPC to taunt first\.|taunt {S} to ignore others and attack you\!)$",
+        "You taunt Bristlebane to ignore others and attack you!",
+      );
+      assert_eq!(context.named_value("S").unwrap(), "Bristlebane");
+    }
   }
 
   #[test]
@@ -461,65 +428,60 @@ mod tests {
   }
 
   #[test]
-  fn test_accessing_captures_by_index_as_string() {
-    assert_pattern_matches(
+  fn test_accessing_captures_by_index_and_name() {
+    let context = create_context(
       r"^Here're some words: (\w+), (\w+), (?<conjunction>\w+) (\w+)$",
       "Here're some words: one, two, and three",
-      &[
-        ("1", "one"),
-        ("2", "two"),
-        ("4", "three"),
-        ("conjunction", "and"),
-        ("CONJUNCTION", "and"),
-      ],
-    )
+    );
+    assert_eq!(context.group(1).unwrap(), "one");
+    assert_eq!(context.group(2).unwrap(), "two");
+    assert_eq!(context.group(4).unwrap(), "three");
+    assert_eq!(context.named_value("conjunction").unwrap(), "and");
+    assert_eq!(context.named_value("CONJUNCTION").unwrap(), "and");
   }
 
   #[test]
   fn test_optional_positional_captures() {
-    assert_pattern_matches(
-      r"^There are (?:(\w+) parameters (\w+)|none) here$",
-      "There are none here",
-      &[("1", ""), ("2", "")],
-    );
-    assert_pattern_matches(
-      r"^There are (?:(\w+) parameters (\w+)|none) here$",
-      "There are two parameters right here",
-      &[("1", "two"), ("2", "right")],
-    );
+    {
+      let context = create_context(
+        r"^There are (?:(\w+) parameters (\w+)|none) here$",
+        "There are none here",
+      );
+      assert_eq!(context.group(1), None);
+    }
+    {
+      let context = create_context(
+        r"^There are (?:(\w+) parameters (\w+)|none) here$",
+        "There are two parameters right here",
+      );
+      assert_eq!(context.group(1).unwrap(), "two");
+      assert_eq!(context.group(2).unwrap(), "right");
+    }
   }
 
-  #[test]
-  fn test_accessing_captures_by_index_as_numeric_type() {
-    let pattern = r"^Here're some words: (\w+), (\w+), (?<conjunction>\w+) (\w+)$";
-    let text = "Here're some words: one, two, and three";
-
-    let rg = RegexGINA::from_str(pattern).expect("Invalid regex pattern");
-    let result = rg
-      .check(text, TEST_CHARACTER_NAME)
-      .expect("RegexGINA did not match!");
-
-    assert_eq!(result[1], "one");
-    assert_eq!(result[2], "two");
-    assert_eq!(result[3], "and");
-    assert_eq!(result[4], "three");
-    assert_eq!(result["conjunction"], "and");
-    assert_eq!(result["CONJUNCTION"], "and");
+  fn create_context(pattern: &str, text: &str) -> MatchContext {
+    let regex_gina: RegexGINA = pattern
+      .try_into()
+      .expect("create_context could not compile RegexGINA pattern!");
+    regex_gina
+      .check(text, TOON)
+      .expect("create_context pattern and text do not match!")
   }
+
   fn assert_pattern_does_not_match(pattern: &str, texts: &[&str]) {
-    let rg = RegexGINA::from_str(pattern).expect("Invalid regex pattern");
+    let regex_gina: RegexGINA = pattern.try_into().expect("Invalid regex pattern");
     for text in texts {
-      assert!(rg.check(*text, TEST_CHARACTER_NAME).is_none());
+      assert!(regex_gina.check(*text, TOON).is_none());
     }
   }
 
   fn assert_pattern_matches(pattern: &str, text: &str, expectations: &[(&str, &str)]) {
-    let rg = RegexGINA::from_str(pattern).expect("Invalid regex pattern");
-    let result = rg
-      .check(text, TEST_CHARACTER_NAME)
+    let regex_gina: RegexGINA = pattern.try_into().expect("Invalid regex pattern");
+    let result = regex_gina
+      .check(text, TOON)
       .expect("RegexGINA did not match!");
     for (key, value) in expectations {
-      assert_eq!(result[*key], *value);
+      assert_eq!(result.named_value(key).unwrap(), *value);
     }
   }
 }

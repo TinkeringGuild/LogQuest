@@ -10,7 +10,8 @@ use crate::{
   {matchers, triggers},
 };
 use anyhow::bail;
-use std::{fs, path::PathBuf};
+use std::fs;
+use std::path::PathBuf;
 use tracing::{error, info};
 use ts_rs::TS as _;
 
@@ -19,7 +20,7 @@ pub fn test_trigger_group() -> triggers::TriggerGroup {
   let now = Timestamp::now;
 
   fn re(s: &str) -> matchers::Matcher {
-    matchers::Matcher::GINA(crate::gina::regex::RegexGINA::from_str(s).unwrap())
+    matchers::Matcher::GINA(s.try_into().unwrap())
   }
 
   let trigger = triggers::Trigger {
@@ -32,7 +33,8 @@ pub fn test_trigger_group() -> triggers::TriggerGroup {
     filter: vec![
       re(r"^([A-Za-z]+) -> {C}: (.+)$"),
       re(r"^([A-Za-z]+) says, 'Hail, {C}'$"),
-    ],
+    ]
+    .into(),
     effects: vec![
       triggers::TriggerEffect::TextToSpeech("Hail, ${C}!".into()),
       // triggers::TriggerEffect::PlayAudioFile(Some(
@@ -85,16 +87,27 @@ pub fn tail(log_file_path: &std::path::Path) -> anyhow::Result<()> {
 }
 
 #[cfg(debug_assertions)]
-pub fn convert_gina(path: &PathBuf, format: cli::ConvertGinaFormat) -> anyhow::Result<()> {
+pub fn convert_gina(
+  path: &PathBuf,
+  format: cli::ConvertGinaFormat,
+  out: Option<PathBuf>,
+) -> anyhow::Result<()> {
+  let mut writer: Box<dyn std::io::Write> = if let Some(out_path) = out {
+    Box::new(fs::File::create(out_path)?)
+  } else {
+    Box::new(std::io::stdout())
+  };
+
   let from_gina = load_gina_triggers_from_file_path(path)?;
+
   match format {
     cli::ConvertGinaFormat::GinaInternal => {
-      println!("{from_gina:#?}");
+      write!(writer, "{from_gina:#?}")?;
       return Ok(());
     }
     cli::ConvertGinaFormat::GinaJSON => match serde_json::to_string_pretty(&from_gina) {
-      Ok(raw_json) => {
-        println!("{raw_json}");
+      Ok(pretty_json) => {
+        write!(writer, "{pretty_json}")?;
         return Ok(());
       }
       Err(e) => {
@@ -108,10 +121,10 @@ pub fn convert_gina(path: &PathBuf, format: cli::ConvertGinaFormat) -> anyhow::R
   let root_trigger_group = from_gina.to_lq(&Timestamp::now())?;
   match format {
     cli::ConvertGinaFormat::Internal => {
-      println!("{root_trigger_group:#?}");
+      write!(writer, "{root_trigger_group:#?}")?;
     }
     cli::ConvertGinaFormat::JSON => match serde_json::to_string_pretty(&root_trigger_group) {
-      Ok(raw_json) => println!("{raw_json}"),
+      Ok(pretty_json) => write!(writer, "{pretty_json}")?,
       Err(e) => {
         error!("Failed to serialize to JSON!");
         return Err(e.into());

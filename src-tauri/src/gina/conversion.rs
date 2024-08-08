@@ -87,11 +87,9 @@ impl GINATrigger {
       },
       filter: match (self.trigger_text.as_deref(), self.enable_regex) {
         (Some(""), _) => bail!("GINA trigger {} had no contents", &trigger_name),
-        (Some(text), Some(true)) => {
-          vec![matchers::Matcher::gina(text)?]
-        }
+        (Some(text), Some(true)) => vec![matchers::Matcher::gina(text)?].into(),
         (Some(text), Some(false)) | (Some(text), None) => {
-          vec![matchers::Matcher::WholeLine(text.to_owned())]
+          vec![matchers::Matcher::WholeLine(text.to_owned())].into()
         }
         _ => bail!("Cannot interpret GINA trigger text for {}", &trigger_name),
       },
@@ -244,10 +242,11 @@ impl GINATrigger {
     if self.timer_early_enders.is_empty() {
       return Ok(None);
     }
-    let mut enders_filter: matchers::Filter = Vec::with_capacity(self.timer_early_enders.len());
+    let mut enders_filter_matchers = Vec::with_capacity(self.timer_early_enders.len());
     for early_ender in self.timer_early_enders.iter() {
-      enders_filter.push(early_ender.to_lq()?);
+      enders_filter_matchers.push(early_ender.to_lq()?);
     }
+    let enders_filter: matchers::FilterWithContext = enders_filter_matchers.into();
 
     let terminator = triggers::TimerEffect::Sequence(vec![
       triggers::TimerEffect::WaitUntilFilterMatches(enders_filter),
@@ -307,10 +306,10 @@ impl GINATimerTrigger {
 }
 
 impl GINAEarlyEnder {
-  fn to_lq(&self) -> anyhow::Result<matchers::Matcher> {
-    Ok(match (self.enable_regex, self.early_end_text.clone()) {
-      (Some(true), Some(pattern)) => matchers::Matcher::gina(&pattern)?,
-      (Some(false), Some(line)) => matchers::Matcher::WholeLine(line),
+  fn to_lq(&self) -> anyhow::Result<matchers::MatcherWithContext> {
+    Ok(match (self.enable_regex, &self.early_end_text) {
+      (Some(true), Some(pattern)) => matchers::MatcherWithContext::GINA(pattern.to_owned()),
+      (Some(false), Some(line)) => matchers::MatcherWithContext::WholeLine(line.to_owned()),
       _ => bail!("Invalid Early Ender"),
     })
   }

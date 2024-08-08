@@ -3,8 +3,8 @@ use serde::{Deserialize, Serialize, Serializer};
 
 #[derive(Debug, Clone)]
 pub struct SerializableRegex {
-  pattern: String,
-  compiled: Regex,
+  pub pattern: String,
+  pub compiled: Regex,
 }
 
 impl TryFrom<&str> for SerializableRegex {

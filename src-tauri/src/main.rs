@@ -56,7 +56,7 @@ fn main() {
     Commands::Tail { file } => debug_only::tail(&file),
 
     #[cfg(debug_assertions)]
-    Commands::ConvertGINA { file, format } => debug_only::convert_gina(&file, format),
+    Commands::ConvertGINA { file, format, out } => debug_only::convert_gina(&file, format, out),
   };
   if let Err(e) = result {
     fatal_error(format!("{:?}", e));

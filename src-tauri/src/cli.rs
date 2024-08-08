@@ -58,12 +58,16 @@ pub(crate) enum Commands {
   #[cfg(debug_assertions)]
   ConvertGINA {
     file: PathBuf,
+
     #[arg(
       value_enum, long, short,
       default_value_t=ConvertGinaFormat::JSON,
       help = "Specify the format of the output"
     )]
     format: ConvertGinaFormat,
+
+    #[arg(long, help = "Specify a file to write the output to")]
+    out: Option<PathBuf>,
   },
 }
 

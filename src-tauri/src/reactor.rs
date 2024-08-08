@@ -197,7 +197,7 @@ impl EventLoop {
                 if !trigger.enabled {
                   continue;
                 }
-                if let Some(_captures) = trigger.captures(&line.content, &character.name) {
+                if let Some(_match_context) = trigger.filter.check(&line.content, &character.name) {
                   for effect in trigger.effects.iter() {
                     debug!("TRIGGER EFFECT: {effect:?}");
                     self.send(ReactorEvent::ExecTriggerEffect {

@@ -1,6 +1,5 @@
 use crate::{
   common::{duration::Duration, timestamp::Timestamp, UUID},
-  gina::regex::CapturesGINA,
   matchers,
   state::config::LogQuestConfig,
 };
@@ -63,7 +62,7 @@ pub enum TimerEffect {
   RemoveTag(TimerTag),
   WaitUntilTagged(TimerTag),
   WaitUntilSecondsRemain(u32),
-  WaitUntilFilterMatches(matchers::Filter),
+  WaitUntilFilterMatches(matchers::FilterWithContext),
   // WaitUntilRestarted,
   WaitUntilFinished,
   ClearTimer,
@@ -95,18 +94,6 @@ pub struct Trigger {
   pub effects: Vec<TriggerEffect>,
   pub created_at: Timestamp,
   pub updated_at: Timestamp, // tags: Vec<Tag>
-}
-impl Trigger {
-  pub fn captures(&self, line: &str, char_name: &str) -> Option<CapturesGINA> {
-    for matcher in self.filter.iter() {
-      if let matchers::Matcher::GINA(regex_gina) = matcher {
-        if let Some(captures_gina) = regex_gina.check(line, char_name) {
-          return Some(captures_gina);
-        }
-      }
-    }
-    None
-  }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -173,7 +160,8 @@ impl From<&str> for TemplateString {
   fn from(tmpl: &str) -> Self {
     let param_names: Vec<String> = TEMPLATE_VARS
       .captures_iter(tmpl)
-      .filter_map(|c| c.ok()) // fancy_regex yields captures wrapped in Results
+      // fancy_regex wraps Captures in a Result; TODO: how should this error case be handled?
+      .filter_map(|c| c.ok())
       .filter_map(|captures| captures.get(1))
       .map(|mtch| mtch.as_str().to_owned())
       .collect();
@@ -268,7 +256,7 @@ mod test {
       comment: None,
       created_at: now.clone(),
       updated_at: now.clone(),
-      filter: vec![Matcher::gina("^{S1} hits {S2}").unwrap()],
+      filter: vec![Matcher::gina("^{S1} hits {S2}").unwrap()].into(),
       effects: vec![TriggerEffect::Sequence(vec![
         TriggerEffect::TextToSpeech("This is only a test.".into()),
         TriggerEffect::PlayAudioFile(Some("/dev/null".into())),
