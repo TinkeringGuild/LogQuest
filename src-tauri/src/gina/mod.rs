@@ -12,7 +12,7 @@ pub struct GINAImport {
   file_path: PathBuf,
   import_time: Timestamp,
   from_gina: GINATriggers,
-  converted: Vec<triggers::TriggerGroup>,
+  pub converted: Vec<triggers::TriggerGroup>,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]

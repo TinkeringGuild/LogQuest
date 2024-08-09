@@ -47,7 +47,7 @@ fn overlay_window_builder(app: &mut App) -> WindowBuilder {
 fn create_overlay_window(app: &mut App) -> tauri::Window {
   let overlay_window = overlay_window_builder(app).build().unwrap();
   let state = app.state::<StateHandle>();
-  let is_editable = state.select_overlay(|overlay| &overlay.overlay_editable);
+  let is_editable = state.select_overlay(|overlay| overlay.overlay_editable);
   overlay_window
     .set_ignore_cursor_events(!is_editable)
     .expect("Failed to set_ignore_cursor_events");
@@ -83,7 +83,7 @@ fn register_global_shortcut_manager(app: AppHandle) {
 fn toggle_overlay_editable(app: AppHandle) {
   let handle = app.app_handle();
   let state = app.state::<StateHandle>();
-  state.with_overlay(move |overlay| {
+  state.update_overlay(move |overlay| {
     let inverse = !overlay.overlay_editable;
     overlay.overlay_editable = inverse;
     if let Some(overlay_window) = handle.get_window("overlay") {

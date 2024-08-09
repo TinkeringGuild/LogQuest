@@ -102,12 +102,12 @@ pub fn convert_gina(
 
   match format {
     cli::ConvertGinaFormat::GinaInternal => {
-      write!(writer, "{from_gina:#?}")?;
+      writeln!(writer, "{from_gina:#?}")?;
       return Ok(());
     }
     cli::ConvertGinaFormat::GinaJSON => match serde_json::to_string_pretty(&from_gina) {
       Ok(pretty_json) => {
-        write!(writer, "{pretty_json}")?;
+        writeln!(writer, "{pretty_json}")?;
         return Ok(());
       }
       Err(e) => {
@@ -121,10 +121,10 @@ pub fn convert_gina(
   let root_trigger_group = from_gina.to_lq(&Timestamp::now())?;
   match format {
     cli::ConvertGinaFormat::Internal => {
-      write!(writer, "{root_trigger_group:#?}")?;
+      writeln!(writer, "{root_trigger_group:#?}")?;
     }
     cli::ConvertGinaFormat::JSON => match serde_json::to_string_pretty(&root_trigger_group) {
-      Ok(pretty_json) => write!(writer, "{pretty_json}")?,
+      Ok(pretty_json) => writeln!(writer, "{pretty_json}")?,
       Err(e) => {
         error!("Failed to serialize to JSON!");
         return Err(e.into());

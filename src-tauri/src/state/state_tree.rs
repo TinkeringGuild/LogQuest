@@ -1,13 +1,13 @@
 use super::config::LogQuestConfig;
 use crate::logs::active_character_detection::Character;
-use crate::triggers::TriggerGroup;
+use crate::triggers::TriggerRoot;
 use std::sync::Mutex;
 
 pub struct StateTree {
   pub overlay: Mutex<OverlayState>,
   pub reactor: Mutex<ReactorState>,
   pub config: Mutex<LogQuestConfig>,
-  pub triggers: Mutex<Vec<TriggerGroup>>,
+  pub triggers: Mutex<TriggerRoot>,
 }
 
 pub struct ReactorState {
@@ -21,10 +21,10 @@ pub struct OverlayState {
 impl StateTree {
   pub fn init_from_configs(
     app_config: LogQuestConfig,
-    triggers: Vec<TriggerGroup>,
+    trigger_root: TriggerRoot,
   ) -> anyhow::Result<StateTree> {
     let state = Self {
-      triggers: Mutex::new(triggers),
+      triggers: Mutex::new(trigger_root),
       overlay: Mutex::new(OverlayState::default()),
       reactor: Mutex::new(ReactorState::default()),
       config: Mutex::new(app_config),

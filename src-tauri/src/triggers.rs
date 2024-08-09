@@ -1,21 +1,58 @@
 use crate::{
-  common::{duration::Duration, timestamp::Timestamp, UUID},
+  common::{
+    duration::Duration, timestamp::Timestamp, LogQuestVersionType, LOG_QUEST_VERSION, UUID,
+  },
+  gina::GINAImport,
   matchers,
   state::config::LogQuestConfig,
 };
 use fancy_regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::{fs::File, io::BufReader};
-use tracing::info;
-
-const TRIGGERS_FILE_NAME: &str = "Triggers.json";
+use tracing::debug;
 
 lazy_static::lazy_static! {
 
   static ref TEMPLATE_VARS: Regex = Regex::new(r"\$\{\s*C\s*\}").unwrap();
 
   // /// This matches strings that have vars in the form of ${}
-  // static ref TEMPLATE_VARS: Regex = Regex::new(r"\$\{\s*([\w_-]+)\s*\}").unwrap();
+  // static ref TEMPLATE_VARS: Regex = Regex::new(r"\$\{\s*([\w_]+)\s*\}").unwrap();
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct TriggerRoot {
+  groups: Vec<TriggerGroup>,
+  log_quest_version: LogQuestVersionType,
+}
+
+impl TriggerRoot {
+  pub fn new(groups: Vec<TriggerGroup>) -> Self {
+    Self {
+      groups,
+      log_quest_version: LOG_QUEST_VERSION.clone(),
+    }
+  }
+
+  pub fn ingest_gina_import(&mut self, mut import: GINAImport) {
+    self.groups.append(&mut import.converted)
+  }
+
+  pub fn iter(&self) -> std::slice::Iter<TriggerGroup> {
+    self.groups.iter()
+  }
+
+  pub fn trigger_count(&self) -> usize {
+    fn descend_descendants(descendants: &Vec<TriggerGroupDescendant>) -> usize {
+      descendants.iter().fold(0, |sum, tgd| match tgd {
+        TriggerGroupDescendant::T(_) => sum + 1,
+        TriggerGroupDescendant::TG(tg) => sum + descend_descendants(&tg.children),
+      })
+    }
+    self
+      .groups
+      .iter()
+      .fold(0, |sum, tg| sum + descend_descendants(&tg.children))
+  }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -40,6 +77,7 @@ pub enum TriggerEffect {
   Pause(Duration),
   /// Useful for temporarily disabling an effect or use as a default Effect
   DoNothing,
+  // AppendToLog { log_name: String, message: TemplateString }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
@@ -196,37 +234,32 @@ impl From<Trigger> for TriggerGroupDescendant {
   }
 }
 
-pub fn load_or_create_relative_to_config(
-  config: &LogQuestConfig,
-) -> anyhow::Result<Vec<TriggerGroup>> {
-  let triggers_file_path = config
-    .config_file_path
-    .parent()
-    .expect("Could not determine parent directory of the config file!")
-    .join(TRIGGERS_FILE_NAME);
+pub fn load_or_create_relative_to_config(config: &LogQuestConfig) -> anyhow::Result<TriggerRoot> {
+  let triggers_file_path = config.triggers_file_path();
 
   if triggers_file_path.exists() {
-    info!("TRIGGERS FILE EXISTS: {}", triggers_file_path.display());
+    debug!(
+      "Triggers file exists. Loading {}",
+      triggers_file_path.display()
+    );
     let reader = BufReader::new(File::open(triggers_file_path)?);
-    Ok(serde_json::from_reader(reader)?)
+    let root: TriggerRoot = serde_json::from_reader(reader)?;
+    Ok(root)
   } else {
-    let triggers = default_triggers();
-    let raw_json = serde_json::to_string_pretty(&triggers)?;
-    let mut file = File::create(&triggers_file_path)?;
-    std::io::Write::write_all(&mut file, raw_json.as_bytes())?;
-    info!("CREATED TRIGGERS FILE: {}", triggers_file_path.display());
-    Ok(triggers)
+    let root = default_triggers();
+    config.save_triggers(&root)?;
+    Ok(root)
   }
 }
 
 #[cfg(not(debug_assertions))]
-pub fn default_triggers() -> Vec<TriggerGroup> {
-  vec![]
+pub fn default_triggers() -> TriggerRoot {
+  TriggerRoot::new(vec![])
 }
 
 #[cfg(debug_assertions)]
-pub fn default_triggers() -> Vec<TriggerGroup> {
-  vec![crate::debug_only::test_trigger_group()]
+pub fn default_triggers() -> TriggerRoot {
+  TriggerRoot::new(vec![crate::debug_only::test_trigger_group()])
 }
 
 #[cfg(test)]

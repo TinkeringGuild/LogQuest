@@ -41,12 +41,15 @@ enum ReactorEvent {
 type StopReactor = Box<dyn FnOnce() + 'static + Send + Sync>;
 
 pub fn start(state_handle: StateHandle) -> anyhow::Result<StopReactor> {
-  let Some(logs_dir) = state_handle.select_config(|config| &config.logs_dir_path) else {
+  let Some(logs_dir) = state_handle.select_config(|config| config.logs_dir_path.clone()) else {
     bail!("No logs dir is available yet!");
   };
   let log_events = LogEventBroadcaster::new(&logs_dir)?;
   let active_detector = ActiveCharacterDetector::start(log_events.subscribe());
   let (reactor_tx, reactor_rx) = mpsc::channel::<ReactorEvent>(REACTOR_EVENT_QUEUE_DEPTH);
+
+  let trigger_count = state_handle.select_triggers(|root| root.trigger_count());
+  debug!("Starting reactor with {trigger_count} triggers");
 
   let reactor_tx_ = reactor_tx.clone();
   let _ = spawn(react_to_active_character_change(
@@ -148,14 +151,14 @@ impl EventLoop {
               line_chan = (None, new_log_reader.subscribe());
               log_reader = new_log_reader;
               info!("Setting reactor state for new current character: {new_char:?}");
-              self.state.with_reactor(|r| r.current_character = Some(new_char));
+              self.state.update_reactor(|r| r.current_character = Some(new_char));
             }
             Some(ReactorEvent::SetActiveCharacter(None)) => {
               log_reader.stop();
               log_reader = LogReader::idle();
               line_chan = idle_line_chan();
               info!("Setting reactor state to have no current character");
-              self.state.with_reactor(|r| r.current_character = None);
+              self.state.update_reactor(|r| r.current_character = None);
             }
             Some(ReactorEvent::ExecTriggerEffect{effect, character}) => {
               self.exec_effect(&effect, &character).await;
@@ -181,9 +184,8 @@ impl EventLoop {
 
   async fn react_to_line(&self, line: &Line) {
     self.state.with_reactor(|reactor_state| {
-      self.state.with_triggers(|trigger_groups| {
-        let mut next_groups: LinkedList<&TriggerGroup> =
-          LinkedList::from_iter(trigger_groups.iter());
+      self.state.with_triggers(|root| {
+        let mut next_groups: LinkedList<&TriggerGroup> = LinkedList::from_iter(root.iter());
 
         let Some(character) = &reactor_state.current_character else {
           warn!("Cannot process line! No current character detected!");
@@ -264,7 +266,7 @@ async fn react_to_active_character_change(
         if let Err(mpsc::error::SendError(_)) = tx.send(ReactorEvent::SetActiveCharacter(new_current_char.clone())).await {
           break;
         }
-        state_handle.with_reactor(|state| {
+        state_handle.update_reactor(|state| {
           state.current_character = new_current_char;
         });
       }

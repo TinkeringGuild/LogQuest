@@ -6,6 +6,9 @@ use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
+pub type LogQuestVersionType = (usize, usize, usize);
+pub const LOG_QUEST_VERSION: LogQuestVersionType = (0, 1, 0);
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct UUID(String);
 

@@ -65,7 +65,6 @@ impl RegexGINA {
       pattern
     };
 
-    println!("RegexGina: {pattern}");
     let mut named_projections: HashMap<String, String> = HashMap::new();
 
     let mut conditions: ConditionsList = LinkedList::new();
@@ -254,8 +253,8 @@ impl<'de> Deserialize<'de> for RegexGINA {
   where
     D: Deserializer<'de>,
   {
-    let value: &str = Deserialize::deserialize(deserializer)?;
-    let value: anyhow::Result<RegexGINA> = value.try_into();
+    let value: String = Deserialize::deserialize(deserializer)?;
+    let value: anyhow::Result<RegexGINA> = value.as_str().try_into();
     let value: RegexGINA = value.map_err(serde::de::Error::custom)?;
     Ok(value)
   }

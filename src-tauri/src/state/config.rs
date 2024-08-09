@@ -1,12 +1,15 @@
+use crate::common::fatal_error;
+use crate::triggers::TriggerRoot;
 use serde::{Deserialize, Serialize};
 use std::fs;
+use std::io;
+use std::io::Write as _;
 use std::path::{Path, PathBuf};
-use tracing::info;
+use tracing::{debug, info};
 use ts_rs::TS;
 
-use crate::common::fatal_error;
-
 const CONFIG_FILE_NAME: &str = "LogQuest.toml";
+const TRIGGERS_FILE_NAME: &str = "Triggers.json";
 
 #[derive(TS, Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct LogQuestConfig {
@@ -35,7 +38,7 @@ impl LogQuestConfig {
       LogQuestConfig::load_from_file_path(&config_path, logs_dir_override)?
     } else {
       let config = LogQuestConfig::new_with_config_file_path(&config_path);
-      config.save()?;
+      config.save_config()?;
       config
     };
     Ok(config)
@@ -69,24 +72,40 @@ impl LogQuestConfig {
     Ok(config)
   }
 
-  pub fn save(&self) -> anyhow::Result<()> {
-    self.write_to_file_path(&self.config_file_path)
-  }
+  pub fn save_config(&self) -> anyhow::Result<()> {
+    let pretty_toml = toml::to_string_pretty(&self)?;
 
-  fn write_to_file_path(&self, path: &Path) -> anyhow::Result<()> {
-    let raw_toml = toml::to_string_pretty(&self)?;
-
-    if let Some(parent) = path.parent() {
+    if let Some(parent) = self.config_file_path.parent() {
       if !parent.exists() {
         info!("Creating directory {}", parent.display());
         fs::create_dir_all(&parent)?;
       }
     }
-    let mut file = fs::File::create(path)?; // overwrites file if it already exists
 
-    std::io::Write::write_all(&mut file, raw_toml.as_bytes())?;
+    let mut file = fs::File::create(&self.config_file_path)?;
+    file.write_all(pretty_toml.as_bytes())?;
 
     Ok(())
+  }
+
+  pub fn save_triggers(&self, root: &TriggerRoot) -> Result<(), io::Error> {
+    let triggers_file_path = self.triggers_file_path();
+    let json_bytes = serde_json::to_string_pretty(&root).and_then(|s| Ok(s.into_bytes()))?;
+    let json_size = json_bytes.len();
+
+    let mut file = fs::File::create(&triggers_file_path)?;
+    file.write_all(&json_bytes)?;
+
+    debug!("Wrote {json_size} bytes to {TRIGGERS_FILE_NAME}");
+    Ok(())
+  }
+
+  pub fn triggers_file_path(&self) -> PathBuf {
+    self
+      .config_file_path
+      .parent()
+      .expect("Could not determine parent directory of the config file!")
+      .join(TRIGGERS_FILE_NAME)
   }
 }
 

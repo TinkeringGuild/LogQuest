@@ -1,9 +1,12 @@
+use crate::gina::GINAImport;
 use crate::state::config::LogQuestConfig;
+use crate::triggers::TriggerRoot;
 use crate::{common::path_string, state::state_handle::StateHandle};
 use anyhow::bail;
+use std::path::PathBuf;
 use std::{fs::canonicalize, path::Path};
 use tauri::{AppHandle, Manager};
-use tracing::event;
+use tracing::{event, info};
 
 pub fn handler() -> impl Fn(tauri::Invoke) {
   tauri::generate_handler![
@@ -18,20 +21,32 @@ pub fn handler() -> impl Fn(tauri::Invoke) {
 #[tauri::command]
 fn get_config(app_handle: AppHandle) -> Result<LogQuestConfig, String> {
   let state = app_handle.state::<StateHandle>();
-  let config = state.select_config(|c| c);
+  let config = state.select_config(|c| c.clone());
   Ok(config)
 }
 
 #[tauri::command]
-fn import_gina_triggers_file(
-  app_handle: AppHandle,
-  _path: String,
-) -> Result<LogQuestConfig, String> {
+fn import_gina_triggers_file(app_handle: AppHandle, path: String) -> Result<TriggerRoot, String> {
   let state = app_handle.state::<StateHandle>();
-  let config = state.select_config(|c| c);
-  // TODO: THIS SHOULD NOT RETURN CONFIG BECAUSE TRIGGERS ARE NOT STORED IN
-  // CONFIG. THIS IS JUST A NO-OP FOR NOW, ESSENTIALLY.
-  Ok(config)
+
+  let path: PathBuf = path.into();
+  let gina_import = GINAImport::load(&path).map_err(|e| e.to_string())?;
+
+  let count_before = state.select_triggers(|root| root.trigger_count());
+
+  // TODO with_triggers should auto-save triggers file
+  state.update_triggers(move |trigger_root| trigger_root.ingest_gina_import(gina_import));
+
+  let (count_after, trigger_root) =
+    state.select_triggers(|root| (root.trigger_count(), root.clone()));
+
+  info!(
+    "Imported {} new triggers from GINA file: {}",
+    count_after - count_before,
+    path.display()
+  );
+
+  Ok(trigger_root)
 }
 
 #[tauri::command]
@@ -43,10 +58,10 @@ fn set_everquest_dir(app_handle: AppHandle, new_dir: String) -> Result<LogQuestC
   let state = app_handle.state::<StateHandle>();
   // TODO: I should introduce a try_with_config method that allows the callback to return a Result
   // since writing to the file can fail.
-  state.with_config(|config| {
+  state.update_config(|config| {
     config.everquest_directory = Some(path_string(&new_dir));
   });
-  Ok(state.select_config(|c| c))
+  Ok(state.select_config(|c| c.clone()))
 }
 
 #[tauri::command]
