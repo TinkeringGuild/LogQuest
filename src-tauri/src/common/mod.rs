@@ -2,12 +2,25 @@ pub mod duration;
 pub mod serializable_regex;
 pub mod timestamp;
 
+use lazy_static::lazy_static;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 pub type LogQuestVersionType = (usize, usize, usize);
-pub const LOG_QUEST_VERSION: LogQuestVersionType = (0, 1, 0);
+lazy_static! {
+  pub static ref LOG_QUEST_VERSION: LogQuestVersionType = {
+    let crate_version: &str = env!("CARGO_PKG_VERSION");
+    let parts: Vec<usize> = crate_version
+      .split(".")
+      .map(|s| s.parse().unwrap())
+      .collect();
+    let [major, minor, tiny] = parts.as_slice() else {
+      panic!("INVALID VERSION FORMAT DEFINED IN Cargo.toml: {crate_version}");
+    };
+    (*major, *minor, *tiny)
+  };
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct UUID(String);
