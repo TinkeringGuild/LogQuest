@@ -11,7 +11,7 @@ pub struct LogEventBroadcaster {
 }
 
 impl LogEventBroadcaster {
-  pub fn new(logs_dir: &Path) -> anyhow::Result<Self> {
+  pub fn new(logs_dir: &Path) -> Result<Self, notify::Error> {
     let (tx, _rx) = broadcast::channel::<LogFileEvent>(FILESYSTEM_EVENT_QUEUE_SIZE);
     let callback = new_notify_event_handler(tx.clone());
     // TODO! Should use a notify::Config

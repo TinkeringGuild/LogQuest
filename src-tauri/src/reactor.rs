@@ -11,7 +11,6 @@ use crate::{
   triggers::{effects::TriggerEffect, TriggerGroup, TriggerGroupDescendant},
   tts::TTS,
 };
-use anyhow::bail;
 use std::collections::LinkedList;
 use std::sync::Arc;
 use tauri::async_runtime::spawn;
@@ -40,13 +39,22 @@ enum ReactorEvent {
   Shutdown,
 }
 
+#[derive(thiserror::Error, Debug)]
+pub enum ReactorStartError {
+  /// This error is recoverable
+  #[error("Cannot start reactor when no Logs directory is known")]
+  NoLogsDir,
+  #[error("Failed to watch filesystem events for Logs directory")]
+  WatchError(#[from] notify::Error),
+}
+
 type StopReactor = Box<dyn FnOnce() + 'static + Send + Sync>;
 
 pub fn start_when_config_is_ready(
   state_handle: &StateHandle,
-) -> oneshot::Receiver<anyhow::Result<StopReactor>> {
+) -> oneshot::Receiver<Result<StopReactor, ReactorStartError>> {
   let state_handle = state_handle.to_owned();
-  let (resolver, future) = oneshot::channel::<anyhow::Result<StopReactor>>();
+  let (resolver, future) = oneshot::channel::<Result<StopReactor, ReactorStartError>>();
   spawn(async move {
     loop {
       match start_if_ready(&state_handle) {
@@ -70,7 +78,7 @@ pub fn start_when_config_is_ready(
   future
 }
 
-fn start_if_ready(state: &StateHandle) -> anyhow::Result<Option<StopReactor>> {
+fn start_if_ready(state: &StateHandle) -> Result<Option<StopReactor>, ReactorStartError> {
   // LogQuestConfig validates that the directory saved is a valid EQ dir before
   // it allows a value to be set into `everquest_directory`
   let is_ready = state.select_config(|c| c.is_ready());
@@ -84,9 +92,9 @@ fn start_if_ready(state: &StateHandle) -> anyhow::Result<Option<StopReactor>> {
   }
 }
 
-pub fn start(state_handle: StateHandle) -> anyhow::Result<StopReactor> {
+pub fn start(state_handle: StateHandle) -> Result<StopReactor, ReactorStartError> {
   let Some(logs_dir) = state_handle.select_config(|config| config.logs_dir_path.clone()) else {
-    bail!("No logs dir is available yet!");
+    return Err(ReactorStartError::NoLogsDir);
   };
   let log_events = LogEventBroadcaster::new(&logs_dir)?;
   let active_detector = ActiveCharacterDetector::start(log_events.subscribe());
