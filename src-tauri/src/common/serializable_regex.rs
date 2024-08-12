@@ -1,9 +1,11 @@
 use fancy_regex::Regex;
 use serde::{Deserialize, Serialize, Serializer};
+use ts_rs::TS;
 
-#[derive(Debug, Clone)]
+#[derive(TS, Debug, Clone)]
 pub struct SerializableRegex {
   pub pattern: String,
+  #[ts(skip)]
   pub compiled: Regex,
 }
 

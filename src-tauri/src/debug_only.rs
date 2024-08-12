@@ -1,34 +1,33 @@
 //! This file contains only code that is available in debug builds of LogQuest.
+#![cfg(debug_assertions)]
+
 use crate::{
   cli,
-  common::timestamp::Timestamp,
-  common::UUID,
+  commands::Bootstrap,
+  common::{self, timestamp::Timestamp},
   gina::xml::load_gina_triggers_from_file_path,
-  logs::log_event_broadcaster::LogEventBroadcaster,
-  logs::log_reader::LogReader,
-  state::config,
-  {matchers, triggers},
+  logs::{log_event_broadcaster::LogEventBroadcaster, log_reader::LogReader},
+  matchers,
+  triggers::effects::TriggerEffect,
+  triggers::{Trigger, TriggerGroup, TriggerGroupDescendant},
 };
 use anyhow::bail;
 use std::fs;
 use std::path::PathBuf;
 use tracing::{error, info};
-use ts_rs::TS as _;
+use ts_rs::TS;
 
-#[cfg(debug_assertions)]
-pub fn test_trigger_group() -> triggers::TriggerGroup {
-  let now = Timestamp::now;
-
+pub fn test_trigger_group() -> TriggerGroup {
   fn re(s: &str) -> matchers::Matcher {
     matchers::Matcher::GINA(s.try_into().unwrap())
   }
 
-  let trigger = triggers::Trigger {
-    id: UUID::new(),
+  let trigger = Trigger {
+    id: common::UUID::new(),
     name: "Tells / Hail".to_owned(),
     comment: None,
-    created_at: now(),
-    updated_at: now(),
+    created_at: Timestamp::now(),
+    updated_at: Timestamp::now(),
     enabled: true,
     filter: vec![
       re(r"^([A-Za-z]+) -> {C}: (.+)$"),
@@ -36,27 +35,26 @@ pub fn test_trigger_group() -> triggers::TriggerGroup {
     ]
     .into(),
     effects: vec![
-      triggers::TriggerEffect::TextToSpeech("Hail, ${C}!".into()),
-      // triggers::TriggerEffect::PlayAudioFile(Some(
+      TriggerEffect::TextToSpeech("Hail, ${C}!".into()),
+      // TriggerEffect::PlayAudioFile(Some(
       //   "/home/j/Downloads/sound effects/hail/hail-exclaim-callum.ogg".into(),
       // )),
-      // triggers::TriggerEffect::OverlayMessage("💬${1}: ${2}".into()),
+      // TriggerEffect::OverlayMessage("💬${1}: ${2}".into()),
     ],
   };
 
-  triggers::TriggerGroup {
-    id: UUID::new(),
+  TriggerGroup {
+    id: common::UUID::new(),
     name: "Test".to_owned(),
-    children: vec![triggers::TriggerGroupDescendant::T(trigger)],
+    children: vec![TriggerGroupDescendant::T(trigger)],
     comment: None,
-    created_at: now(),
-    updated_at: now(),
+    created_at: Timestamp::now(),
+    updated_at: Timestamp::now(),
   }
 }
 
-#[cfg(debug_assertions)]
 pub fn tail(log_file_path: &std::path::Path) -> anyhow::Result<()> {
-  info!("In tail");
+  info!("Watch log file events for {}", log_file_path.display());
   let rt = tokio::runtime::Runtime::new().unwrap();
   let mut fs_events = LogEventBroadcaster::new(&log_file_path)?;
   fs_events.start()?;
@@ -86,7 +84,6 @@ pub fn tail(log_file_path: &std::path::Path) -> anyhow::Result<()> {
   Ok(())
 }
 
-#[cfg(debug_assertions)]
 pub fn convert_gina(
   path: &PathBuf,
   format: cli::ConvertGinaFormat,
@@ -135,29 +132,21 @@ pub fn convert_gina(
   Ok(())
 }
 
-#[cfg(debug_assertions)]
 pub fn generate_typescript() -> anyhow::Result<()> {
-  let rust_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-  let out_dir = rust_dir.join("../src/generated/").canonicalize()?;
-  if !out_dir.exists() {
-    panic!("The src/generated/ dir does not exist!");
-  }
-  let out_file = out_dir.join("LogQuestConfig.ts");
-  if out_file.exists() {
-    info!("Deleting possibly stale file {}", out_file.display());
-    if let Err(e) = fs::remove_file(&out_file) {
-      panic!(
-        "Could not delete the file {} [ {:#?} ]",
-        out_file.display(),
-        e
-      );
-    }
-  }
-  if let Err(e) = config::LogQuestConfig::export_all_to(&out_dir) {
-    panic!("Could not export TypeScript! {:#?}", e);
-  }
-
-  info!("Exported LogQuestConfig to {}", out_file.display());
-
+  let out_dir = generated_typescript_dir();
+  Bootstrap::export_all_to(&out_dir)?;
+  info!("Exported TypeScript files to {}", out_dir.display());
   Ok(())
+}
+
+fn generated_typescript_dir() -> PathBuf {
+  let ts_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+    .join("../src/generated/")
+    .canonicalize()
+    .expect("Could not canonicalize path to the generated TypeScript dir!");
+
+  if !ts_dir.exists() {
+    common::fatal_error("The src/generated/ dir does not exist!");
+  }
+  ts_dir
 }

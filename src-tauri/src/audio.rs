@@ -99,12 +99,25 @@ fn mixer_loop(mut rx: mpsc::Receiver<AudioMixerEvent>) {
   }
 }
 
-pub(crate) fn get_device_names() -> Vec<String> {
+pub fn get_device_names() -> Vec<String> {
   let host = cpal::platform::default_host();
   let Ok(devices) = host.devices() else {
     fatal_error("Could not get a list of the audio devices!");
   };
   devices
-    .map(|device| device.name().unwrap_or("[UNKNOWN]".into()))
+    .map(|device| device.name().unwrap_or_else(|_| "[UNKNOWN]".into()))
     .collect()
+}
+
+pub fn print_audio_devices() -> ! {
+  let devices = get_device_names();
+  if devices.is_empty() {
+    fatal_error("No audio devices found!");
+  }
+  println!("\nAudio devices detected:\n");
+  for device_name in devices.iter() {
+    println!(" - {device_name}");
+  }
+  println!("");
+  std::process::exit(0);
 }

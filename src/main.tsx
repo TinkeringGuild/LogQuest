@@ -1,19 +1,24 @@
-// import React from "react";
-import { createRoot } from "react-dom/client";
-import { Provider } from "react-redux";
-import store from "./store";
-import MainWindow from "./main/MainWindow";
+import { createRoot } from 'react-dom/client';
+import { Provider } from 'react-redux';
 
-const container = document.getElementById("root") as HTMLElement;
+import store from './store';
+import Layout from './main/Layout';
+import TriggerTree from './main/TriggerTree';
+
+import '@fontsource/roboto/300.css';
+import '@fontsource/roboto/400.css';
+import '@fontsource/roboto/500.css';
+import '@fontsource/roboto/700.css';
+import './base.css';
+
+const container = document.getElementById('root') as HTMLElement;
 const root = createRoot(container);
 
+// React.StrictMode isn't used because it doubly renders the top-level component.
 root.render(
   <Provider store={store}>
-    <MainWindow />
-  </Provider>,
+    <Layout>
+      <TriggerTree />
+    </Layout>
+  </Provider>
 );
-
-//// StrictMode is disabled because it doubly renders the top-level component.
-// <React.StrictMode>
-//   <MainWindow />
-// </React.StrictMode>,

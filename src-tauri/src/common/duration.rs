@@ -1,8 +1,9 @@
 /// This Duration type is needed for custom serialization of time-related integers
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::time;
+use ts_rs::TS;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(TS, Debug, Clone, PartialEq, Eq)]
 pub struct Duration(u32);
 
 impl Duration {

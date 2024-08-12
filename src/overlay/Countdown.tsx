@@ -1,4 +1,4 @@
-import "./Countdown.css";
+import './Countdown.css';
 
 interface CountdownProps {
   label: string;

@@ -1,4 +1,4 @@
-import "./LoadingIndicator.css";
+import './LoadingIndicator.css';
 
 // from https://loading.io/css/
 function LoadingIndicator() {

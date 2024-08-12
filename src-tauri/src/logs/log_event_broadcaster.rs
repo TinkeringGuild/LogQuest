@@ -1,5 +1,4 @@
 use super::{LogFileEvent, FILESYSTEM_EVENT_QUEUE_SIZE, LOG_FILE_PATTERN};
-use crate::common::path_string;
 use notify::{RecommendedWatcher, Watcher};
 use std::path::{Path, PathBuf};
 use tokio::sync::broadcast;
@@ -98,4 +97,12 @@ fn new_notify_event_handler(
 fn is_valid_log_file_name(path: &Path) -> bool {
   let path = path.to_string_lossy();
   LOG_FILE_PATTERN.is_match(&path).is_ok_and(|b| b)
+}
+
+fn path_string(path: &Path) -> String {
+  path
+    .canonicalize()
+    .unwrap_or_else(|_| path.to_owned())
+    .to_string_lossy()
+    .into_owned()
 }

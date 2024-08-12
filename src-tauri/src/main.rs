@@ -42,7 +42,7 @@ fn main() {
       logs_dir,
     }) => start(config_dir, logs_dir),
 
-    Commands::PrintAudioDevices => print_audio_devices(),
+    Commands::PrintAudioDevices => audio::print_audio_devices(),
 
     Commands::TTS(tts) => match tts {
       TTSCommand::Speak { message, voice } => tts::speak_once(message, voice),
@@ -70,22 +70,8 @@ fn start(
   let config_dir = config::get_config_dir_with_optional_override(config_dir_override);
   let config = LogQuestConfig::load_or_create_in_dir(&config_dir, &logs_dir_override)?;
   let triggers = triggers::load_or_create_relative_to_config(&config)?; // TODO: Need to report JSON parse errors somewhere
-  let state_tree = StateTree::init_from_configs(config, triggers)?;
+  let state_tree = StateTree::init_with_config_and_triggers(config, triggers)?;
   let state_handle = StateHandle::new(state_tree);
-
   ui::launch(state_handle);
   Ok(())
-}
-
-fn print_audio_devices() -> ! {
-  let devices = audio::get_device_names();
-  if devices.is_empty() {
-    fatal_error("No audio devices found!");
-  }
-  println!("\nAudio devices detected:\n");
-  for device_name in devices.iter() {
-    println!(" - {device_name}");
-  }
-  println!("");
-  std::process::exit(0);
 }

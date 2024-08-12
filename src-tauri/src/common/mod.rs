@@ -5,7 +5,8 @@ pub mod timestamp;
 use lazy_static::lazy_static;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
-use std::path::Path;
+use std::hash::{Hash, Hasher};
+use ts_rs::TS;
 
 pub type LogQuestVersionType = (usize, usize, usize);
 lazy_static! {
@@ -22,7 +23,7 @@ lazy_static! {
   };
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(TS, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct UUID(String);
 
 impl UUID {
@@ -31,9 +32,10 @@ impl UUID {
   }
 }
 
-pub(crate) fn path_string(path: &Path) -> String {
-  let path = path.canonicalize().unwrap_or_else(|_| path.to_owned());
-  path.to_string_lossy().to_string()
+impl Hash for UUID {
+  fn hash<H: Hasher>(&self, state: &mut H) {
+    self.0.hash(state)
+  }
 }
 
 pub(crate) fn random_id(length: u8) -> String {

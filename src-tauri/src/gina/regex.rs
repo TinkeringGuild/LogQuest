@@ -3,6 +3,7 @@ use crate::matchers::MatchContext;
 use fancy_regex::{Captures, Regex};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::{HashMap, LinkedList};
+use ts_rs::TS;
 
 lazy_static::lazy_static! {
   /// For extracting out GINA variable placeholders from a GINA regex (e.g. {S}, {N>100}, {C}, {S2})
@@ -10,7 +11,7 @@ lazy_static::lazy_static! {
     Regex::new(r"\{\s*(?:([Cc]|[Ss]\d*)|(?:([Nn]\d*)\s*(?:(>=|<=|=|>|<)\s*(-?\d+))?))\s*\}").unwrap();
 
   /// A MatcherWithContext::GINA can use patterns like ${1} to back-reference a capture in the Trigger's initial regex
-  static ref REGEX_REFERENCES: Regex =
+  static ref REGEX_REFERENCES: Regex = // TODO: THIS NEEDS TO SUPPORT ${named_value}
       Regex::new(r"\$\{\s*(\d+)\s*\}").unwrap();
 
   /// Named capture groups are injected into the converted Regex; this matches the generated names
@@ -20,12 +21,16 @@ lazy_static::lazy_static! {
 type ConditionsList = LinkedList<Box<dyn Fn(&Captures) -> bool + Send + Sync + 'static>>;
 struct Conditions(ConditionsList);
 
-#[derive(Debug)]
+#[derive(TS, Debug)]
 pub struct RegexGINA {
   raw: String,
+  #[ts(skip)]
   compiled: Regex,
+  #[ts(skip)]
   named_projections: HashMap<String, String>,
+  #[ts(skip)]
   positional_projections: Vec<usize>,
+  #[ts(skip)]
   conditions: Conditions,
 }
 

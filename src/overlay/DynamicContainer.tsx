@@ -1,6 +1,6 @@
-import "./DynamicContainer.css";
-import { ReactNode } from "react";
-import { Rnd } from "react-rnd";
+import './DynamicContainer.css';
+import { ReactNode } from 'react';
+import { Rnd } from 'react-rnd';
 
 interface DynamicContainerProps {
   x: number;

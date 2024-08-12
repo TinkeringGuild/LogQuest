@@ -13,9 +13,7 @@ pub fn launch(state: StateHandle) {
   let result = tauri::Builder::default()
     .manage(state.clone())
     .setup(move |app: &mut App| {
-      if let Err(e) = reactor::start(state) {
-        fatal_error(e);
-      }
+      reactor::start_when_config_is_ready(state);
       setup(app)
     })
     .invoke_handler(commands::handler())
@@ -27,7 +25,7 @@ pub fn launch(state: StateHandle) {
 }
 
 fn setup(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
-  create_overlay_window(app)/*.open_devtools()*/;
+  // create_overlay_window(app)/*.open_devtools()*/;
   register_window_close_event(app.handle());
   register_global_shortcut_manager(app.handle());
   Ok(())

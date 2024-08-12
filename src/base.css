@@ -1,0 +1,43 @@
+:root,
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+}
+
+#root {
+  height: 100vh;
+}
+
+* {
+  -webkit-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  cursor: default;
+}
+
+#main-scrollable::-webkit-scrollbar {
+  width: 12px;
+}
+
+#main-scrollable::-webkit-scrollbar-track {
+  background: #fefefe;
+}
+
+#main-scrollable::-webkit-scrollbar-thumb {
+  background-color: black;
+  border-radius: 0;
+}
+
+#main-scrollable::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+@font-face {
+  font-family: 'Jacquard_12';
+  src: url('/fonts/Jacquard_12/Jacquard12-Regular.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+}

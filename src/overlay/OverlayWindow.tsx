@@ -1,31 +1,29 @@
-import { listen } from "@tauri-apps/api/event";
-import { useState, useEffect, useReducer } from "react";
-import { SpellTimer } from "../types";
-import { pull } from "lodash";
+// import { listen } from '@tauri-apps/api/event';
+// import { useState, useEffect, useReducer } from 'react';
+// import { pull } from 'lodash';
 /* import { println } from "../util"; */
 
-import Countdown from "./Countdown";
-import DynamicContainer from "./DynamicContainer";
+// import Countdown from './Countdown';
+// import DynamicContainer from './DynamicContainer';
 
-import "./OverlayWindow.scss";
-
+/*
 interface OverlayDisplay {
   spells: SpellTimer[];
 }
 
 interface OverlayAction {
-  type: "spell-added" | "spell-timer-finished";
+  type: 'spell-added' | 'spell-timer-finished';
   payload: SpellTimer;
 }
 
 function reducer(state: OverlayDisplay, action: OverlayAction) {
   switch (action.type) {
-    case "spell-added":
+    case 'spell-added':
       return { ...state, spells: [...state.spells, action.payload] };
-    case "spell-timer-finished":
+    case 'spell-timer-finished':
       return { ...state, spells: pull(state.spells, action.payload) };
     default:
-      throw new Error("unrecognized OverAction!");
+      throw new Error('unrecognized OverAction!');
   }
 }
 
@@ -37,15 +35,15 @@ function OverlayWindow() {
     (spells) =>
       ({
         spells,
-      }) as OverlayDisplay,
+      }) as OverlayDisplay
   );
 
   useEffect(() => {
     let removalTimer: number | null = null;
-    const unlisten = listen<SpellTimer>("new-spell-timer", ({ payload }) => {
-      dispatch({ type: "spell-added", payload });
+    const unlisten = listen<SpellTimer>('new-spell-timer', ({ payload }) => {
+      dispatch({ type: 'spell-added', payload });
       removalTimer = setTimeout(() => {
-        dispatch({ type: "spell-timer-finished", payload });
+        dispatch({ type: 'spell-timer-finished', payload });
       }, payload.duration * 1000);
     });
     return () => {
@@ -59,7 +57,7 @@ function OverlayWindow() {
   }, []);
 
   useEffect(() => {
-    const unlisten = listen("editable-changed", (event) => {
+    const unlisten = listen('editable-changed', (event) => {
       setEditable(!!event.payload);
     });
     return () => {
@@ -68,7 +66,7 @@ function OverlayWindow() {
   });
 
   return (
-    <div className={`overlay ${editable ? "is-editable" : "is-static"}`}>
+    <div className={`overlay ${editable ? 'is-editable' : 'is-static'}`}>
       <DynamicContainer width={450} height={500} x={0} y={0}>
         {display.spells.map((spell) => (
           <Countdown
@@ -81,5 +79,8 @@ function OverlayWindow() {
     </div>
   );
 }
+*/
+
+const OverlayWindow: React.FC<{}> = () => <div>WIP</div>;
 
 export default OverlayWindow;

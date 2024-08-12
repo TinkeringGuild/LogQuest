@@ -6,8 +6,9 @@ use tauri::async_runtime::spawn;
 use tokio::select;
 use tokio::sync::{broadcast, oneshot, watch};
 use tracing::{debug, error, info, warn};
+use ts_rs::TS;
 
-#[derive(Debug, Clone)]
+#[derive(TS, Debug, Clone)]
 pub struct Character {
   pub name: String,
   #[allow(unused)]

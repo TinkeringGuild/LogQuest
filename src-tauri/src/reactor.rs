@@ -1,21 +1,25 @@
 use crate::{
   audio::AudioMixer,
+  common::fatal_error,
   logs::{
     active_character_detection::{ActiveCharacterDetector, Character},
     log_event_broadcaster::LogEventBroadcaster,
     log_reader::LogReader,
     Line,
   },
+  matchers::MatchContext,
   state::state_handle::StateHandle,
-  triggers::{TriggerEffect, TriggerGroup, TriggerGroupDescendant},
+  triggers::{effects::TriggerEffect, TriggerGroup, TriggerGroupDescendant},
   tts::TTS,
 };
 use anyhow::bail;
 use std::collections::LinkedList;
+use std::sync::Arc;
 use tauri::async_runtime::spawn;
 use tokio::select;
 use tokio::sync::{broadcast, mpsc};
 use tracing::{debug, error, info, warn};
+
 
 const REACTOR_EVENT_QUEUE_DEPTH: usize = 1000;
 
@@ -33,12 +37,45 @@ enum ReactorEvent {
   SetActiveCharacter(Option<Character>),
   ExecTriggerEffect {
     effect: TriggerEffect,
-    character: Character,
+    context: Arc<MatchContext>,
   },
   Shutdown,
 }
 
 type StopReactor = Box<dyn FnOnce() + 'static + Send + Sync>;
+
+// TODO: This could return a Result<StopReactor> (when use of StopReactor is implemented)
+pub fn start_when_config_is_ready(state_handle: StateHandle) {
+  let start_if_ready = move |state: &StateHandle| {
+    // LogQuestConfig validates that the directory saved is a valid EQ dir before
+    // it allows a value to be set into `everquest_directory`
+    let is_ready = state.select_config(|c| c.is_ready());
+    if is_ready {
+      if let Err(e) = start(state.clone()) {
+        fatal_error(e);
+      }
+      return true;
+    } else {
+      return false;
+    }
+  };
+
+  if start_if_ready(&state_handle) {
+    return;
+  }
+
+  warn!("The EverQuest directory is not set in the config. Waiting to start the Reactor until it has a valid directory.");
+
+  spawn(async move {
+    loop {
+      state_handle.config_updated.notified().await;
+      if start_if_ready(&state_handle) {
+        info!("The EverQuest directory has been set. Reactor starting...");
+        break;
+      }
+    }
+  });
+}
 
 pub fn start(state_handle: StateHandle) -> anyhow::Result<StopReactor> {
   let Some(logs_dir) = state_handle.select_config(|config| config.logs_dir_path.clone()) else {
@@ -160,8 +197,8 @@ impl EventLoop {
               info!("Setting reactor state to have no current character");
               self.state.update_reactor(|r| r.current_character = None);
             }
-            Some(ReactorEvent::ExecTriggerEffect{effect, character}) => {
-              self.exec_effect(&effect, &character).await;
+            Some(ReactorEvent::ExecTriggerEffect{effect, context}) => {
+              self.exec_effect(&effect, &context).await;
             }
           }
         }
@@ -199,12 +236,13 @@ impl EventLoop {
                 if !trigger.enabled {
                   continue;
                 }
-                if let Some(_match_context) = trigger.filter.check(&line.content, &character.name) {
+                if let Some(match_context) = trigger.filter.check(&line.content, &character.name) {
+                  let match_context = Arc::new(match_context);
                   for effect in trigger.effects.iter() {
                     debug!("TRIGGER EFFECT: {effect:?}");
                     self.send(ReactorEvent::ExecTriggerEffect {
                       effect: effect.clone(),
-                      character: character.clone(),
+                      context: match_context.clone(),
                     });
                   }
                 }
@@ -228,15 +266,15 @@ impl EventLoop {
     });
   }
 
-  async fn exec_effect(&self, effect: &TriggerEffect, character: &Character) {
+  async fn exec_effect(&self, effect: &TriggerEffect, context: &MatchContext) {
     match effect {
       TriggerEffect::PlayAudioFile(Some(file_path)) => {
-        if let Err(e) = self.mixer.play_file(&file_path.render(&character.name)) {
+        if let Err(e) = self.mixer.play_file(&file_path.render(&context)) {
           error!("Error playing file! {e:?}");
         }
       }
       TriggerEffect::TextToSpeech(template) => {
-        let message = template.render(&character.name);
+        let message = template.render(&context);
         if let Err(_) = self
           .t2s_tx
           .send(TTS::Speak {

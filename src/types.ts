@@ -1,13 +1,13 @@
-import { LogQuestConfig } from "./generated/LogQuestConfig";
-export type { LogQuestConfig } from "./generated/LogQuestConfig";
+import { LogQuestConfig } from './generated/LogQuestConfig';
+import { OverlayState } from './generated/OverlayState';
+import { TriggerRoot } from './generated/TriggerRoot';
 
-export interface ConfigWithMetadata {
-    config: LogQuestConfig;
-    config_has_loaded: boolean;
+export interface Bootstrap {
+  overlay: OverlayState;
+  config: LogQuestConfig;
+  triggers: TriggerRoot;
 }
 
-export interface SpellTimer {
-    name: string;
-    duration: number;
-    uuid: string;
+export interface AppState {
+  bootstrapped: boolean;
 }

@@ -5,11 +5,21 @@ use std::fs;
 use std::io;
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
+use tracing::error;
 use tracing::{debug, info};
 use ts_rs::TS;
 
 const CONFIG_FILE_NAME: &str = "LogQuest.toml";
 const TRIGGERS_FILE_NAME: &str = "Triggers.json";
+
+#[derive(Debug)]
+pub enum EverQuestDirectoryError {
+  DoesNotExist,
+  DoesNotHaveLogsDir,
+  NotValidEverQuestDir,
+  CouldNotCanonicalize,
+  CorruptedPath,
+}
 
 #[derive(TS, Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct LogQuestConfig {
@@ -26,6 +36,7 @@ pub struct LogQuestConfig {
   #[ts(skip)]
   pub logs_dir_path: Option<PathBuf>,
 }
+
 impl LogQuestConfig {
   /// Given the config directory, load the LogQuestConfig from it or
   /// create a new one on-disk and return it.
@@ -63,12 +74,15 @@ impl LogQuestConfig {
   fn load_from_file_path(path: &Path, logs_dir_override: &Option<PathBuf>) -> anyhow::Result<Self> {
     let raw_config_file = fs::read_to_string(path)?;
     let mut config: LogQuestConfig = toml::from_str(&raw_config_file)?;
-    config.config_file_path = path.to_owned();
-    config.logs_dir_path = match (config.everquest_directory.as_deref(), logs_dir_override) {
-      (_, Some(logs_dir)) => Some(logs_dir.to_owned()),
-      (Some(eq_dir), _) => Some(default_logs_dir_from_eq_dir(&PathBuf::from(eq_dir))),
+    if let Some(eq_dir) = config.everquest_directory {
+      config.everquest_directory = validate_eq_dir(&eq_dir).ok();
+    }
+    config.logs_dir_path = match (&config.everquest_directory, logs_dir_override) {
+      (_, Some(overridden)) => Some(overridden.to_owned()),
+      (Some(eq_dir), _) => default_logs_dir_from_eq_dir(&eq_dir).ok(),
       _ => None,
     };
+    config.config_file_path = path.to_owned();
     Ok(config)
   }
 
@@ -107,6 +121,21 @@ impl LogQuestConfig {
       .expect("Could not determine parent directory of the config file!")
       .join(TRIGGERS_FILE_NAME)
   }
+
+  pub fn set_eq_dir(&mut self, path: &str) -> Result<String, EverQuestDirectoryError> {
+    let eq_dir = validate_eq_dir(path)?;
+    self.everquest_directory = Some(eq_dir.clone());
+    if self.logs_dir_path.is_none() {
+      self.logs_dir_path = Some(default_logs_dir_from_eq_dir(&eq_dir)?);
+    }
+    Ok(eq_dir)
+  }
+
+  /// LogQuest can be started before the reactor is able to begin; if this happens, it will
+  /// poll this function anytime the config is updated.
+  pub fn is_ready(&self) -> bool {
+    self.everquest_directory.is_some() && self.logs_dir_path.is_some()
+  }
 }
 
 /// By default, this uses the platform-specific conventional config directory as the parent
@@ -116,9 +145,10 @@ impl LogQuestConfig {
 /// On Windows, this should be `C:\Users\<Username>\AppData\Roaming`
 ///
 /// Since the path can be overridden at the LQ CLI, this is a convenience method that takes
-/// the `Option` directly and decides whether how to use it.
+/// the `Option` directly and decides how to use it.
 ///
-/// This function also ensures the directory and any parent directories are created.
+/// This function also ensures the directory and any parent directories are created. It will
+/// panic if the directories could not be created, since this is essentially unrecoverable.
 pub fn get_config_dir_with_optional_override(path_override: Option<PathBuf>) -> PathBuf {
   let config_dir = path_override.unwrap_or_else(default_config_dir);
   if let Err(e) = fs::create_dir_all(&config_dir) {
@@ -138,6 +168,50 @@ pub fn default_config_dir() -> PathBuf {
   cfg_dir.join(app_name)
 }
 
-fn default_logs_dir_from_eq_dir(eq_path: &Path) -> PathBuf {
-  eq_path.join("Logs")
+pub fn validate_eq_dir(dir: &str) -> Result<String, EverQuestDirectoryError> {
+  let path: PathBuf = dir.into();
+  if !path.is_dir() {
+    error!("The EQ directory given does not exist!");
+    return Err(EverQuestDirectoryError::DoesNotExist);
+  }
+  if !path.join("eqclient.ini").exists() {
+    error!("The EQ directory given does not appear to be a valid EverQuest installation: {dir}");
+    return Err(EverQuestDirectoryError::NotValidEverQuestDir);
+  }
+  let Ok(path) = path.canonicalize() else {
+    error!("Could not canonicalize the EQ directory path: {dir}");
+    return Err(EverQuestDirectoryError::CouldNotCanonicalize);
+  };
+  let Some(path) = path.to_str() else {
+    error!("The path to the EQ directory appears corrupted! Invalid UTF characters?");
+    return Err(EverQuestDirectoryError::CorruptedPath);
+  };
+  Ok(path.to_owned())
+}
+
+fn default_logs_dir_from_eq_dir(eq_path: &str) -> Result<PathBuf, EverQuestDirectoryError> {
+  let eq_path: PathBuf = eq_path.into();
+  let logs_dir = eq_path.join("Logs");
+  if !logs_dir.is_dir() {
+    error!(
+      "The EQ directory has no Logs sub-directory! Missing path: {}",
+      logs_dir.display()
+    );
+    return Err(EverQuestDirectoryError::DoesNotHaveLogsDir);
+  }
+  Ok(logs_dir)
+}
+
+impl std::error::Error for EverQuestDirectoryError {}
+impl std::fmt::Display for EverQuestDirectoryError {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    let message = match self {
+      Self::DoesNotExist => "Directory does not exist",
+      Self::DoesNotHaveLogsDir => "Directory does not have a Logs sub-directory",
+      Self::NotValidEverQuestDir => "Directory is not a valid EverQuest installation",
+      Self::CouldNotCanonicalize => "Could not determine the absolute path of the directory",
+      Self::CorruptedPath => "The path appears corrupted with invalid characters",
+    };
+    write!(f, "{}", message)
+  }
 }
