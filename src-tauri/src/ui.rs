@@ -4,8 +4,9 @@ use crate::{
   reactor,
   state::state_handle::StateHandle,
 };
+use tauri::async_runtime::spawn;
 use tauri::{App, AppHandle, GlobalShortcutManager, Manager, Window, WindowBuilder, WindowEvent};
-use tracing::info;
+use tracing::{debug, info};
 
 const TOGGLE_OVERLAY_ACCELERATOR: &str = "CommandOrControl+Alt+Shift+L";
 
@@ -13,7 +14,7 @@ pub fn launch(state: StateHandle) {
   let result = tauri::Builder::default()
     .manage(state.clone())
     .setup(move |app: &mut App| {
-      reactor::start_when_config_is_ready(state);
+      reactor(&state);
       setup(app)
     })
     .invoke_handler(commands::handler())
@@ -22,6 +23,23 @@ pub fn launch(state: StateHandle) {
   if let Err(e) = result {
     fatal_error(e);
   }
+}
+
+fn reactor(state_handle: &StateHandle) {
+  let future = reactor::start_when_config_is_ready(state_handle);
+  spawn(async move {
+    match future.await {
+      Ok(Ok(_stop_reactor)) => {
+        debug!("Reactor started from UI");
+      }
+      Err(_recv_error) => {
+        fatal_error("Reactor start_when_config_is_ready future channel closed?");
+      }
+      Ok(Err(e)) => {
+        fatal_error(e.to_string());
+      }
+    }
+  });
 }
 
 fn setup(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {

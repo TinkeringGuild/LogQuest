@@ -1,6 +1,5 @@
 use crate::{
   audio::AudioMixer,
-  common::fatal_error,
   logs::{
     active_character_detection::{ActiveCharacterDetector, Character},
     log_event_broadcaster::LogEventBroadcaster,
@@ -16,10 +15,9 @@ use anyhow::bail;
 use std::collections::LinkedList;
 use std::sync::Arc;
 use tauri::async_runtime::spawn;
-use tokio::select;
 use tokio::sync::{broadcast, mpsc};
+use tokio::{select, sync::oneshot};
 use tracing::{debug, error, info, warn};
-
 
 const REACTOR_EVENT_QUEUE_DEPTH: usize = 1000;
 
@@ -44,37 +42,46 @@ enum ReactorEvent {
 
 type StopReactor = Box<dyn FnOnce() + 'static + Send + Sync>;
 
-// TODO: This could return a Result<StopReactor> (when use of StopReactor is implemented)
-pub fn start_when_config_is_ready(state_handle: StateHandle) {
-  let start_if_ready = move |state: &StateHandle| {
-    // LogQuestConfig validates that the directory saved is a valid EQ dir before
-    // it allows a value to be set into `everquest_directory`
-    let is_ready = state.select_config(|c| c.is_ready());
-    if is_ready {
-      if let Err(e) = start(state.clone()) {
-        fatal_error(e);
-      }
-      return true;
-    } else {
-      return false;
-    }
-  };
-
-  if start_if_ready(&state_handle) {
-    return;
-  }
-
-  warn!("The EverQuest directory is not set in the config. Waiting to start the Reactor until it has a valid directory.");
-
+pub fn start_when_config_is_ready(
+  state_handle: &StateHandle,
+) -> oneshot::Receiver<anyhow::Result<StopReactor>> {
+  let state_handle = state_handle.to_owned();
+  let (resolver, future) = oneshot::channel::<anyhow::Result<StopReactor>>();
   spawn(async move {
     loop {
-      state_handle.config_updated.notified().await;
-      if start_if_ready(&state_handle) {
-        info!("The EverQuest directory has been set. Reactor starting...");
-        break;
+      match start_if_ready(&state_handle) {
+        Ok(Some(stop_reactor)) => {
+          info!("The EverQuest directory has been set properly. Reactor starting...");
+          let _ = resolver.send(Ok(stop_reactor));
+          break;
+        }
+        Err(e) => {
+          error!("Waited until config was ready to start reactor, but encountered an error when starting it");
+          let _ = resolver.send(Err(e));
+          break;
+        }
+        Ok(None) => {}
       }
+
+      warn!("The EverQuest directory is not set in the config! Set the directory to start the LogQuest reactor");
+      state_handle.config_updated.notified().await;
     }
   });
+  future
+}
+
+fn start_if_ready(state: &StateHandle) -> anyhow::Result<Option<StopReactor>> {
+  // LogQuestConfig validates that the directory saved is a valid EQ dir before
+  // it allows a value to be set into `everquest_directory`
+  let is_ready = state.select_config(|c| c.is_ready());
+  if is_ready {
+    match start(state.clone()) {
+      Ok(stop_reactor) => Ok(Some(stop_reactor)),
+      Err(err) => Err(err),
+    }
+  } else {
+    Ok(None)
+  }
 }
 
 pub fn start(state_handle: StateHandle) -> anyhow::Result<StopReactor> {
