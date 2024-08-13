@@ -18,14 +18,23 @@ mod ui;
 
 use crate::state::config;
 use cli::{Commands, StartCommand, TTSCommand};
-use common::fatal_error;
+use common::fatal_if_err;
 use state::config::LogQuestConfig;
 use state::state_handle::StateHandle;
 use state::state_tree::StateTree;
 use std::path::PathBuf;
 use tracing_subscriber::EnvFilter;
+use triggers::TriggerLoadOrCreateError;
 
 const DEFAULT_LOG_LEVEL: &str = "debug";
+
+#[derive(thiserror::Error, Debug)]
+enum AppStartError {
+  #[error("Error processing config")]
+  ConfigError(#[from] config::ConfigLoadOrCreateError),
+  #[error("Failed processing Triggers")]
+  TriggerError(#[from] TriggerLoadOrCreateError),
+}
 
 fn init_tracing() {
   let env_filter = EnvFilter::try_from_default_env();
@@ -36,41 +45,38 @@ fn init_tracing() {
 fn main() {
   init_tracing();
 
-  let result = match cli::cmd() {
+  match cli::cmd() {
     Commands::Start(StartCommand {
       config_dir,
       logs_dir,
-    }) => start(config_dir, logs_dir),
+    }) => fatal_if_err(start(config_dir, logs_dir)),
 
-    Commands::PrintAudioDevices => audio::print_audio_devices(),
+    Commands::PrintAudioDevices => audio::print_audio_devices(), // returns `never`
 
     Commands::TTS(tts) => match tts {
-      TTSCommand::Speak { message, voice } => tts::speak_once(message, voice),
+      TTSCommand::Speak { message, voice } => fatal_if_err(tts::speak_once(message, voice)),
       TTSCommand::ListVoices => tts::print_voices(),
     },
 
     #[cfg(debug_assertions)]
-    Commands::TypeScript => debug_only::generate_typescript(),
+    Commands::TypeScript => fatal_if_err(debug_only::generate_typescript()),
 
     #[cfg(debug_assertions)]
-    Commands::Tail { file } => debug_only::tail(&file),
+    Commands::Tail { file } => fatal_if_err(debug_only::tail(&file)),
 
     #[cfg(debug_assertions)]
     Commands::ConvertGINA { file, format, out } => debug_only::convert_gina(&file, format, out),
   };
-  if let Err(e) = result {
-    fatal_error(format!("{:?}", e));
-  }
 }
 
 fn start(
   config_dir_override: Option<PathBuf>,
   logs_dir_override: Option<PathBuf>,
-) -> anyhow::Result<()> {
+) -> Result<(), AppStartError> {
   let config_dir = config::get_config_dir_with_optional_override(config_dir_override);
   let config = LogQuestConfig::load_or_create_in_dir(&config_dir, &logs_dir_override)?;
   let triggers = triggers::load_or_create_relative_to_config(&config)?; // TODO: Need to report JSON parse errors somewhere
-  let state_tree = StateTree::init_with_config_and_triggers(config, triggers)?;
+  let state_tree = StateTree::init_with_config_and_triggers(config, triggers);
   let state_handle = StateHandle::new(state_tree);
   ui::launch(state_handle);
   Ok(())

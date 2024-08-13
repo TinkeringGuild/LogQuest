@@ -2,12 +2,12 @@ pub mod effects;
 pub mod template_string;
 
 use crate::{
-  common::duration::Duration,
-  common::timestamp::Timestamp,
-  common::{LogQuestVersionType, LOG_QUEST_VERSION, UUID},
+  common::{
+    duration::Duration, timestamp::Timestamp, LogQuestVersionType, LOG_QUEST_VERSION, UUID,
+  },
   gina::GINAImport,
   matchers,
-  state::config::LogQuestConfig,
+  state::config::{LogQuestConfig, TriggersSaveError},
 };
 use effects::{TimerEffect, TriggerEffect};
 use serde::{Deserialize, Serialize};
@@ -16,6 +16,16 @@ use std::io::BufReader;
 use template_string::TemplateString;
 use tracing::debug;
 use ts_rs::TS;
+
+#[derive(thiserror::Error, Debug)]
+pub enum TriggerLoadOrCreateError {
+  #[error("Encountered IO error loading the Triggers")]
+  IOError(#[from] std::io::Error),
+  #[error("Encountered error deserializing the Triggers file")]
+  DeserializationError(#[from] serde_json::Error),
+  #[error("Failed to save the Triggers JSON file")]
+  SaveError(#[from] TriggersSaveError),
+}
 
 #[derive(TS, Clone, Serialize, Deserialize)]
 pub struct TriggerRoot {
@@ -148,10 +158,11 @@ impl From<Trigger> for TriggerGroupDescendant {
   }
 }
 
-pub fn load_or_create_relative_to_config(config: &LogQuestConfig) -> anyhow::Result<TriggerRoot> {
+pub fn load_or_create_relative_to_config(
+  config: &LogQuestConfig,
+) -> Result<TriggerRoot, TriggerLoadOrCreateError> {
   let triggers_file_path = config.triggers_file_path();
-
-  if triggers_file_path.exists() {
+  if triggers_file_path.is_file() {
     debug!(
       "Triggers file exists. Loading {}",
       triggers_file_path.display()

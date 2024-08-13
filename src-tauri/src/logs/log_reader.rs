@@ -1,3 +1,4 @@
+use super::log_event_broadcaster::NotifyError;
 use super::{Line, LogFileEvent, FILESYSTEM_EVENT_QUEUE_SIZE};
 use futures::FutureExt as _;
 use std::ffi::OsStr;
@@ -15,7 +16,10 @@ pub struct LogReader {
 }
 
 impl LogReader {
-  pub fn start(log_file_path: &Path, mut event_reader: broadcast::Receiver<LogFileEvent>) -> Self {
+  pub fn start(
+    log_file_path: &Path,
+    mut event_reader: broadcast::Receiver<Result<LogFileEvent, NotifyError>>,
+  ) -> Self {
     tracing::info!("In LogReader start");
     let (tx, _rx) = broadcast::channel::<Line>(FILESYSTEM_EVENT_QUEUE_SIZE);
     let (tx_stop, rx_stop) = oneshot::channel::<()>();
@@ -61,11 +65,7 @@ impl LogReader {
                   num_missed
                 );
               },
-              Ok(LogFileEvent::Err(msg)) => {
-                error!("Error in log reader select loop: {msg}");
-                break;
-              },
-              Ok(LogFileEvent::Updated(event_path)) => {
+              Ok(Ok(LogFileEvent::Updated(event_path))) => {
                 debug!("Detected UPDATE: {event_path}");
                 if OsStr::new(&event_path) != log_file_path { continue; }
                 while let Ok(Some(next_line)) = lines.next_line().await {
@@ -79,18 +79,22 @@ impl LogReader {
                   }
                 }
               },
-              Ok(LogFileEvent::Created(event_path)) => {
+              Ok(Ok(LogFileEvent::Created(event_path))) => {
                 debug!("Detected CREATE: {event_path}");
                 if OsStr::new(&event_path) != log_file_path { continue; }
                 // TODO: does a "created" event occur when a file is overwritten? If so,
                 // could this cause an issue with an open file descriptor?
               },
-              Ok(LogFileEvent::Deleted(event_path)) => {
+              Ok(Ok(LogFileEvent::Deleted(event_path))) => {
                 debug!("Detected DELETE: {event_path}");
                 if OsStr::new(&event_path) != log_file_path { continue; }
                 warn!("Log file {} was deleted while it was being watched", log_file_path.display());
                 break;
               },
+              Ok(Err(notify_error)) => {
+                // Uncertain whether a NotifyError should be considered recoverable.
+                error!("Encountered a Notify error! {notify_error:?}");
+              }
             }
           }
         }
@@ -121,14 +125,5 @@ impl LogReader {
     if let Some(stopper) = self.stopper {
       let _ = stopper.send(());
     }
-  }
-}
-
-impl<E> From<E> for LogFileEvent
-where
-  E: std::error::Error,
-{
-  fn from(e: E) -> Self {
-    LogFileEvent::Err(e.to_string())
   }
 }

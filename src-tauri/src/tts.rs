@@ -1,5 +1,4 @@
 use crate::{common::fatal_error, state::state_handle::StateHandle};
-use anyhow::bail;
 use std::thread;
 use tokio::sync::mpsc;
 use tracing::{error, info};
@@ -12,11 +11,20 @@ pub enum TTS {
   SetVoice(String),
 }
 
-pub fn spawn(state_handle: StateHandle, rx: mpsc::Receiver<TTS>) -> anyhow::Result<()> {
+#[derive(thiserror::Error, Debug)]
+pub enum SpeakError {
+  #[error("Unknown voice: {0}")]
+  UnknownVoice(String),
+  #[error("Failed to speak with the TTS backend")]
+  TTS(#[from] tts::Error),
+}
+
+pub fn spawn(state_handle: StateHandle, rx: mpsc::Receiver<TTS>) -> Result<(), tts::Error> {
   let t2s = tts::Tts::default()?;
   thread::Builder::new()
     .name("LogQuest Text-to-Speech".into())
-    .spawn(move || thread_loop(t2s, state_handle, rx))?;
+    .spawn(move || thread_loop(t2s, state_handle, rx))
+    .expect("Could not spawn a thread for the TTS engine"); // panic-worthy
   Ok(())
 }
 
@@ -60,39 +68,47 @@ fn thread_loop(mut t2s: Tts, _state_handle: StateHandle, mut rx: mpsc::Receiver<
   }
 }
 
-pub fn speak_once(message: String, voice: Option<String>) -> anyhow::Result<()> {
+pub fn speak_once(message: String, voice: Option<String>) -> Result<(), SpeakError> {
   let mut t2s = tts::Tts::default()?;
   if let Some(voice_id) = voice {
     let voices = t2s.voices()?;
     if let Some(voice) = voices.iter().find(|v| v.id() == voice_id) {
       t2s.set_voice(voice)?;
     } else {
-      bail!("Unknown voice: {voice_id}");
+      return Err(SpeakError::UnknownVoice(voice_id));
     }
   }
   t2s.speak(message, false)?;
   Ok(())
 }
 
-pub fn print_voices() -> anyhow::Result<()> {
-  let t2s = tts::Tts::default()?;
-  let voices = t2s.voices()?;
+/// This function is designed to be used from CLI, so it will exit the process if
+/// an error is encountered.
+pub fn print_voices() {
+  let Ok(t2s) = tts::Tts::default() else {
+    fatal_error("Could not create TTS engine!");
+  };
+  let Ok(voices) = t2s.voices() else {
+    fatal_error("Could not retrieve TTS voices!");
+  };
   if voices.is_empty() {
-    bail!("No voices found!");
+    println!("No voices found in the TTS engine!");
+    return;
   }
   let mut wtr = csv::Writer::from_writer(std::io::stdout());
-  wtr.write_record(&["ID", "Language", "Gender"])?;
+  if let Err(e) = wtr.write_record(&["ID", "Language", "Gender"]) {
+    fatal_error(format!("Could not write CSV output: {e:?}"));
+  }
   for voice in voices.iter() {
     let voice_id = voice.id();
     let voice_language = voice.language().to_string();
-    let voice_gender = match voice.gender() {
-      Some(Gender::Male) => format!("Male"),
-      Some(Gender::Female) => format!("Female"),
-      None => "".to_owned(),
-    };
-    if let Err(_) = wtr.write_record(&[voice_id, voice_language, voice_gender]) {
-      fatal_error("Failed to write CSV data to STDOUT");
+    let voice_gender = String::from(match voice.gender() {
+      Some(Gender::Male) => "Male",
+      Some(Gender::Female) => "Female",
+      None => "",
+    });
+    if let Err(e) = wtr.write_record(&[voice_id, voice_language, voice_gender]) {
+      fatal_error(format!("Failed to write CSV data to STDOUT: {e:?}"));
     }
   }
-  Ok(())
 }

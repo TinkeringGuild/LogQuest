@@ -14,8 +14,8 @@ use tracing::{error, info};
 ///
 /// ...where `B` is the name of the `Mutex` field in `StateTree`.
 ///
-/// `StateHandle` is safe to `clone` since it wraps the `StateTree` in an `Arc`
-/// and all of its fields are `Mutex`-guarded.
+/// `StateHandle` is safe to `clone` since it wraps its fields with `Arc`s and
+/// and all of the `StateTree` fields are `Mutex`-guarded.
 #[derive(Clone)]
 pub struct StateHandle {
   tree: Arc<StateTree>,
@@ -103,13 +103,13 @@ impl StateHandle {
     self.update_branch(&self.tree.overlay, func);
   }
 
-  /// Automatically saves the config if a change is detected
-  pub fn update_config<F, R>(&self, func: F)
-  where
-    F: FnOnce(&mut LogQuestConfig),
-  {
-    self.update_config_and_select(func);
-  }
+  // /// Automatically saves the config if a change is detected
+  // pub fn update_config<F, R>(&self, func: F)
+  // where
+  //   F: FnOnce(&mut LogQuestConfig),
+  // {
+  //   self.update_config_and_select(func);
+  // }
 
   /// Automatically saves the config if a change is detected
   pub fn update_config_and_select<F, R>(&self, func: F) -> R

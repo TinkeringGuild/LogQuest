@@ -104,7 +104,7 @@ impl FilterWithContext {
 }
 
 impl Matcher {
-  pub fn gina(pattern: &str) -> anyhow::Result<Self> {
+  pub fn gina(pattern: &str) -> Result<Self, fancy_regex::Error> {
     Ok(Self::GINA(pattern.try_into()?))
   }
 

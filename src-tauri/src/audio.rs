@@ -1,5 +1,4 @@
 use crate::common::fatal_error;
-use anyhow::bail;
 use awedio::backends::CpalBackend;
 use awedio::manager::Manager;
 use cpal::traits::{DeviceTrait as _, HostTrait as _};
@@ -25,6 +24,10 @@ enum AudioMixerEvent {
   Terminate,
 }
 
+#[derive(thiserror::Error, Debug)]
+#[error("Sound file does not exist to play: {0}")]
+pub struct PlayAudioFileError(PathBuf);
+
 impl AudioMixer {
   pub fn new() -> Self {
     let (tx, rx) = mpsc::channel::<AudioMixerEvent>(AUDIO_MIXER_CHANNEL_SIZE);
@@ -40,10 +43,10 @@ impl AudioMixer {
     }
   }
 
-  pub fn play_file(&self, file_path: &str) -> anyhow::Result<()> {
+  pub fn play_file(&self, file_path: &str) -> Result<(), PlayAudioFileError> {
     let file_path: PathBuf = file_path.into();
-    if !file_path.exists() {
-      bail!("Sound file does not exist: {}", file_path.display());
+    if !file_path.is_file() {
+      return Err(PlayAudioFileError(file_path));
     }
 
     let sender = self.sender.clone();

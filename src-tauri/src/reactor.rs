@@ -2,7 +2,7 @@ use crate::{
   audio::AudioMixer,
   logs::{
     active_character_detection::{ActiveCharacterDetector, Character},
-    log_event_broadcaster::LogEventBroadcaster,
+    log_event_broadcaster::{LogEventBroadcaster, NotifyError},
     log_reader::LogReader,
     Line,
   },
@@ -45,7 +45,7 @@ pub enum ReactorStartError {
   #[error("Cannot start reactor when no Logs directory is known")]
   NoLogsDir,
   #[error("Failed to watch filesystem events for Logs directory")]
-  WatchError(#[from] notify::Error),
+  WatchError(#[from] NotifyError),
 }
 
 type StopReactor = Box<dyn FnOnce() + 'static + Send + Sync>;

@@ -35,14 +35,17 @@ pub struct RegexGINA {
 }
 
 impl TryFrom<&str> for RegexGINA {
-  type Error = anyhow::Error;
+  type Error = fancy_regex::Error;
   fn try_from(value: &str) -> Result<Self, Self::Error> {
     Self::from_str(value)
   }
 }
 
 impl RegexGINA {
-  pub fn from_str_with_context(pattern: &str, context: &MatchContext) -> anyhow::Result<Self> {
+  pub fn from_str_with_context(
+    pattern: &str,
+    context: &MatchContext,
+  ) -> Result<Self, fancy_regex::Error> {
     let processed_pattern = REGEX_REFERENCES.replace_all(pattern, |captures: &Captures| {
       if let Some(group_number_match) = captures.get(1) {
         let group_number: usize = group_number_match.as_str().parse().unwrap(); // unwrap is safe because the Regex validates non-negative integer
@@ -61,7 +64,7 @@ impl RegexGINA {
   // end-user writing a Filter; notably, they should be able to address
   // their regex's capture groups by index without these dynamically
   // interpolated capture groups affecting the indices they'd expect.
-  pub fn from_str(pattern: &str) -> anyhow::Result<Self> {
+  pub fn from_str(pattern: &str) -> Result<Self, fancy_regex::Error> {
     // THIS CRAP BELOW IS JUST TEMPORARY. IT'S NEEDED TO IMPORT THE RIOT TRIGGERS PACKAGE. IT FIXES AN INVALID REGEX.
     // I STILL HAVEN'T DECIDED IF I WANT TO TRY TO AUTO-FIX THIS TYPE OF SYNTAX ERROR AT IMPORT-TIME.
     let pattern = if pattern == r"^Your target resisted the ([\w-'` ]+)(?<!LowerElement) spell\.$" {
@@ -259,7 +262,7 @@ impl<'de> Deserialize<'de> for RegexGINA {
     D: Deserializer<'de>,
   {
     let value: String = Deserialize::deserialize(deserializer)?;
-    let value: anyhow::Result<RegexGINA> = value.as_str().try_into();
+    let value = value.as_str().try_into();
     let value: RegexGINA = value.map_err(serde::de::Error::custom)?;
     Ok(value)
   }

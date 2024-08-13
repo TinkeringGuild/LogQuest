@@ -2,7 +2,6 @@ use crate::common::fatal_error;
 use crate::triggers::TriggerRoot;
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::io;
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
 use tracing::error;
@@ -12,13 +11,50 @@ use ts_rs::TS;
 const CONFIG_FILE_NAME: &str = "LogQuest.toml";
 const TRIGGERS_FILE_NAME: &str = "Triggers.json";
 
-#[derive(Debug)]
+#[derive(thiserror::Error, Debug)]
 pub enum EverQuestDirectoryError {
+  #[error("Directory does not exist")]
   DoesNotExist,
+  #[error("Directory does not have a Logs sub-directory")]
   DoesNotHaveLogsDir,
+  #[error("Directory is not a valid EverQuest installation")]
   NotValidEverQuestDir,
+  #[error("Could not determine the absolute path of the directory")]
   CouldNotCanonicalize,
+  #[error("The path appears corrupted with invalid characters")]
   CorruptedPath,
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum ConfigLoadError {
+  #[error("Encountered IO error loading the config")]
+  IOError(#[from] std::io::Error),
+  #[error("Encountered an error parsing the config file TOML")]
+  TOMLDeserializationError(#[from] toml::de::Error),
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum ConfigLoadOrCreateError {
+  #[error("Loading config failed!")]
+  LoadError(#[from] ConfigLoadError),
+  #[error("Creating config file failed!")]
+  CreateError(#[from] ConfigSaveError),
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum ConfigSaveError {
+  #[error("Encountered IO error saving the config")]
+  IOError(#[from] std::io::Error),
+  #[error("Encountered an error serializing the config file TOML")]
+  TOMLSerializationError(#[from] toml::ser::Error),
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum TriggersSaveError {
+  #[error("Encountered IO error saving the Triggers")]
+  IOError(#[from] std::io::Error),
+  #[error("Encountered an error serializing the Triggers JSON file")]
+  JSONSerializationError(#[from] serde_json::error::Error),
 }
 
 #[derive(TS, Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -43,7 +79,7 @@ impl LogQuestConfig {
   pub fn load_or_create_in_dir(
     config_dir: &PathBuf,
     logs_dir_override: &Option<PathBuf>,
-  ) -> anyhow::Result<LogQuestConfig> {
+  ) -> Result<LogQuestConfig, ConfigLoadOrCreateError> {
     let config_path = config_dir.join(&CONFIG_FILE_NAME);
     let config = if config_path.exists() {
       LogQuestConfig::load_from_file_path(&config_path, logs_dir_override)?
@@ -71,7 +107,10 @@ impl LogQuestConfig {
   }
 
   /// Loads a LogQuestConfig from the given path.
-  fn load_from_file_path(path: &Path, logs_dir_override: &Option<PathBuf>) -> anyhow::Result<Self> {
+  fn load_from_file_path(
+    path: &Path,
+    logs_dir_override: &Option<PathBuf>,
+  ) -> Result<Self, ConfigLoadError> {
     let raw_config_file = fs::read_to_string(path)?;
     let mut config: LogQuestConfig = toml::from_str(&raw_config_file)?;
     if let Some(eq_dir) = config.everquest_directory {
@@ -86,7 +125,7 @@ impl LogQuestConfig {
     Ok(config)
   }
 
-  pub fn save_config(&self) -> anyhow::Result<()> {
+  pub fn save_config(&self) -> Result<(), ConfigSaveError> {
     let pretty_toml = toml::to_string_pretty(&self)?;
 
     if let Some(parent) = self.config_file_path.parent() {
@@ -102,9 +141,10 @@ impl LogQuestConfig {
     Ok(())
   }
 
-  pub fn save_triggers(&self, root: &TriggerRoot) -> Result<(), io::Error> {
+  pub fn save_triggers(&self, root: &TriggerRoot) -> Result<(), TriggersSaveError> {
     let triggers_file_path = self.triggers_file_path();
-    let json_bytes = serde_json::to_string_pretty(&root).and_then(|s| Ok(s.into_bytes()))?;
+    let pretty_json = serde_json::to_string_pretty(&root)?;
+    let json_bytes = pretty_json.into_bytes();
     let json_size = json_bytes.len();
 
     let mut file = fs::File::create(&triggers_file_path)?;
@@ -122,6 +162,11 @@ impl LogQuestConfig {
       .join(TRIGGERS_FILE_NAME)
   }
 
+  /// This function should always be used to set the everquest_directory field because
+  /// it validates the value and automatically sets the Logs dir from if (if one is
+  /// not currently set via a CLI override). NOTE! This does not automatically notify
+  /// `config_updated` on the `StateHandle`, so this should be called within a `StateHandle`
+  /// mutex-value accessor higher-order-function.
   pub fn set_eq_dir(&mut self, path: &str) -> Result<String, EverQuestDirectoryError> {
     let eq_dir = validate_eq_dir(path)?;
     self.everquest_directory = Some(eq_dir.clone());
@@ -200,18 +245,4 @@ fn default_logs_dir_from_eq_dir(eq_path: &str) -> Result<PathBuf, EverQuestDirec
     return Err(EverQuestDirectoryError::DoesNotHaveLogsDir);
   }
   Ok(logs_dir)
-}
-
-impl std::error::Error for EverQuestDirectoryError {}
-impl std::fmt::Display for EverQuestDirectoryError {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    let message = match self {
-      Self::DoesNotExist => "Directory does not exist",
-      Self::DoesNotHaveLogsDir => "Directory does not have a Logs sub-directory",
-      Self::NotValidEverQuestDir => "Directory is not a valid EverQuest installation",
-      Self::CouldNotCanonicalize => "Could not determine the absolute path of the directory",
-      Self::CorruptedPath => "The path appears corrupted with invalid characters",
-    };
-    write!(f, "{}", message)
-  }
 }

@@ -4,17 +4,18 @@
 use crate::{
   cli,
   commands::Bootstrap,
-  common::{self, timestamp::Timestamp},
+  common::{fatal_error, fatal_if_err, timestamp::Timestamp, UUID},
   gina::xml::load_gina_triggers_from_file_path,
-  logs::{log_event_broadcaster::LogEventBroadcaster, log_reader::LogReader},
+  logs::{
+    log_event_broadcaster::{LogEventBroadcaster, NotifyError},
+    log_reader::LogReader,
+  },
   matchers,
-  triggers::effects::TriggerEffect,
-  triggers::{Trigger, TriggerGroup, TriggerGroupDescendant},
+  triggers::{effects::TriggerEffect, Trigger, TriggerGroup, TriggerGroupDescendant},
 };
-use anyhow::bail;
 use std::fs;
 use std::path::PathBuf;
-use tracing::{error, info};
+use tracing::info;
 use ts_rs::TS;
 
 pub fn test_trigger_group() -> TriggerGroup {
@@ -23,7 +24,7 @@ pub fn test_trigger_group() -> TriggerGroup {
   }
 
   let trigger = Trigger {
-    id: common::UUID::new(),
+    id: UUID::new(),
     name: "Tells / Hail".to_owned(),
     comment: None,
     created_at: Timestamp::now(),
@@ -44,7 +45,7 @@ pub fn test_trigger_group() -> TriggerGroup {
   };
 
   TriggerGroup {
-    id: common::UUID::new(),
+    id: UUID::new(),
     name: "Test".to_owned(),
     children: vec![TriggerGroupDescendant::T(trigger)],
     comment: None,
@@ -53,7 +54,7 @@ pub fn test_trigger_group() -> TriggerGroup {
   }
 }
 
-pub fn tail(log_file_path: &std::path::Path) -> anyhow::Result<()> {
+pub fn tail(log_file_path: &std::path::Path) -> Result<(), NotifyError> {
   info!("Watch log file events for {}", log_file_path.display());
   let rt = tokio::runtime::Runtime::new().unwrap();
   let mut fs_events = LogEventBroadcaster::new(&log_file_path)?;
@@ -84,55 +85,41 @@ pub fn tail(log_file_path: &std::path::Path) -> anyhow::Result<()> {
   Ok(())
 }
 
-pub fn convert_gina(
-  path: &PathBuf,
-  format: cli::ConvertGinaFormat,
-  out: Option<PathBuf>,
-) -> anyhow::Result<()> {
+/// This function is designed to be called from the CLI so it exits on error
+pub fn convert_gina(path: &PathBuf, format: cli::ConvertGinaFormat, out: Option<PathBuf>) {
   let mut writer: Box<dyn std::io::Write> = if let Some(out_path) = out {
-    Box::new(fs::File::create(out_path)?)
+    Box::new(fatal_if_err(fs::File::create(out_path)))
   } else {
     Box::new(std::io::stdout())
   };
 
-  let from_gina = load_gina_triggers_from_file_path(path)?;
+  let from_gina = fatal_if_err(load_gina_triggers_from_file_path(path));
 
   match format {
     cli::ConvertGinaFormat::GinaInternal => {
-      writeln!(writer, "{from_gina:#?}")?;
-      return Ok(());
+      fatal_if_err(writeln!(writer, "{from_gina:#?}"));
     }
-    cli::ConvertGinaFormat::GinaJSON => match serde_json::to_string_pretty(&from_gina) {
-      Ok(pretty_json) => {
-        writeln!(writer, "{pretty_json}")?;
-        return Ok(());
-      }
-      Err(e) => {
-        error!("Failed to serialize GINA types to JSON!");
-        bail!(e)
-      }
-    },
+    cli::ConvertGinaFormat::GinaJSON => {
+      let pretty_json = fatal_if_err(serde_json::to_string_pretty(&from_gina));
+      fatal_if_err(writeln!(writer, "{pretty_json}"));
+    }
     _ => {}
   }
 
-  let root_trigger_group = from_gina.to_lq(&Timestamp::now())?;
+  let root_trigger_group = fatal_if_err(from_gina.to_lq(&Timestamp::now()));
   match format {
     cli::ConvertGinaFormat::Internal => {
-      writeln!(writer, "{root_trigger_group:#?}")?;
+      fatal_if_err(writeln!(writer, "{root_trigger_group:#?}"));
     }
-    cli::ConvertGinaFormat::JSON => match serde_json::to_string_pretty(&root_trigger_group) {
-      Ok(pretty_json) => writeln!(writer, "{pretty_json}")?,
-      Err(e) => {
-        error!("Failed to serialize to JSON!");
-        return Err(e.into());
-      }
-    },
+    cli::ConvertGinaFormat::JSON => {
+      let pretty_json = fatal_if_err(serde_json::to_string_pretty(&root_trigger_group));
+      fatal_if_err(writeln!(writer, "{pretty_json}"));
+    }
     _ => unreachable!(/* all four cases are handled by the two match expressions */),
   }
-  Ok(())
 }
 
-pub fn generate_typescript() -> anyhow::Result<()> {
+pub fn generate_typescript() -> Result<(), ts_rs::ExportError> {
   let out_dir = generated_typescript_dir();
   Bootstrap::export_all_to(&out_dir)?;
   info!("Exported TypeScript files to {}", out_dir.display());
@@ -145,8 +132,8 @@ fn generated_typescript_dir() -> PathBuf {
     .canonicalize()
     .expect("Could not canonicalize path to the generated TypeScript dir!");
 
-  if !ts_dir.exists() {
-    common::fatal_error("The src/generated/ dir does not exist!");
+  if !ts_dir.is_dir() {
+    fatal_error("The src/generated/ dir does not exist!");
   }
   ts_dir
 }

@@ -55,6 +55,16 @@ pub(crate) fn fatal_error<T: ToString>(message: T) -> ! {
   std::process::exit(2);
 }
 
+pub fn fatal_if_err<O, E>(result: Result<O, E>) -> O
+where
+  E: std::error::Error,
+{
+  match result {
+    Ok(ok) => ok,
+    Err(e) => fatal_error(e.to_string()),
+  }
+}
+
 pub(crate) fn ternary<T>(condition: bool, if_true: T, if_false: T) -> T {
   if condition {
     if_true

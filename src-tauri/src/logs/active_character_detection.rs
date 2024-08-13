@@ -1,6 +1,6 @@
-use super::{LogFileEvent, LOG_FILE_PATTERN};
+use super::log_event_broadcaster::NotifyError;
+use super::{LogFileEvent, LOG_FILENAME_PATTERN};
 use futures::FutureExt as _;
-use std::ops::Deref as _;
 use std::path::PathBuf;
 use tauri::async_runtime::spawn;
 use tokio::select;
@@ -22,14 +22,13 @@ impl Character {
 }
 
 pub struct ActiveCharacterDetector {
-  watcher: watch::Receiver<anyhow::Result<Option<Character>>>,
+  watcher: watch::Receiver<Option<Character>>,
   stopper: oneshot::Sender<()>,
 }
 
 impl ActiveCharacterDetector {
-  pub fn start(subscription: broadcast::Receiver<LogFileEvent>) -> Self {
-    let (change_sender, change_receiver) =
-      watch::channel::<anyhow::Result<Option<Character>>>(Ok(None));
+  pub fn start(subscription: broadcast::Receiver<Result<LogFileEvent, NotifyError>>) -> Self {
+    let (change_sender, change_receiver) = watch::channel::<Option<Character>>(None);
     let (stop_sender, stop_receiver) = oneshot::channel::<()>();
 
     debug!("Spawning tokio task");
@@ -46,10 +45,7 @@ impl ActiveCharacterDetector {
   }
 
   pub fn current(&self) -> Option<Character> {
-    match self.watcher.borrow().deref() {
-      Ok(v) => v.clone(),
-      Err(_) => None,
-    }
+    self.watcher.borrow().clone()
   }
 
   pub fn changed(
@@ -69,7 +65,7 @@ impl ActiveCharacterDetector {
 impl Character {
   /// This method expects the input to be a pre-validated path, otherwise it panics.
   fn from(input: &str) -> Self {
-    let captures = LOG_FILE_PATTERN
+    let captures = LOG_FILENAME_PATTERN
       .captures(input)
       .expect("Character struct given invalid file path!")
       .unwrap();
@@ -90,8 +86,8 @@ impl Character {
 }
 
 async fn determine_active_character_from_file_events_async(
-  mut rx_fs_events: broadcast::Receiver<LogFileEvent>,
-  change_sender: tokio::sync::watch::Sender<anyhow::Result<Option<Character>>>,
+  mut rx_fs_events: broadcast::Receiver<Result<LogFileEvent, NotifyError>>,
+  change_sender: tokio::sync::watch::Sender<Option<Character>>,
   stop_receiver: tokio::sync::oneshot::Receiver<()>,
 ) {
   debug!("Started async active character detector task");
@@ -121,12 +117,8 @@ async fn determine_active_character_from_file_events_async(
             Err(broadcast::error::RecvError::Lagged(num_behind)) => {
               warn!("Active Character Detector lagged behind filesystem events by {num_behind} messages");
             }
-            Ok(LogFileEvent::Err(e)) => {
-              error!("Received an error while detecting the active character using filesystem events: {e}");
-              break;
-            },
 
-            Ok(LogFileEvent::Created(event_path) | LogFileEvent::Updated(event_path)) => {
+            Ok(Ok(LogFileEvent::Created(event_path)) | Ok(LogFileEvent::Updated(event_path))) => {
               debug!("Active Character Detector encountered an event for {}", &event_path);
               if let Some(current) = current_active_file.as_deref() {
                 if current == &event_path {
@@ -135,24 +127,27 @@ async fn determine_active_character_from_file_events_async(
               }
               let cnws = Character::from(&event_path);
               info!("Sending active character change: {cnws:#?}");
-              if let Err(e) = change_sender.send(Ok(Some(cnws))) {
+              if let Err(e) = change_sender.send(Some(cnws)) {
                 warn!("Couldn't send a change: {e:#?}");
                 break;
               }
               current_active_file = Some(event_path);
             },
 
-            Ok(LogFileEvent::Deleted(deleted_path)) => {
+            Ok(Ok(LogFileEvent::Deleted(deleted_path))) => {
               debug!("Active Character Detector encountered a Deleted event for {}", &deleted_path);
               if let Some(current) = current_active_file.as_deref() {
                 if current == deleted_path {
                   current_active_file = None;
-                  if let Err(e) = change_sender.send(Ok(None)) {
+                  if let Err(e) = change_sender.send(None) {
                     warn!("Couldn't send a change: {e:#?}");
                     break;
                   }
                 }
               }
+            }
+            Ok(Err(notify_error)) => {
+              error!("Encountered a Notify error: {notify_error:?}") ;
             }
           }
         }

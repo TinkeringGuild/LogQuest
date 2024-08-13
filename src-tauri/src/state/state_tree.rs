@@ -26,14 +26,13 @@ impl StateTree {
   pub fn init_with_config_and_triggers(
     app_config: LogQuestConfig,
     trigger_root: TriggerRoot,
-  ) -> anyhow::Result<StateTree> {
-    let state = Self {
+  ) -> StateTree {
+    Self {
       config: Mutex::new(app_config),
       triggers: Mutex::new(trigger_root),
       reactor: Mutex::new(ReactorState::default()),
       overlay: Mutex::new(OverlayState::default()),
-    };
-    Ok(state)
+    }
   }
 }
 

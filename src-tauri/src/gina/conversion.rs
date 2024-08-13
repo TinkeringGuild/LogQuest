@@ -1,4 +1,6 @@
-use super::xml::load_gina_triggers_from_file_path;
+use tracing::error;
+
+use super::xml::{load_gina_triggers_from_file_path, GINAParseError};
 use super::{
   GINAEarlyEnder, GINAImport, GINATimerStartBehavior, GINATimerTrigger, GINATimerType, GINATrigger,
   GINATriggerGroup, GINATriggers,
@@ -13,12 +15,33 @@ use crate::triggers::{
   Stopwatch, Timer, TimerStartBehavior, TimerStartPolicy, TimerTag, Trigger, TriggerGroup,
   TriggerGroupDescendant,
 };
-use anyhow::bail;
 use std::path::Path;
+
+#[derive(thiserror::Error, Debug)]
+pub enum GINAConversionError {
+  #[error("Could not convert the pattern for trigger named `{0}`")]
+  TriggerPatternError(String),
+  #[error("Encountered unknown Timer duration for trigger named `{0}`")]
+  TimerDurationError(String),
+  #[error("Encountered unknown Timer Start Behavior for trigger named `{0}`")]
+  TimerStartBehaviorError(String),
+  #[error("Encountered an invalid Early Ender")]
+  EarlyEnderPatternError,
+  #[error("Invalid Regex in the GINA file")]
+  RegexError(#[from] fancy_regex::Error),
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum GINAImportError {
+  #[error("GINA conversion error")]
+  ConversionError(#[from] GINAConversionError),
+  #[error("GINA parse error")]
+  ParseError(#[from] GINAParseError),
+}
 
 #[allow(unused)]
 impl GINAImport {
-  pub fn load(file_path: &Path) -> anyhow::Result<Self> {
+  pub fn load(file_path: &Path) -> Result<Self, GINAImportError> {
     let import_time: Timestamp = Timestamp::now();
     let from_gina = load_gina_triggers_from_file_path(file_path)?;
     let file_path = file_path.to_owned();
@@ -34,7 +57,7 @@ impl GINAImport {
 }
 
 impl GINATriggers {
-  pub fn to_lq(&self, import_time: &Timestamp) -> anyhow::Result<Vec<TriggerGroup>> {
+  pub fn to_lq(&self, import_time: &Timestamp) -> Result<Vec<TriggerGroup>, GINAConversionError> {
     let mut trigger_groups = Vec::with_capacity(self.trigger_groups.len());
     for tg in self.trigger_groups.iter() {
       trigger_groups.push(tg.to_lq(&import_time)?);
@@ -44,7 +67,7 @@ impl GINATriggers {
 }
 
 impl GINATriggerGroup {
-  fn to_lq(&self, import_time: &Timestamp) -> anyhow::Result<TriggerGroup> {
+  fn to_lq(&self, import_time: &Timestamp) -> Result<TriggerGroup, GINAConversionError> {
     // Assume enable_by_default is a shallow-enable, affecting only immediate descendants
     let enable_children = self.enable_by_default.unwrap_or(false);
 
@@ -79,7 +102,7 @@ impl GINATriggerGroup {
 
 impl GINATrigger {
   /// Converts this GINATrigger to a LogQuest Trigger
-  fn to_lq(&self, import_time: &Timestamp) -> anyhow::Result<Trigger> {
+  fn to_lq(&self, import_time: &Timestamp) -> Result<Trigger, GINAConversionError> {
     let trigger_name = self.name.clone().unwrap_or_else(|| untitled("Trigger"));
     Ok(Trigger {
       id: UUID::new(),
@@ -92,15 +115,23 @@ impl GINATrigger {
         None => import_time.to_owned(),
       },
       filter: match (self.trigger_text.as_deref(), self.enable_regex) {
-        (Some(""), _) => bail!("GINA trigger {} had no contents", &trigger_name),
+        (Some(""), _) => {
+          return Err(GINAConversionError::TriggerPatternError(
+            trigger_name.to_owned(),
+          ))
+        }
         (Some(text), Some(true)) => vec![matchers::Matcher::gina(text)?].into(),
         (Some(text), Some(false)) | (Some(text), None) => {
           vec![matchers::Matcher::WholeLine(text.to_owned())].into()
         }
-        _ => bail!("Cannot interpret GINA trigger text for {}", &trigger_name),
+        _ => {
+          return Err(GINAConversionError::TriggerPatternError(
+            trigger_name.to_owned(),
+          ))
+        }
       },
       effects: {
-        // TODO: render the name of the timer here with TemplateString
+        // TODO: timer_name should be a TemplateString
         let timer_name = self.timer_name.clone().unwrap_or_else(|| untitled("Timer"));
 
         let display_text: Option<TriggerEffect> = effect_from_options(
@@ -157,13 +188,11 @@ impl GINATrigger {
                 // Weirdly, GINA's XML has two redundant elements for duration. Prefer millis first
                 (Some(millis), _) => Duration::from_millis(millis),
                 (None, Some(secs)) => Duration::from_secs(secs),
-                _ => bail!("Could not determine Timer duration for timer {timer_name}!",),
+                _ => return Err(GINAConversionError::TimerDurationError(timer_name)),
               },
               timer_start_behavior: match &self.timer_start_behavior {
                 Some(b) => b.to_lq(),
-                None => {
-                  bail!("Timer Start Behavior unknown for timer {timer_name}!")
-                }
+                None => return Err(GINAConversionError::TimerStartBehaviorError(timer_name)),
               },
               updates: {
                 let mut updates: Vec<TimerEffect> = Vec::new();
@@ -226,7 +255,8 @@ impl GINATrigger {
                 TimerStartPolicy::AlwaysStartNewTimer
               }
               (Some(GINATimerStartBehavior::RestartTimer), Some(true)) => {
-                bail!("Encountered unexpected TimerStartBehavior=RestartTimer with RestartBasedOnTimerName=True")
+                error!("Encountered unexpected TimerStartBehavior=RestartTimer with RestartBasedOnTimerName=True");
+                return Err(GINAConversionError::TimerStartBehaviorError(timer_name));
               }
               (Some(GINATimerStartBehavior::RestartTimer), _) => {
                 TimerStartPolicy::StartAndReplacesAllTimers
@@ -244,7 +274,7 @@ impl GINATrigger {
     })
   }
 
-  fn early_enders_to_terminator(&self) -> anyhow::Result<Option<TimerEffect>> {
+  fn early_enders_to_terminator(&self) -> Result<Option<TimerEffect>, GINAConversionError> {
     if self.timer_early_enders.is_empty() {
       return Ok(None);
     }
@@ -308,11 +338,11 @@ impl GINATimerTrigger {
 }
 
 impl GINAEarlyEnder {
-  fn to_lq(&self) -> anyhow::Result<matchers::MatcherWithContext> {
+  fn to_lq(&self) -> Result<matchers::MatcherWithContext, GINAConversionError> {
     Ok(match (self.enable_regex, &self.early_end_text) {
       (Some(true), Some(pattern)) => matchers::MatcherWithContext::GINA(pattern.to_owned()),
       (Some(false), Some(line)) => matchers::MatcherWithContext::WholeLine(line.to_owned()),
-      _ => bail!("Invalid Early Ender"),
+      _ => return Err(GINAConversionError::EarlyEnderPatternError),
     })
   }
 }

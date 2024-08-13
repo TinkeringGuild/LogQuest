@@ -2,25 +2,36 @@ use super::{
   GINAEarlyEnder, GINATimerStartBehavior, GINATimerTrigger, GINATimerType, GINATrigger,
   GINATriggerGroup, GINATriggers,
 };
-use ::xml::reader::{EventReader, XmlEvent};
-use anyhow::{anyhow, bail};
 use chrono::prelude::*;
 use std::ffi::OsStr;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::BufReader;
 use std::path::Path;
+use xml::reader::{EventReader, XmlEvent};
 use zip::read::ZipArchive;
 
-pub fn load_gina_triggers_from_file_path(file_path: &Path) -> anyhow::Result<GINATriggers> {
+#[derive(thiserror::Error, Debug)]
+pub enum GINAParseError {
+  #[error("Encountered IO error")]
+  IOError(#[from] std::io::Error),
+  #[error("Encountered error with ZIP file")]
+  ZIPError(#[from] zip::result::ZipError),
+  #[error("Encountered error parsing the GINA XML")]
+  XMLError(#[from] ::xml::reader::Error),
+  #[error("The given GINA package file has an unrecognized file extension")]
+  InvalidFileExtension,
+  #[error("Encountered unexpected data in the GINA XML: {0}")]
+  GINADataError(String),
+}
+
+pub fn load_gina_triggers_from_file_path(file_path: &Path) -> Result<GINATriggers, GINAParseError> {
   let file_extension = file_path.extension().and_then(OsStr::to_str);
   let shared_data = match file_extension {
     Some("gtp") => {
       let file = File::open(file_path)?;
       let mut archive = ZipArchive::new(file)?;
-      let share_data_xml = archive
-        .by_name("ShareData.xml")
-        .map_err(|_| anyhow!("Could not find a ShareData.xml file in the GTP archive"))?;
+      let share_data_xml = archive.by_name("ShareData.xml")?;
       let mut reader = BufReader::new(share_data_xml);
       read_xml(&mut reader)?
     }
@@ -29,17 +40,13 @@ pub fn load_gina_triggers_from_file_path(file_path: &Path) -> anyhow::Result<GIN
       let mut reader = BufReader::new(file);
       read_xml(&mut reader)?
     }
-    Some(ext) => {
-      bail!("Unrecognized GINA trigger file format: {ext}");
-    }
-    None => {
-      bail!("GINA trigger file must have a .gtp or .xml extension");
-    }
+    Some(_ext) => return Err(GINAParseError::InvalidFileExtension),
+    None => return Err(GINAParseError::InvalidFileExtension),
   };
   Ok(shared_data)
 }
 
-fn read_xml(reader: impl Read) -> anyhow::Result<GINATriggers> {
+fn read_xml(reader: impl Read) -> Result<GINATriggers, GINAParseError> {
   let mut parser = EventReader::new(reader);
   let mut shared_data = GINATriggers::new();
 
@@ -56,7 +63,7 @@ fn read_xml(reader: impl Read) -> anyhow::Result<GINATriggers> {
         }
       }
       Ok(XmlEvent::EndDocument) => break,
-      Err(e) => bail!(e),
+      Err(e) => return Err(GINAParseError::XMLError(e)),
       _ => {}
     }
   }
@@ -66,7 +73,7 @@ fn read_xml(reader: impl Read) -> anyhow::Result<GINATriggers> {
 
 fn parse_trigger_group<R: std::io::Read>(
   parser: &mut EventReader<R>,
-) -> anyhow::Result<GINATriggerGroup> {
+) -> Result<GINATriggerGroup, GINAParseError> {
   let mut trigger_group = GINATriggerGroup::new();
   let mut current_element = String::new();
 
@@ -95,7 +102,7 @@ fn parse_trigger_group<R: std::io::Read>(
           break;
         }
       }
-      Err(e) => bail!(e),
+      Err(e) => return Err(GINAParseError::XMLError(e)),
       _ => {}
     }
   }
@@ -103,7 +110,9 @@ fn parse_trigger_group<R: std::io::Read>(
   Ok(trigger_group)
 }
 
-fn parse_trigger<R: std::io::Read>(parser: &mut EventReader<R>) -> anyhow::Result<GINATrigger> {
+fn parse_trigger<R: std::io::Read>(
+  parser: &mut EventReader<R>,
+) -> Result<GINATrigger, GINAParseError> {
   let mut trigger = GINATrigger::new();
   let mut current_element = String::new();
 
@@ -138,7 +147,11 @@ fn parse_trigger<R: std::io::Read>(parser: &mut EventReader<R>) -> anyhow::Resul
             "NoTimer" => GINATimerType::NoTimer,
             "Stopwatch" => GINATimerType::Stopwatch,
             "RepeatingTimer" => GINATimerType::RepeatingTimer,
-            _ => bail!("Unrecognized TimerType: {data}"),
+            _ => {
+              return Err(GINAParseError::GINADataError(format!(
+                "Unrecognized TimerType: {data}"
+              )))
+            }
           })
         }
         "TimerName" => trigger.timer_name = Some(data),
@@ -151,7 +164,11 @@ fn parse_trigger<R: std::io::Read>(parser: &mut EventReader<R>) -> anyhow::Resul
             "StartNewTimer" => GINATimerStartBehavior::StartNewTimer,
             "RestartTimer" => GINATimerStartBehavior::RestartTimer,
             "IgnoreIfRunning" => GINATimerStartBehavior::IgnoreIfRunning,
-            _ => bail!("Unrecognized GINA start behavior: {data}"),
+            _ => {
+              return Err(GINAParseError::GINADataError(format!(
+                "Unrecognized GINA start behavior: {data}"
+              )))
+            }
           })
         }
         "TimerEndingTime" => trigger.timer_ending_time = parse_int(data),
@@ -169,7 +186,7 @@ fn parse_trigger<R: std::io::Read>(parser: &mut EventReader<R>) -> anyhow::Resul
           break;
         }
       }
-      Err(e) => bail!(e),
+      Err(e) => return Err(GINAParseError::XMLError(e)),
       _ => {}
     }
   }
@@ -179,7 +196,7 @@ fn parse_trigger<R: std::io::Read>(parser: &mut EventReader<R>) -> anyhow::Resul
 
 fn parse_timer_trigger<R: std::io::Read>(
   parser: &mut EventReader<R>,
-) -> anyhow::Result<GINATimerTrigger> {
+) -> Result<GINATimerTrigger, GINAParseError> {
   let mut timer_trigger = GINATimerTrigger::new();
   let mut current_element = String::new();
 
@@ -202,7 +219,7 @@ fn parse_timer_trigger<R: std::io::Read>(
           break;
         }
       }
-      Err(e) => bail!(e),
+      Err(e) => return Err(GINAParseError::XMLError(e)),
       _ => {}
     }
   }
@@ -212,7 +229,7 @@ fn parse_timer_trigger<R: std::io::Read>(
 
 fn parse_early_ender<R: std::io::Read>(
   parser: &mut EventReader<R>,
-) -> anyhow::Result<GINAEarlyEnder> {
+) -> Result<GINAEarlyEnder, GINAParseError> {
   let mut early_ender = GINAEarlyEnder::new();
   let mut current_element = String::new();
 
@@ -231,7 +248,7 @@ fn parse_early_ender<R: std::io::Read>(
           break;
         }
       }
-      Err(e) => bail!(e),
+      Err(e) => return Err(GINAParseError::XMLError(e)),
       _ => {}
     }
   }
