@@ -163,7 +163,7 @@ impl LogQuestConfig {
   }
 
   /// This function should always be used to set the everquest_directory field because
-  /// it validates the value and automatically sets the Logs dir from if (if one is
+  /// it validates the value and automatically sets the Logs dir from it (if one is
   /// not currently set via a CLI override). NOTE! This does not automatically notify
   /// `config_updated` on the `StateHandle`, so this should be called within a `StateHandle`
   /// mutex-value accessor higher-order-function.

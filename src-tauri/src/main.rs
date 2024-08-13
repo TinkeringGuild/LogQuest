@@ -17,12 +17,12 @@ mod tts;
 mod ui;
 
 use crate::state::config;
-use cli::{Commands, StartCommand, TTSCommand};
+use cli::cmd_with_optional_env_override;
+use cli::{CLICommand, StartCommand, TTSCommand};
 use common::fatal_if_err;
 use state::config::LogQuestConfig;
 use state::state_handle::StateHandle;
 use state::state_tree::StateTree;
-use std::path::PathBuf;
 use tracing_subscriber::EnvFilter;
 use triggers::TriggerLoadOrCreateError;
 
@@ -45,39 +45,57 @@ fn init_tracing() {
 fn main() {
   init_tracing();
 
-  match cli::cmd() {
-    Commands::Start(StartCommand {
-      config_dir,
-      logs_dir,
-    }) => fatal_if_err(start(config_dir, logs_dir)),
+  match cmd_with_optional_env_override() {
+    CLICommand::Start(start_command) => fatal_if_err(start(start_command)),
 
-    Commands::PrintAudioDevices => audio::print_audio_devices(), // returns `never`
+    CLICommand::PrintAudioDevices => audio::print_audio_devices(), // returns `never`
 
-    Commands::TTS(tts) => match tts {
+    CLICommand::TTS(tts) => match tts {
       TTSCommand::Speak { message, voice } => fatal_if_err(tts::speak_once(message, voice)),
       TTSCommand::ListVoices => tts::print_voices(),
     },
 
     #[cfg(debug_assertions)]
-    Commands::TypeScript => fatal_if_err(debug_only::generate_typescript()),
+    CLICommand::TypeScript => fatal_if_err(debug_only::generate_typescript()),
 
     #[cfg(debug_assertions)]
-    Commands::Tail { file } => fatal_if_err(debug_only::tail(&file)),
+    CLICommand::Tail { file } => fatal_if_err(debug_only::tail(&file)),
 
     #[cfg(debug_assertions)]
-    Commands::ConvertGINA { file, format, out } => debug_only::convert_gina(&file, format, out),
+    CLICommand::ConvertGINA { file, format, out } => debug_only::convert_gina(&file, format, out),
   };
 }
 
 fn start(
-  config_dir_override: Option<PathBuf>,
-  logs_dir_override: Option<PathBuf>,
+  StartCommand {
+    config_dir,
+    logs_dir,
+    overlay_mode,
+    overlay_dev_tools,
+  }: StartCommand,
 ) -> Result<(), AppStartError> {
-  let config_dir = config::get_config_dir_with_optional_override(config_dir_override);
-  let config = LogQuestConfig::load_or_create_in_dir(&config_dir, &logs_dir_override)?;
+  print_banner();
+  let config_dir = config::get_config_dir_with_optional_override(config_dir);
+  let config = LogQuestConfig::load_or_create_in_dir(&config_dir, &logs_dir)?;
   let triggers = triggers::load_or_create_relative_to_config(&config)?; // TODO: Need to report JSON parse errors somewhere
-  let state_tree = StateTree::init_with_config_and_triggers(config, triggers);
+  let state_tree = StateTree::new(config, triggers, overlay_mode, overlay_dev_tools);
   let state_handle = StateHandle::new(state_tree);
   ui::launch(state_handle);
   Ok(())
+}
+
+fn print_banner() {
+  println!(
+    "{}",
+    r#"
+▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+             ┓     ┏┓
+             ┃ ┏┓┏┓┃┃┓┏┏┓┏╋
+             ┗┛┗┛┗┫┗┻┗┻┗ ┛┗
+                  ┛
+           the Deluxe Toolbox
+         for EverQuest enjoyers
+▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+"#
+  )
 }

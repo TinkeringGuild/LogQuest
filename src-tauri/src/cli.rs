@@ -1,14 +1,47 @@
+use crate::{common::fatal_error, ui::OverlayMode};
 use clap::{command, Parser, Subcommand};
+use std::env;
 use std::path::PathBuf;
 
-pub(crate) fn cmd() -> Commands {
+/// If LogQuest is ran with a LQ_PARAMS environment variable, it will prioritize
+/// extracting its CLI params from that over those given via `std::env::args`.
+/// This is particularly useful when used with `npm run tauri dev` because Tauri
+/// doesn't allow any way (AFAIK) to pass through CLI params to the Rust process
+/// when running the development server. NOTE: If you pass in LQ_PARAMS, you
+/// must give args that resolve to a command; for example, commands that end with
+/// "--help" are not considered commands by `clap`.
+pub fn cmd_with_optional_env_override() -> CLICommand {
+  if let Ok(params_override) = env::var("LQ_PARAMS") {
+    let params: Vec<String> = env::args()
+      .take(1)
+      .chain(
+        params_override
+          .split_whitespace()
+          .into_iter()
+          .map(String::from),
+      )
+      .collect();
+    match CLI::try_parse_from(params.clone()) {
+      Ok(CLI {
+        command: Some(command),
+      }) => return command,
+      _ => fatal_error(format!("Could not parse LQ_PARAMS: `{params:?}`")),
+    }
+  }
+  cmd()
+}
+
+/// This function parses the CLI params with extra logic to accommodate a shorthand way of starting
+/// LogQuest where "start" is implied if no command is given, and all further CLI params are treated
+/// as params to StartCommand. If an explicit subcommand is given, this defers to the normal logic.
+pub fn cmd() -> CLICommand {
   if let Ok(cli) = CLI::try_parse() {
     return cli.command.unwrap_or_else(default_command); // the ...or_else case happens when called with zero args
   }
 
   // To support passing "start" subcommand params without specifying "start" as the first CLI arg, the
   // logic needs to try parsing the CLI with "start" prepended to the params list.
-  let mut args: Vec<String> = std::env::args().collect();
+  let mut args: Vec<String> = env::args().collect();
   args.insert(1, "start".into()); // the 0th index is the program path
   if let Ok(cli) = CLI::try_parse_from(args.iter()) {
     return cli
@@ -16,9 +49,9 @@ pub(crate) fn cmd() -> Commands {
       .expect(r#""start" was inserted into args! The command should be "start"!"#);
   }
 
-  // Since neither parse attempt worked, call CLI::parse() again and it let exit the program for us
+  // Since neither parse attempt worked, call CLI::parse() again and let it exit the program for us
   // and report the help text normally.
-  CLI::parse();
+  CLI::parse(); // will always exit the process here with help text
   unreachable!();
 }
 
@@ -28,13 +61,13 @@ pub(crate) fn cmd() -> Commands {
   author = "Tinkering Guild",
   about = "Log parser, overlay UI, notification system, and all-around Deluxe Toolbox for EverQuest enjoyers"
 )]
-pub(crate) struct CLI {
+pub struct CLI {
   #[command(subcommand)]
-  command: Option<Commands>,
+  pub command: Option<CLICommand>,
 }
 
 #[derive(Subcommand, Debug, Clone)]
-pub(crate) enum Commands {
+pub enum CLICommand {
   /// Start LogQuest normally
   Start(StartCommand),
 
@@ -57,23 +90,25 @@ pub(crate) enum Commands {
   /// (DEBUG BUILDS ONLY) Utiliy for inspecting or converting a GINA .xml or .gtp file
   #[cfg(debug_assertions)]
   ConvertGINA {
+    /// The path to the GINA .gtp or .xml file
     file: PathBuf,
 
+    /// Specify the format of the output
     #[arg(
       value_enum, long, short,
-      default_value_t=ConvertGinaFormat::JSON,
-      help = "Specify the format of the output"
+      default_value_t=ConvertGinaFormat::JSON
     )]
     format: ConvertGinaFormat,
 
-    #[arg(long, help = "Specify a file to write the output to")]
+    /// Specify a file to write the output into
+    #[arg(long)]
     out: Option<PathBuf>,
   },
 }
 
 #[cfg(debug_assertions)]
 #[derive(clap::ValueEnum, Debug, Clone)]
-pub(crate) enum ConvertGinaFormat {
+pub enum ConvertGinaFormat {
   JSON,
   Internal,
   GinaInternal,
@@ -81,18 +116,26 @@ pub(crate) enum ConvertGinaFormat {
 }
 
 #[derive(Parser, Debug, Clone)]
-pub(crate) struct StartCommand {
+pub struct StartCommand {
   /// Override the path to the LogQuest configuration directory
   #[arg(long = "config-dir", short = 'C')]
-  pub(crate) config_dir: Option<PathBuf>,
+  pub config_dir: Option<PathBuf>,
 
   /// Override the path to EverQuest's logs
   #[arg(long = "logs-dir", short = 'L')]
-  pub(crate) logs_dir: Option<PathBuf>,
+  pub logs_dir: Option<PathBuf>,
+
+  /// Specify how the overlay should be shown
+  #[arg(long="overlay", value_enum, default_value_t=OverlayMode::Default)]
+  pub overlay_mode: OverlayMode,
+
+  /// If given, this will automatically open the dev tools for the overlay window
+  #[arg(long)]
+  pub overlay_dev_tools: bool,
 }
 
 #[derive(Subcommand, Debug, Clone)]
-pub(crate) enum TTSCommand {
+pub enum TTSCommand {
   /// Speak a message with text-to-speech. You can specify a specific voice.
   Speak {
     /// Provide a quoted string to speak
@@ -105,8 +148,8 @@ pub(crate) enum TTSCommand {
   ListVoices,
 }
 
-fn default_command() -> Commands {
-  Commands::Start(StartCommand::parse_from(std::env::args()))
+fn default_command() -> CLICommand {
+  CLICommand::Start(StartCommand::parse_from(env::args()))
 }
 
 #[test]

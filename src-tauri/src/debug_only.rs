@@ -54,6 +54,7 @@ pub fn test_trigger_group() -> TriggerGroup {
   }
 }
 
+/// This is mainly useful for debugging filesystem events
 pub fn tail(log_file_path: &std::path::Path) -> Result<(), NotifyError> {
   info!("Watch log file events for {}", log_file_path.display());
   let rt = tokio::runtime::Runtime::new().unwrap();
@@ -64,14 +65,14 @@ pub fn tail(log_file_path: &std::path::Path) -> Result<(), NotifyError> {
   let reader = LogReader::start(&log_file_path, fs_event_rx);
   let mut rx = reader.subscribe();
 
-  info!("Spawning task");
-  rt.spawn(async move {
-    let sleep_secs = 30;
-    info!("Sleeping for {sleep_secs} seconds, then stopping the log reader");
-    tokio::time::sleep(std::time::Duration::from_secs(sleep_secs)).await;
-    info!("Stopping log reader now");
-    reader.stop();
-  });
+  // info!("Spawning task");
+  // rt.spawn(async move {
+  //   let sleep_secs = 30;
+  //   info!("Sleeping for {sleep_secs} seconds, then stopping the log reader");
+  //   tokio::time::sleep(std::time::Duration::from_secs(sleep_secs)).await;
+  //   info!("Stopping log reader now");
+  //   reader.stop();
+  // });
 
   rt.block_on(async move {
     loop {

@@ -4,9 +4,20 @@ use crate::{
   reactor,
   state::state_handle::StateHandle,
 };
+use serde::{Deserialize, Serialize};
 use tauri::async_runtime::spawn;
-use tauri::{App, AppHandle, GlobalShortcutManager, Manager, Window, WindowBuilder, WindowEvent};
+use tauri::{App, AppHandle, GlobalShortcutManager, Manager, Window, WindowEvent};
 use tracing::{debug, info};
+
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, clap::ValueEnum)]
+pub enum OverlayMode {
+  /// Shows the overlay as a transparent fullscreen frameless click-through window
+  Default,
+  /// Shows the overlay in a normal application window (non-fullscreen)
+  Windowed,
+  /// Do not create any overlay window
+  None,
+}
 
 const TOGGLE_OVERLAY_ACCELERATOR: &str = "CommandOrControl+Alt+Shift+L";
 
@@ -15,7 +26,8 @@ pub fn launch(state: StateHandle) {
     .manage(state.clone())
     .setup(move |app: &mut App| {
       reactor(&state);
-      setup(app)
+      setup(&app.app_handle());
+      Ok(())
     })
     .invoke_handler(commands::handler())
     .run(tauri::generate_context!());
@@ -35,85 +47,116 @@ fn reactor(state_handle: &StateHandle) {
       Err(_recv_error) => {
         fatal_error("Reactor start_when_config_is_ready future channel closed?");
       }
-      Ok(Err(e)) => {
-        fatal_error(e.to_string());
+      Ok(Err(reactor_start_error)) => {
+        fatal_error(reactor_start_error.to_string());
       }
     }
   });
 }
 
-fn setup(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
-  // create_overlay_window(app)/*.open_devtools()*/;
-  register_window_close_event(app.handle());
-  register_global_shortcut_manager(app.handle());
-  Ok(())
+fn setup(app: &AppHandle) {
+  register_main_window_close_event(app);
+  register_global_shortcut_manager(app);
+  setup_overlay(app);
 }
 
-fn overlay_window_builder(app: &mut App) -> WindowBuilder {
-  tauri::WindowBuilder::new(app, "overlay", tauri::WindowUrl::App("overlay.html".into()))
+fn setup_overlay(app: &AppHandle) {
+  let state = app.state::<StateHandle>();
+  let overlay_mode = state.select_overlay(|o| o.overlay_mode.clone());
+  match overlay_mode {
+    OverlayMode::Default => {
+      create_default_overlay_window(app);
+    }
+    OverlayMode::Windowed => {
+      create_windowed_overlay_window(app);
+    }
+    OverlayMode::None => {}
+  }
+}
+
+fn create_default_overlay_window(app: &AppHandle) -> tauri::Window {
+  let window_uri = tauri::WindowUrl::App("overlay.html".into());
+  let overlay_window = tauri::WindowBuilder::new(app, "overlay", window_uri)
     .title("LogQuest Overlay")
     .transparent(true)
     .decorations(false)
-    .focused(true)
     .fullscreen(true)
     .always_on_top(true)
     .skip_taskbar(true)
-}
+    .build()
+    .expect("Could not create overlay window!");
 
-fn create_overlay_window(app: &mut App) -> tauri::Window {
-  let overlay_window = overlay_window_builder(app).build().unwrap();
   let state = app.state::<StateHandle>();
   let is_editable = state.select_overlay(|overlay| overlay.overlay_editable);
-  overlay_window
-    .set_ignore_cursor_events(!is_editable)
-    .expect("Failed to set_ignore_cursor_events");
+  set_overlay_editable(app, is_editable);
+
   overlay_window
 }
 
-fn get_main_window(app: AppHandle) -> Window {
+fn create_windowed_overlay_window(app: &AppHandle) -> tauri::Window {
+  let window_uri = tauri::WindowUrl::App("overlay.html".into());
+  let overlay_window = tauri::WindowBuilder::new(app, "overlay", window_uri)
+    .title("LogQuest Overlay")
+    .build()
+    .expect("Could not create overlay window!");
+  overlay_window
+}
+
+fn get_main_window(app: &AppHandle) -> Window {
+  // TODO: When the main Window is allowed to be closed, will this cause a panic
+  // because of the expect()? or does Tauri keep the Window instance while closed?
   app
     .get_window("main")
     .expect("Expected main window to exist!")
 }
 
-fn register_window_close_event(app: AppHandle) {
-  let handle = app.app_handle();
-  let window = get_main_window(app);
+fn get_overlay_window(app: &AppHandle) -> Option<Window> {
+  let state = app.state::<StateHandle>();
+  let overlay_mode = state.select_overlay(|o| o.overlay_mode.clone());
+  if let OverlayMode::None = overlay_mode {
+    return None;
+  }
+  app.get_window("overlay")
+}
+
+fn register_main_window_close_event(app: &AppHandle) {
+  let window = get_main_window(&app);
+  let app = app.clone();
   window.on_window_event(move |window_event: &WindowEvent| match window_event {
     WindowEvent::Destroyed => {
-      handle.exit(0);
+      app.exit(0);
     }
     _ => {}
   });
 }
 
-fn register_global_shortcut_manager(app: AppHandle) {
+fn register_global_shortcut_manager(app: &AppHandle) {
+  let app = app.clone();
   app
     .global_shortcut_manager()
     .register(TOGGLE_OVERLAY_ACCELERATOR, move || {
-      toggle_overlay_editable(app.app_handle())
+      toggle_overlay_editable(&app)
     })
     .expect("Failed registering a global shortcut!");
 }
 
-fn toggle_overlay_editable(app: AppHandle) {
-  let handle = app.app_handle();
+fn toggle_overlay_editable(app: &AppHandle) {
   let state = app.state::<StateHandle>();
-  state.update_overlay(move |overlay| {
-    let inverse = !overlay.overlay_editable;
-    overlay.overlay_editable = inverse;
-    if let Some(overlay_window) = handle.get_window("overlay") {
-      // TODO: Instead of an event, this should send a state change through the reducer
-      let _ = overlay_window.emit("editable-changed", inverse);
+  let inverse = state.select_overlay(|o| !o.overlay_editable);
+  set_overlay_editable(app, inverse);
+}
 
-      overlay_window
-        .set_ignore_cursor_events(!inverse) // set_ignore_cursor_events takes a bool opposite of how it's stored in OverlayState
-        .expect("Could not set_ignore_cursor_events!");
-
-      info!(
-        "Overlay editing {}",
-        ternary(inverse, "ENABLED", "DISABLED")
-      )
-    }
-  });
+fn set_overlay_editable(app: &AppHandle, new_value: bool) {
+  let state = app.state::<StateHandle>();
+  state.update_overlay(|overlay| overlay.overlay_editable = new_value);
+  if let Some(overlay_window) = get_overlay_window(app) {
+    overlay_window
+      .set_ignore_cursor_events(!new_value)
+      .expect("Failed to set_ignore_cursor_events");
+    let _ = overlay_window.emit("editable-changed", new_value);
+    info!(
+      "Overlay editing {}",
+      ternary(new_value, "ENABLED", "DISABLED")
+    )
+  }
 }
