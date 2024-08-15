@@ -7,7 +7,7 @@ use tts::{Gender, Tts};
 #[derive(Debug, Clone)]
 pub enum TTS {
   Speak { text: String, interrupt: bool },
-  Interrupt,
+  StopSpeaking,
   SetVoice(String),
 }
 
@@ -55,7 +55,7 @@ fn thread_loop(mut t2s: Tts, _state_handle: StateHandle, mut rx: mpsc::Receiver<
           error!(r#"Could not set voice to voice ID "{voice_id}" [ ERROR: {e:?} ]"#);
         }
       }
-      Some(TTS::Interrupt) => {
+      Some(TTS::StopSpeaking) => {
         if let Err(e) = t2s.stop() {
           error!("Could not stop the text-to-speech engine! [ ERROR: {e:?} ]");
         }

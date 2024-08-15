@@ -1,12 +1,13 @@
 use super::config::LogQuestConfig;
+use super::overlay::OverlayMode;
 use crate::logs::active_character_detection::Character;
 use crate::triggers::TriggerRoot;
-use crate::ui::OverlayMode;
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use ts_rs::TS;
 
 pub struct StateTree {
+  // TODO: SHOULD THESE BE Arc<RwLock<..> INSTEAD OF Mutex<..> ??
   pub config: Mutex<LogQuestConfig>,
   pub reactor: Mutex<ReactorState>,
   pub triggers: Mutex<TriggerRoot>,
@@ -21,7 +22,9 @@ pub struct ReactorState {
 #[derive(TS, Clone, Debug, Serialize, Deserialize)]
 pub struct OverlayState {
   pub overlay_editable: bool,
+  #[ts(skip)]
   pub overlay_mode: OverlayMode,
+  #[ts(skip)]
   pub auto_open_dev_tools: bool,
 }
 

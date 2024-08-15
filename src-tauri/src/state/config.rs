@@ -59,7 +59,7 @@ pub enum TriggersSaveError {
 
 #[derive(TS, Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct LogQuestConfig {
-  pub everquest_directory: Option<String>,
+  everquest_directory: Option<String>,
 
   #[serde(skip)]
   #[ts(skip)]

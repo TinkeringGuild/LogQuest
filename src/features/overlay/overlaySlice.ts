@@ -1,7 +1,7 @@
 import { createSlice } from '@reduxjs/toolkit';
 
 import { OverlayState } from '../../generated/OverlayState';
-import { RootState } from '../../store';
+import { MainRootState } from '../../MainStore';
 
 const INITIAL_OVERLAY_STATE: OverlayState = {
   overlay_editable: false,
@@ -19,5 +19,5 @@ export default overlaySlice.reducer;
 
 export const { initOverlay } = overlaySlice.actions;
 
-export const selectOverlayEditable = (state: RootState) =>
+export const selectOverlayEditable = (state: MainRootState) =>
   state.overlay.overlay_editable;

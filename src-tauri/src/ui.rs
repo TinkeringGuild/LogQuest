@@ -2,22 +2,19 @@ use crate::{
   commands,
   common::{fatal_error, ternary},
   reactor,
-  state::state_handle::StateHandle,
+  state::{
+    overlay::{OverlayManager, OverlayMode, OVERLAY_EDITABLE_CHANGED_EVENT_NAME},
+    state_handle::StateHandle,
+    timers::TimerManager,
+  },
 };
-use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use tauri::async_runtime::spawn;
-use tauri::{App, AppHandle, GlobalShortcutManager, Manager, Window, WindowEvent};
+use tauri::App;
+use tauri::{AppHandle, GlobalShortcutManager, Manager, Window, WindowEvent};
 use tracing::{debug, info};
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS, clap::ValueEnum)]
-pub enum OverlayMode {
-  /// Shows the overlay as a transparent fullscreen frameless click-through window
-  Default,
-  /// Shows the overlay in a normal application window (non-fullscreen)
-  Windowed,
-  /// Do not create any overlay window
-  None,
-}
+pub type OverlayManagerState = Arc<OverlayManager>;
 
 const TOGGLE_OVERLAY_ACCELERATOR: &str = "CommandOrControl+Alt+Shift+L";
 
@@ -25,8 +22,12 @@ pub fn launch(state: StateHandle) {
   let result = tauri::Builder::default()
     .manage(state.clone())
     .setup(move |app: &mut App| {
-      reactor(&state);
-      setup(&app.app_handle());
+      let app_handle = app.app_handle();
+      let timer_manager = create_timer_manager();
+      let overlay_manager = create_overlay_manager(&app_handle, &timer_manager);
+      app.manage(overlay_manager.clone() as OverlayManagerState);
+      reactor(&state, timer_manager, overlay_manager);
+      setup(&app_handle);
       Ok(())
     })
     .invoke_handler(commands::handler())
@@ -37,8 +38,23 @@ pub fn launch(state: StateHandle) {
   }
 }
 
-fn reactor(state_handle: &StateHandle) {
-  let future = reactor::start_when_config_is_ready(state_handle);
+fn create_timer_manager() -> Arc<TimerManager> {
+  Arc::new(TimerManager::new())
+}
+
+fn create_overlay_manager(
+  app: &AppHandle,
+  timer_manager: &Arc<TimerManager>,
+) -> Arc<OverlayManager> {
+  Arc::new(OverlayManager::new(app.clone(), timer_manager.clone()))
+}
+
+fn reactor(
+  state: &StateHandle,
+  timer_manager: Arc<TimerManager>,
+  overlay_manager: Arc<OverlayManager>,
+) {
+  let future = reactor::start_when_config_is_ready(state, timer_manager, overlay_manager);
   spawn(async move {
     match future.await {
       Ok(Ok(_stop_reactor)) => {
@@ -61,8 +77,7 @@ fn setup(app: &AppHandle) {
 }
 
 fn setup_overlay(app: &AppHandle) {
-  let state = app.state::<StateHandle>();
-  let overlay_mode = state.select_overlay(|o| o.overlay_mode.clone());
+  let overlay_mode = state(app).select_overlay(|o| o.overlay_mode.clone());
   match overlay_mode {
     OverlayMode::Default => {
       create_default_overlay_window(app);
@@ -86,8 +101,7 @@ fn create_default_overlay_window(app: &AppHandle) -> tauri::Window {
     .build()
     .expect("Could not create overlay window!");
 
-  let state = app.state::<StateHandle>();
-  let is_editable = state.select_overlay(|overlay| overlay.overlay_editable);
+  let is_editable = state(app).select_overlay(|overlay| overlay.overlay_editable);
   set_overlay_editable(app, is_editable);
 
   overlay_window
@@ -99,6 +113,10 @@ fn create_windowed_overlay_window(app: &AppHandle) -> tauri::Window {
     .title("LogQuest Overlay")
     .build()
     .expect("Could not create overlay window!");
+
+  if state(app).select_overlay(|o| o.auto_open_dev_tools) {
+    overlay_window.open_devtools();
+  }
   overlay_window
 }
 
@@ -111,8 +129,7 @@ fn get_main_window(app: &AppHandle) -> Window {
 }
 
 fn get_overlay_window(app: &AppHandle) -> Option<Window> {
-  let state = app.state::<StateHandle>();
-  let overlay_mode = state.select_overlay(|o| o.overlay_mode.clone());
+  let overlay_mode = state(app).select_overlay(|o| o.overlay_mode.clone());
   if let OverlayMode::None = overlay_mode {
     return None;
   }
@@ -141,22 +158,25 @@ fn register_global_shortcut_manager(app: &AppHandle) {
 }
 
 fn toggle_overlay_editable(app: &AppHandle) {
-  let state = app.state::<StateHandle>();
-  let inverse = state.select_overlay(|o| !o.overlay_editable);
+  let inverse = state(app).select_overlay(|o| !o.overlay_editable);
   set_overlay_editable(app, inverse);
 }
 
 fn set_overlay_editable(app: &AppHandle, new_value: bool) {
-  let state = app.state::<StateHandle>();
+  let state = state(app);
   state.update_overlay(|overlay| overlay.overlay_editable = new_value);
   if let Some(overlay_window) = get_overlay_window(app) {
     overlay_window
       .set_ignore_cursor_events(!new_value)
       .expect("Failed to set_ignore_cursor_events");
-    let _ = overlay_window.emit("editable-changed", new_value);
+    let _ = overlay_window.emit(OVERLAY_EDITABLE_CHANGED_EVENT_NAME, new_value);
     info!(
       "Overlay editing {}",
       ternary(new_value, "ENABLED", "DISABLED")
     )
   }
+}
+
+fn state(app: &AppHandle) -> tauri::State<StateHandle> {
+  app.state::<StateHandle>()
 }

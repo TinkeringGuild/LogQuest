@@ -1,7 +1,7 @@
 import { createSlice } from '@reduxjs/toolkit';
 
 import { LogQuestConfig } from '../../generated/LogQuestConfig';
-import { RootState } from '../../store';
+import { MainRootState } from '../../MainStore';
 
 export const configInitialState: LogQuestConfig = {
   everquest_directory: null,
@@ -19,5 +19,5 @@ export default configSlice.reducer;
 
 export const { initConfig } = configSlice.actions;
 
-export const selectEQDirIsBlank = (state: RootState) =>
+export const selectEQDirIsBlank = (state: MainRootState) =>
   !state.config.everquest_directory; // empty strings are falsy in JS too

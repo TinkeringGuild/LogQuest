@@ -12,8 +12,7 @@ use crate::matchers;
 use crate::triggers::effects::{TimerEffect, TriggerEffect};
 use crate::triggers::template_string::TemplateString;
 use crate::triggers::{
-  Stopwatch, Timer, TimerStartBehavior, TimerStartPolicy, TimerTag, Trigger, TriggerGroup,
-  TriggerGroupDescendant,
+  Stopwatch, Timer, TimerStartPolicy, TimerTag, Trigger, TriggerGroup, TriggerGroupDescendant,
 };
 use std::path::Path;
 
@@ -24,7 +23,7 @@ pub enum GINAConversionError {
   #[error("Encountered unknown Timer duration for trigger named `{0}`")]
   TimerDurationError(String),
   #[error("Encountered unknown Timer Start Behavior for trigger named `{0}`")]
-  TimerStartBehaviorError(String),
+  TimerStartPolicyError(String),
   #[error("Encountered an invalid Early Ender")]
   EarlyEnderPatternError,
   #[error("Invalid Regex in the GINA file")]
@@ -39,6 +38,7 @@ pub enum GINAImportError {
   ParseError(#[from] GINAParseError),
 }
 
+// TODO: This should aggregate all tags and create an index
 #[allow(unused)]
 impl GINAImport {
   pub fn load(file_path: &Path) -> Result<Self, GINAImportError> {
@@ -103,9 +103,10 @@ impl GINATriggerGroup {
 impl GINATrigger {
   /// Converts this GINATrigger to a LogQuest Trigger
   fn to_lq(&self, import_time: &Timestamp) -> Result<Trigger, GINAConversionError> {
+    let trigger_id = UUID::new();
     let trigger_name = self.name.clone().unwrap_or_else(|| untitled("Trigger"));
     Ok(Trigger {
-      id: UUID::new(),
+      id: trigger_id.clone(),
       name: trigger_name.clone(),
       comment: self.comments.clone(),
       enabled: true,
@@ -180,9 +181,11 @@ impl GINATrigger {
           // TODO: ARE THERE ANY OTHER DIFFERENCES WITH REPEATING TIMERS?
           Some(GINATimerType::Timer | GINATimerType::RepeatingTimer) => {
             let timer = Timer {
-              name: timer_name.clone(),
-              // TODO: tags should belong to a GINAImport type.
-              tags: vec![],
+              trigger_id: trigger_id.clone(),
+              name: timer_name.as_str().into(),
+              tags: vec![/*
+                TODO
+              */],
               repeats: self.timer_type == Some(GINATimerType::RepeatingTimer),
               duration: match (self.timer_millisecond_duration, self.timer_duration) {
                 // Weirdly, GINA's XML has two redundant elements for duration. Prefer millis first
@@ -190,9 +193,29 @@ impl GINATrigger {
                 (None, Some(secs)) => Duration::from_secs(secs),
                 _ => return Err(GINAConversionError::TimerDurationError(timer_name)),
               },
-              timer_start_behavior: match &self.timer_start_behavior {
-                Some(b) => b.to_lq(),
-                None => return Err(GINAConversionError::TimerStartBehaviorError(timer_name)),
+              start_policy: match (
+                &self.timer_start_behavior,
+                &self.restart_based_on_timer_name,
+              ) {
+                (None, _) => TimerStartPolicy::AlwaysStartNewTimer,
+                (Some(GINATimerStartBehavior::IgnoreIfRunning), _) => {
+                  TimerStartPolicy::DoNothingIfTimerRunning
+                }
+                (Some(GINATimerStartBehavior::StartNewTimer), Some(true)) => {
+                  TimerStartPolicy::StartAndReplacesAnyTimerOfTriggerHavingName(timer_name.clone())
+                }
+                (Some(GINATimerStartBehavior::StartNewTimer), Some(false) | None) => {
+                  TimerStartPolicy::AlwaysStartNewTimer
+                }
+                (Some(GINATimerStartBehavior::RestartTimer), Some(true)) => {
+                  error!("Encountered unexpected TimerStartBehavior=RestartTimer with RestartBasedOnTimerName=True");
+                  return Err(GINAConversionError::TimerStartPolicyError(
+                    timer_name.clone(),
+                  ));
+                }
+                (Some(GINATimerStartBehavior::RestartTimer), _) => {
+                  TimerStartPolicy::StartAndReplacesAllTimersOfTrigger
+                }
               },
               updates: {
                 let mut updates: Vec<TimerEffect> = Vec::new();
@@ -240,29 +263,7 @@ impl GINATrigger {
               },
             };
 
-            let policy: TimerStartPolicy = match (
-              &self.timer_start_behavior,
-              &self.restart_based_on_timer_name,
-            ) {
-              (None, _) => TimerStartPolicy::AlwaysStartNewTimer,
-              (Some(GINATimerStartBehavior::IgnoreIfRunning), _) => {
-                TimerStartPolicy::DoNothingIfTimerRunning
-              }
-              (Some(GINATimerStartBehavior::StartNewTimer), Some(true)) => {
-                TimerStartPolicy::StartAndReplacesAnyTimerHavingName(timer_name)
-              }
-              (Some(GINATimerStartBehavior::StartNewTimer), Some(false) | None) => {
-                TimerStartPolicy::AlwaysStartNewTimer
-              }
-              (Some(GINATimerStartBehavior::RestartTimer), Some(true)) => {
-                error!("Encountered unexpected TimerStartBehavior=RestartTimer with RestartBasedOnTimerName=True");
-                return Err(GINAConversionError::TimerStartBehaviorError(timer_name));
-              }
-              (Some(GINATimerStartBehavior::RestartTimer), _) => {
-                TimerStartPolicy::StartAndReplacesAllTimers
-              }
-            };
-            Some(TriggerEffect::StartTimer { timer, policy })
+            Some(TriggerEffect::StartTimer(timer))
           }
         };
 
@@ -290,16 +291,6 @@ impl GINATrigger {
     ]);
 
     Ok(Some(terminator))
-  }
-}
-
-impl GINATimerStartBehavior {
-  fn to_lq(&self) -> TimerStartBehavior {
-    match self {
-      Self::StartNewTimer => TimerStartBehavior::StartNewTimer,
-      Self::RestartTimer => TimerStartBehavior::RestartTimer,
-      Self::IgnoreIfRunning => TimerStartBehavior::IgnoreIfRunning,
-    }
   }
 }
 

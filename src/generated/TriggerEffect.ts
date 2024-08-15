@@ -4,6 +4,5 @@ import type { Duration } from "./Duration";
 import type { Stopwatch } from "./Stopwatch";
 import type { TemplateString } from "./TemplateString";
 import type { Timer } from "./Timer";
-import type { TimerStartPolicy } from "./TimerStartPolicy";
 
-export type TriggerEffect = { "Parallel": Array<TriggerEffect> } | { "Sequence": Array<TriggerEffect> } | { "PlayAudioFile": TemplateString | null } | { "CopyToClipboard": TemplateString } | { "OverlayMessage": TemplateString } | { "TextToSpeech": TemplateString } | { "StartTimer": { timer: Timer, policy: TimerStartPolicy, } } | { "StartStopwatch": Stopwatch } | { "RunSystemCommand": CommandTemplate } | { "Pause": Duration } | "DoNothing";
+export type TriggerEffect = { "Parallel": Array<TriggerEffect> } | { "Sequence": Array<TriggerEffect> } | { "PlayAudioFile": TemplateString | null } | { "CopyToClipboard": TemplateString } | { "OverlayMessage": TemplateString } | { "TextToSpeech": TemplateString } | { "StartTimer": Timer } | { "StartStopwatch": Stopwatch } | { "RunSystemCommand": CommandTemplate } | { "Pause": Duration } | "DoNothing";

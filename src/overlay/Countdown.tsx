@@ -1,3 +1,4 @@
+import { println } from '../util';
 import './Countdown.css';
 
 interface CountdownProps {
@@ -10,7 +11,7 @@ const Countdown: React.FC<CountdownProps> = ({ label, duration }) => {
     <div className="countdown column-member">
       <div
         className="visual-timer"
-        style={{ animationDuration: `${duration}s` }}
+        style={{ animationDuration: `${duration / 1000}s` }}
       ></div>
       <p>{label}</p>
     </div>

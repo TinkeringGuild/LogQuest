@@ -1,8 +1,7 @@
+use super::{CommandTemplate, Stopwatch, TemplateString, Timer, TimerTag};
+use crate::{common::duration::Duration, matchers};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
-
-use super::{CommandTemplate, Stopwatch, TemplateString, Timer, TimerStartPolicy, TimerTag};
-use crate::{common::duration::Duration, matchers};
 
 #[derive(TS, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum TriggerEffect {
@@ -15,10 +14,7 @@ pub enum TriggerEffect {
   CopyToClipboard(TemplateString),
   OverlayMessage(TemplateString),
   TextToSpeech(TemplateString),
-  StartTimer {
-    timer: Timer,
-    policy: TimerStartPolicy,
-  },
+  StartTimer(Timer),
   StartStopwatch(Stopwatch),
   RunSystemCommand(CommandTemplate),
 

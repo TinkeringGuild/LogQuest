@@ -174,7 +174,7 @@ impl MatchContext {
       .map(|s| s.as_str())
   }
 
-  fn empty(character_name: &str) -> Self {
+  pub fn empty(character_name: &str) -> Self {
     Self {
       group_values: Vec::with_capacity(0),
       named_values: HashMap::with_capacity(0),

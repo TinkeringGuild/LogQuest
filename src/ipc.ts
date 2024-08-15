@@ -3,9 +3,14 @@ import { invoke } from '@tauri-apps/api/tauri';
 import { Bootstrap } from './types';
 import { LogQuestConfig } from './generated/LogQuestConfig';
 import { TriggerRoot } from './generated/TriggerRoot';
+import { LiveTimer } from './generated/LiveTimer';
 
 export async function getBootstrap(): Promise<Bootstrap> {
   return await invoke<Bootstrap>('bootstrap');
+}
+
+export async function startSync(): Promise<LiveTimer[]> {
+  return await invoke<LiveTimer[]>('start_sync');
 }
 
 export async function setEverQuestDirectory(

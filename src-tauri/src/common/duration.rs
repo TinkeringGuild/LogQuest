@@ -1,10 +1,13 @@
-/// This Duration type is needed for custom serialization of time-related integers
+//! This Duration type is needed for custom serialization of time-related integers
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::time;
 use ts_rs::TS;
 
+/// Wrapper around an integer representing milliseconds.
+/// This is mainly useful for serialization of Durations.
+/// Since this is a backed by a u32, the longest possible
+/// duration would be 49.71 days, which is fine for LogQuest.
 #[derive(TS, Debug, Clone, PartialEq, Eq)]
-pub struct Duration(u32);
+pub struct Duration(pub u32);
 
 impl Duration {
   pub fn from_millis(millis: u32) -> Self {
@@ -15,9 +18,9 @@ impl Duration {
   }
 }
 
-impl Into<time::Duration> for Duration {
-  fn into(self) -> time::Duration {
-    time::Duration::from_millis(self.0.into())
+impl From<Duration> for std::time::Duration {
+  fn from(value: Duration) -> Self {
+    std::time::Duration::from_millis(value.0.into())
   }
 }
 

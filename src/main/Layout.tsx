@@ -49,6 +49,7 @@ const NavSidebar: React.FC<{}> = () => {
       <Stack>
         <NavButton size="large" text="Overview" />
         <NavButton size="large" text="Triggers" />
+        <NavButton size="large" text="Overlay" />
       </Stack>
       <Stack>
         <NavButton size="medium" text="Settings" />

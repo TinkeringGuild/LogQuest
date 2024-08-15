@@ -32,6 +32,12 @@ impl UUID {
   }
 }
 
+impl std::fmt::Display for UUID {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    f.write_str(&self.0)
+  }
+}
+
 impl Hash for UUID {
   fn hash<H: Hasher>(&self, state: &mut H) {
     self.0.hash(state)

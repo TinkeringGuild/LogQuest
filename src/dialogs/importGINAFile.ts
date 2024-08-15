@@ -1,11 +1,13 @@
-import { Dispatch } from '@reduxjs/toolkit';
 import { open as openDialog } from '@tauri-apps/api/dialog';
 import { isString } from 'lodash';
 
-import { importGinaTriggersFile } from '../ipc';
 import { initTriggers } from '../features/triggers/triggersSlice';
+import { importGinaTriggersFile } from '../ipc';
+import { MainDispatch } from '../MainStore';
 
-export default async function openGINATriggerFileDialog(dispatch: Dispatch) {
+export default async function openGINATriggerFileDialog(
+  dispatch: MainDispatch
+) {
   const ginaTriggersFile = await openDialog(openDialogOptions);
   if (!isString(ginaTriggersFile)) {
     return;

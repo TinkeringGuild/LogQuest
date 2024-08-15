@@ -1,19 +1,23 @@
 import { CSSProperties, useEffect } from 'react';
-import { useSelector, useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 
-import LoadingIndicator from '../widgets/LoadingIndicator';
-import { getBootstrap } from '../ipc';
+import DownloadingIcon from '@mui/icons-material/Downloading';
+import Button from '@mui/material/Button';
+
+import openGINATriggerFileDialog from '../dialogs/importGINAFile';
+import { bootstrapHasLoaded, hasBootstrapped } from '../features/app/appSlice';
 import { initConfig } from '../features/config/configSlice';
+import { initOverlay } from '../features/overlay/overlaySlice';
 import {
   initTriggers,
   selectTriggerGroups,
 } from '../features/triggers/triggersSlice';
-import { initOverlay } from '../features/overlay/overlaySlice';
-import { bootstrapHasLoaded, hasBootstrapped } from '../features/app/appSlice';
 import { Bootstrap } from '../generated/Bootstrap';
+import { Trigger } from '../generated/Trigger';
 import { TriggerGroup } from '../generated/TriggerGroup';
 import { TriggerGroupDescendant } from '../generated/TriggerGroupDescendant';
-import { Trigger } from '../generated/Trigger';
+import { getBootstrap } from '../ipc';
+import LoadingIndicator from '../widgets/LoadingIndicator';
 
 const TriggerTree: React.FC<{}> = () => {
   const dispatch = useDispatch();
@@ -36,17 +40,20 @@ const TriggerTree: React.FC<{}> = () => {
 };
 
 const TreeView: React.FC<{}> = () => {
+  const dispatch = useDispatch();
   const triggerGroups: TriggerGroup[] = useSelector(selectTriggerGroups);
   return (
     <div id="main-scrollable" style={styleMainScrollable}>
-      {/*
-        <div>
-          <h3>Import a GINA trigger package</h3>
-          <button onClick={() => openGINATriggerFileDialog(dispatch)}>
-            Import file
-          </button>
-        </div>
-      */}
+      <p style={{ textAlign: 'right' }}>
+        <Button
+          size="large"
+          variant="contained"
+          startIcon={<DownloadingIcon />}
+          onClick={() => openGINATriggerFileDialog(dispatch)}
+        >
+          Import GINA Export
+        </Button>
+      </p>
       <div>
         {triggerGroups.length ? (
           <ul>

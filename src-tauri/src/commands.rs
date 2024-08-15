@@ -1,10 +1,14 @@
 use crate::{
-  gina::GINAImport, state::config::LogQuestConfig, state::state_handle::StateHandle,
-  state::state_tree::OverlayState, triggers::TriggerRoot,
+  gina::GINAImport,
+  state::{
+    config::LogQuestConfig, state_handle::StateHandle, state_tree::OverlayState, timers::LiveTimer,
+  },
+  triggers::TriggerRoot,
+  ui::OverlayManagerState,
 };
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use tauri::State;
+use tauri::{State, Window};
 use tracing::{event, info};
 use ts_rs::TS;
 
@@ -31,16 +35,17 @@ impl Bootstrap {
 pub fn handler() -> impl Fn(tauri::Invoke) {
   tauri::generate_handler![
     bootstrap,
-    print_to_stdout,
-    print_to_stderr,
     get_config,
+    import_gina_triggers_file,
+    print_to_stderr,
+    print_to_stdout,
     set_everquest_dir,
-    import_gina_triggers_file
+    start_sync,
   ]
 }
 
 #[tauri::command]
-fn bootstrap(state: State<StateHandle>) -> Result<Bootstrap, String> {
+async fn bootstrap<'a>(state: State<'_, StateHandle>) -> Result<Bootstrap, String> {
   Ok(Bootstrap::from_state(&state))
 }
 
@@ -51,8 +56,17 @@ fn get_config(state: State<StateHandle>) -> Result<LogQuestConfig, String> {
 }
 
 #[tauri::command]
-fn import_gina_triggers_file(
-  state: State<StateHandle>,
+async fn start_sync(
+  window: Window,
+  overlay_manager: State<'_, OverlayManagerState>,
+) -> Result<Vec<LiveTimer>, ()> {
+  let window_label = window.label();
+  Ok(overlay_manager.start_emitter(window_label).await)
+}
+
+#[tauri::command]
+async fn import_gina_triggers_file(
+  state: State<'_, StateHandle>,
   path: String,
 ) -> Result<TriggerRoot, String> {
   let path: PathBuf = path.into();

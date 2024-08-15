@@ -4,6 +4,7 @@
 use crate::{
   cli,
   commands::Bootstrap,
+  common,
   common::{fatal_error, fatal_if_err, timestamp::Timestamp, UUID},
   gina::xml::load_gina_triggers_from_file_path,
   logs::{
@@ -11,12 +12,38 @@ use crate::{
     log_reader::LogReader,
   },
   matchers,
-  triggers::{effects::TriggerEffect, Trigger, TriggerGroup, TriggerGroupDescendant},
+  state::timers::{TimerManager, TimerStateUpdate},
+  triggers::{
+    effects::TriggerEffect, Timer, TimerStartPolicy, Trigger, TriggerGroup, TriggerGroupDescendant,
+  },
 };
-use std::fs;
-use std::path::PathBuf;
-use tracing::info;
+use std::path::{Path, PathBuf};
+use std::{ffi::OsString, fs::File};
+use std::{fs, sync::Arc};
+use tauri::async_runtime::spawn;
+use tracing::{info, warn};
 use ts_rs::TS;
+
+macro_rules! constants {
+  ($($key:path),+) => {
+    {
+      let count = 0 $( + { let _ = &$key; 1})+; // a reference to $key is needed to repeat this pattern
+      let mut vec = Vec::with_capacity(count);
+      $(
+        let path = stringify!($key).to_owned();
+        let name = path.rsplit("::").next().unwrap().to_owned();
+        vec.push((
+          path,
+          name.clone(),
+          serde_json::to_string(&$key).expect(&format!("Could not serialize {name}"))
+        ));
+      )+
+      vec
+    }
+  };
+}
+
+const CONSTANTS_TYPESCRIPT_FILENAME: &str = "constants.ts";
 
 pub fn test_trigger_group() -> TriggerGroup {
   fn re(s: &str) -> matchers::Matcher {
@@ -52,6 +79,64 @@ pub fn test_trigger_group() -> TriggerGroup {
     created_at: Timestamp::now(),
     updated_at: Timestamp::now(),
   }
+}
+
+pub fn generate_timer_noise(timer_manager: Arc<TimerManager>) {
+  warn!("GENERATING TIMER NOISE");
+
+  let trigger_id = UUID::new();
+  let timer_manager_ = timer_manager.clone();
+  spawn(async move {
+    let context = matchers::MatchContext::empty("Xenk");
+    loop {
+      let timer_name = "Visions of Grandeur";
+      warn!("GENERATING TIMER NOISE WITH NAME: {timer_name}");
+      timer_manager_
+        .start_timer(
+          &Timer {
+            name: timer_name.into(),
+            duration: common::duration::Duration(42 * 60 * 1000 / 100),
+            repeats: false,
+            start_policy: TimerStartPolicy::StartAndReplacesAnyTimerOfTriggerHavingName(
+              timer_name.into(),
+            ),
+            trigger_id: trigger_id.clone(),
+            tags: vec![],
+            updates: vec![],
+          },
+          &context,
+        )
+        .await;
+      tokio::time::sleep(std::time::Duration::from_secs(30)).await;
+    }
+  });
+
+  let trigger_id = UUID::new();
+  let timer_manager_ = timer_manager.clone();
+  spawn(async move {
+    let timer_name = "Divine Aura";
+    let context = matchers::MatchContext::empty("Xenk");
+    loop {
+      warn!("GENERATING TIMER NOISE WITH NAME: {timer_name}");
+      timer_manager_
+        .start_timer(
+          &Timer {
+            name: timer_name.into(),
+            duration: common::duration::Duration(20 * 1000),
+            repeats: false,
+            start_policy: TimerStartPolicy::StartAndReplacesAnyTimerOfTriggerHavingName(
+              timer_name.into(),
+            ),
+            trigger_id: trigger_id.clone(),
+            tags: vec![],
+            updates: vec![],
+          },
+          &context,
+        )
+        .await;
+      tokio::time::sleep(std::time::Duration::from_secs(23)).await;
+    }
+  });
 }
 
 /// This is mainly useful for debugging filesystem events
@@ -122,7 +207,19 @@ pub fn convert_gina(path: &PathBuf, format: cli::ConvertGinaFormat, out: Option<
 
 pub fn generate_typescript() -> Result<(), ts_rs::ExportError> {
   let out_dir = generated_typescript_dir();
+  delete_files_in_dir_with_extension(&out_dir, "ts");
+
   Bootstrap::export_all_to(&out_dir)?;
+  TimerStateUpdate::export_all_to(&out_dir)?;
+  generate_typescript_constants_file(
+    &out_dir,
+    constants![
+      crate::state::overlay::OVERLAY_MESSAGE_EVENT_NAME,
+      crate::state::overlay::OVERLAY_STATE_UPDATE_EVENT_NAME,
+      crate::state::overlay::OVERLAY_EDITABLE_CHANGED_EVENT_NAME
+    ],
+  );
+
   info!("Exported TypeScript files to {}", out_dir.display());
   Ok(())
 }
@@ -137,4 +234,50 @@ fn generated_typescript_dir() -> PathBuf {
     fatal_error("The src/generated/ dir does not exist!");
   }
   ts_dir
+}
+
+fn generate_typescript_constants_file(out_dir: &Path, constants: Vec<(String, String, String)>) {
+  use std::io::Write as _;
+
+  let file_path = out_dir.join(CONSTANTS_TYPESCRIPT_FILENAME);
+  let mut constants_file = fatal_if_err(File::create(&file_path));
+
+  fatal_if_err(writeln!(
+    &mut constants_file,
+    "// GENERATED FILE - DO NOT EDIT\n"
+  ));
+
+  for (const_path, const_name, const_value) in constants.iter() {
+    fatal_if_err(writeln!(&mut constants_file, "/// From `{const_path}`"));
+    fatal_if_err(writeln!(
+      &mut constants_file,
+      "export const {const_name} = {const_value};\n"
+    ));
+  }
+
+  fatal_if_err(constants_file.flush());
+
+  info!(
+    "Generated TypeScript constants file: {}",
+    file_path.display()
+  );
+}
+
+fn delete_files_in_dir_with_extension(dir: &Path, extension: &str) {
+  let extension: OsString = extension.into();
+  dir
+    .read_dir()
+    .expect("read_dir error")
+    .filter_map(|dir_entry| {
+      dir_entry
+        .ok()
+        .map(|entry| entry.path())
+        .take_if(|path| path.extension() == Some(&extension))
+    })
+    .for_each(|f| {
+      if let Err(e) = fs::remove_file(&f) {
+        fatal_error(format!("Could not remove file {}: {e:?}", f.display()));
+      }
+      info!("DELETED: {}", f.display());
+    });
 }

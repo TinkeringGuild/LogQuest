@@ -7,7 +7,7 @@ use crate::{
     Line,
   },
   matchers::MatchContext,
-  state::state_handle::StateHandle,
+  state::{overlay::OverlayManager, state_handle::StateHandle, timers::TimerManager},
   triggers::{effects::TriggerEffect, TriggerGroup, TriggerGroupDescendant},
   tts::TTS,
 };
@@ -21,12 +21,14 @@ use tracing::{debug, error, info, warn};
 const REACTOR_EVENT_QUEUE_DEPTH: usize = 1000;
 
 struct EventLoop {
+  state: StateHandle,
   log_events: LogEventBroadcaster,
   reactor_tx: mpsc::Sender<ReactorEvent>,
   reactor_rx: mpsc::Receiver<ReactorEvent>,
   mixer: AudioMixer,
   t2s_tx: mpsc::Sender<TTS>,
-  state: StateHandle,
+  timer_manager: Arc<TimerManager>,
+  overlay_manager: Arc<OverlayManager>,
 }
 
 #[derive(Debug)]
@@ -52,12 +54,14 @@ type StopReactor = Box<dyn FnOnce() + 'static + Send + Sync>;
 
 pub fn start_when_config_is_ready(
   state_handle: &StateHandle,
+  timer_manager: Arc<TimerManager>,
+  overlay_manager: Arc<OverlayManager>,
 ) -> oneshot::Receiver<Result<StopReactor, ReactorStartError>> {
   let state_handle = state_handle.to_owned();
   let (resolver, future) = oneshot::channel::<Result<StopReactor, ReactorStartError>>();
   spawn(async move {
     loop {
-      match start_if_ready(&state_handle) {
+      match start_if_ready(&state_handle, timer_manager.clone(), &overlay_manager) {
         Ok(Some(stop_reactor)) => {
           info!("The EverQuest directory has been set properly. Reactor starting...");
           let _ = resolver.send(Ok(stop_reactor));
@@ -78,12 +82,16 @@ pub fn start_when_config_is_ready(
   future
 }
 
-fn start_if_ready(state: &StateHandle) -> Result<Option<StopReactor>, ReactorStartError> {
+fn start_if_ready(
+  state: &StateHandle,
+  timer_manager: Arc<TimerManager>,
+  overlay_manager: &Arc<OverlayManager>,
+) -> Result<Option<StopReactor>, ReactorStartError> {
   // LogQuestConfig validates that the directory saved is a valid EQ dir before
   // it allows a value to be set into `everquest_directory`
   let is_ready = state.select_config(|c| c.is_ready());
   if is_ready {
-    match start(state.clone()) {
+    match start(state.clone(), timer_manager, overlay_manager.clone()) {
       Ok(stop_reactor) => Ok(Some(stop_reactor)),
       Err(err) => Err(err),
     }
@@ -92,7 +100,11 @@ fn start_if_ready(state: &StateHandle) -> Result<Option<StopReactor>, ReactorSta
   }
 }
 
-pub fn start(state_handle: StateHandle) -> Result<StopReactor, ReactorStartError> {
+pub fn start(
+  state_handle: StateHandle,
+  timer_manager: Arc<TimerManager>,
+  overlay_manager: Arc<OverlayManager>,
+) -> Result<StopReactor, ReactorStartError> {
   let Some(logs_dir) = state_handle.select_config(|config| config.logs_dir_path.clone()) else {
     return Err(ReactorStartError::NoLogsDir);
   };
@@ -111,10 +123,12 @@ pub fn start(state_handle: StateHandle) -> Result<StopReactor, ReactorStartError
   ));
 
   let join_handle = spawn(run_event_loop(
+    state_handle,
     log_events,
     reactor_tx.clone(),
     reactor_rx,
-    state_handle,
+    timer_manager,
+    overlay_manager,
   ));
 
   let reactor_tx_ = reactor_tx.clone();
@@ -130,22 +144,33 @@ pub fn start(state_handle: StateHandle) -> Result<StopReactor, ReactorStartError
 }
 
 async fn run_event_loop(
+  state: StateHandle,
   log_events: LogEventBroadcaster,
   reactor_tx: mpsc::Sender<ReactorEvent>,
   reactor_rx: mpsc::Receiver<ReactorEvent>,
-  state: StateHandle,
+  timer_manager: Arc<TimerManager>,
+  overlay_manager: Arc<OverlayManager>,
 ) {
-  let event_loop = EventLoop::new(log_events, reactor_tx, reactor_rx, state);
+  let event_loop = EventLoop::new(
+    state,
+    log_events,
+    reactor_tx,
+    reactor_rx,
+    timer_manager,
+    overlay_manager,
+  );
   // TODO: Create a startup sound to test the audio playback.
   event_loop.run().await;
 }
 
 impl EventLoop {
   fn new(
+    state: StateHandle,
     log_events: LogEventBroadcaster,
     reactor_tx: mpsc::Sender<ReactorEvent>,
     reactor_rx: mpsc::Receiver<ReactorEvent>,
-    state: StateHandle,
+    timer_manager: Arc<TimerManager>,
+    overlay_maybe: Arc<OverlayManager>,
   ) -> Self {
     let t2s_tx = create_tts_engine(state.clone());
     let mixer = AudioMixer::new();
@@ -156,6 +181,8 @@ impl EventLoop {
       reactor_rx,
       t2s_tx,
       mixer,
+      timer_manager,
+      overlay_manager: overlay_maybe,
     }
   }
 
@@ -301,7 +328,22 @@ impl EventLoop {
           error!(r#"Text-to-Speech channel closed! Ignoring TTS message: "{message}""#);
         }
       }
-      _ => {}
+      TriggerEffect::StartTimer(timer) => self.timer_manager.start_timer(timer, &context).await,
+      TriggerEffect::StartStopwatch(stopwatch) => {
+        debug!("TriggerEffect::StartStopwatch({stopwatch:?})");
+        // self.timer_manager.start_stopwatch(stopwatch);
+      }
+      TriggerEffect::OverlayMessage(template) => {
+        let message = template.render(&context);
+        info!(r#"TriggerEffect::OverlayMessage("{message}")"#);
+        self.overlay_manager.message(message).await;
+      }
+      TriggerEffect::DoNothing => {
+        debug!("TriggerEffect::DoNothing");
+      }
+      unhandled => {
+        debug!("UNIMPLEMENTED EFFECT: {unhandled:?}");
+      }
     }
   }
 }

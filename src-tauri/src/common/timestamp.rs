@@ -1,3 +1,4 @@
+use crate::common;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use ts_rs::TS;
 
@@ -7,6 +8,14 @@ pub struct Timestamp(chrono::DateTime<chrono::Utc>);
 impl Timestamp {
   pub fn now() -> Self {
     Self(chrono::Utc::now())
+  }
+}
+
+impl std::ops::Add<&common::duration::Duration> for &Timestamp {
+  type Output = Timestamp;
+
+  fn add(self, rhs: &common::duration::Duration) -> Self::Output {
+    Timestamp(self.0 + std::time::Duration::from_millis(rhs.0.into()))
   }
 }
 

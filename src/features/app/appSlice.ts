@@ -1,6 +1,6 @@
 import { createSlice } from '@reduxjs/toolkit';
 
-import { RootState } from '../../store';
+import { MainRootState } from '../../MainStore';
 import { AppState } from '../../types';
 
 const INITIAL_APP_STATE: AppState = {
@@ -22,4 +22,4 @@ export default appSlice.reducer;
 
 export const { bootstrapHasLoaded } = appSlice.actions;
 
-export const hasBootstrapped = (state: RootState) => state.app.bootstrapped;
+export const hasBootstrapped = (state: MainRootState) => state.app.bootstrapped;

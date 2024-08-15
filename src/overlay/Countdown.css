@@ -1,45 +1,45 @@
 .countdown {
-    width: 100%;
-    height: 40px;
-    background-color: yellow;
-    padding: 0;
-    position: relative;
+  width: 100%;
+  height: 40px;
+  background-color: red;
+  padding: 0;
+  position: relative;
 }
 
 .countdown p {
-    font-size: 1em;
-    font-family: Tahoma;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+  font-size: 1em;
+  font-family: Tahoma;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    text-align: center;
-    color: black;
-    font-weight: bold;
-    text-transform: uppercase;
-    height: 100%;
-    margin: 0;
-    padding: 0;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  text-align: center;
+  color: black;
+  font-weight: bold;
+  text-transform: uppercase;
+  height: 100%;
+  margin: 0;
+  padding: 0;
 }
 .countdown .visual-timer {
-    width: 100%;
-    height: 100%;
-    background-color: red;
-    animation-name: shrinkWidth;
-    animation-fill-mode: forwards;
-    animation-timing-function: linear;
+  width: 100%;
+  height: 100%;
+  background-color: cyan;
+  animation-name: shrinkWidth;
+  animation-fill-mode: forwards;
+  animation-timing-function: linear;
 }
 
 @keyframes shrinkWidth {
-    from {
-        width: 100%;
-    }
-    to {
-        width: 0%;
-    }
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0%;
+  }
 }

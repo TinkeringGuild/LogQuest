@@ -1,86 +1,72 @@
-// import { listen } from '@tauri-apps/api/event';
-// import { useState, useEffect, useReducer } from 'react';
-// import { pull } from 'lodash';
-/* import { println } from "../util"; */
+import { listen } from '@tauri-apps/api/event';
+import { useEffect, useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 
-// import Countdown from './Countdown';
-// import DynamicContainer from './DynamicContainer';
+import {
+  initTimers,
+  selectLiveTimers,
+  timerStateUpdate,
+} from '../features/timers/timersSlice';
+import {
+  OVERLAY_EDITABLE_CHANGED_EVENT_NAME,
+  OVERLAY_STATE_UPDATE_EVENT_NAME,
+} from '../generated/constants';
+import { LiveTimer } from '../generated/LiveTimer';
+import { TimerStateUpdate } from '../generated/TimerStateUpdate';
+import { startSync } from '../ipc';
+import { println } from '../util';
+import Countdown from './Countdown';
+import DynamicContainer from './DynamicContainer';
 
-/*
-interface OverlayDisplay {
-  spells: SpellTimer[];
-}
-
-interface OverlayAction {
-  type: 'spell-added' | 'spell-timer-finished';
-  payload: SpellTimer;
-}
-
-function reducer(state: OverlayDisplay, action: OverlayAction) {
-  switch (action.type) {
-    case 'spell-added':
-      return { ...state, spells: [...state.spells, action.payload] };
-    case 'spell-timer-finished':
-      return { ...state, spells: pull(state.spells, action.payload) };
-    default:
-      throw new Error('unrecognized OverAction!');
-  }
-}
+import './OverlayWindow.css';
 
 function OverlayWindow() {
   const [editable, setEditable] = useState(false);
-  const [display, dispatch] = useReducer(
-    reducer,
-    [],
-    (spells) =>
-      ({
-        spells,
-      }) as OverlayDisplay
-  );
+  const dispatch = useDispatch();
 
   useEffect(() => {
-    let removalTimer: number | null = null;
-    const unlisten = listen<SpellTimer>('new-spell-timer', ({ payload }) => {
-      dispatch({ type: 'spell-added', payload });
-      removalTimer = setTimeout(() => {
-        dispatch({ type: 'spell-timer-finished', payload });
-      }, payload.duration * 1000);
-    });
+    const unlisten = listen<TimerStateUpdate>(
+      OVERLAY_STATE_UPDATE_EVENT_NAME,
+      ({ payload: update }) => {
+        println('GOT OVERLAY STATE UPDATE: ' + JSON.stringify(update));
+        dispatch(timerStateUpdate(update));
+      }
+    );
     return () => {
-      unlisten.then((fn) => {
-        fn();
-        if (removalTimer !== null) {
-          clearTimeout(removalTimer);
-        }
-      });
+      unlisten.then((f) => f());
     };
-  }, []);
+  }, [dispatch]);
 
   useEffect(() => {
-    const unlisten = listen('editable-changed', (event) => {
-      setEditable(!!event.payload);
-    });
+    const unlisten = listen<boolean>(
+      OVERLAY_EDITABLE_CHANGED_EVENT_NAME,
+      ({ payload: newValue }) => {
+        setEditable(newValue);
+      }
+    );
     return () => {
       unlisten.then((fn) => fn());
     };
   });
 
+  useEffect(() => {
+    startSync().then((liveTimers) => {
+      println('GOT LIVE TIMERS: ' + JSON.stringify(liveTimers));
+      dispatch(initTimers(liveTimers));
+    });
+  }, [dispatch]);
+
+  const liveTimers: LiveTimer[] = useSelector(selectLiveTimers);
+
   return (
     <div className={`overlay ${editable ? 'is-editable' : 'is-static'}`}>
       <DynamicContainer width={450} height={500} x={0} y={0}>
-        {display.spells.map((spell) => (
-          <Countdown
-            label={spell.name}
-            duration={spell.duration}
-            key={spell.uuid}
-          />
+        {liveTimers.map(({ id, name, duration }) => (
+          <Countdown label={name} duration={duration} key={id} />
         ))}
       </DynamicContainer>
     </div>
   );
 }
-*/
-
-const OverlayWindow: React.FC<{}> = () => <div>WIP</div>;
 
 export default OverlayWindow;

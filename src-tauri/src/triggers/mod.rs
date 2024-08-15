@@ -95,35 +95,29 @@ pub struct Trigger {
 pub enum TimerStartPolicy {
   AlwaysStartNewTimer,
   DoNothingIfTimerRunning,
-  StartAndReplacesAllTimers,
-  StartAndReplacesAnyTimerHavingName(String), // TODO: Maybe this should be TemplateString?
+  StartAndReplacesAllTimersOfTrigger,
+  StartAndReplacesAnyTimerOfTriggerHavingName(String), // TODO: Maybe this should be TemplateString?
 }
 
 #[derive(TS, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Stopwatch {
-  pub name: String,
+  pub name: TemplateString,
   pub tags: Vec<TimerTag>,
   pub updates: Vec<TimerEffect>,
 }
 
 #[derive(TS, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Timer {
-  pub name: String,
+  pub trigger_id: UUID,
+  pub name: TemplateString,
   pub tags: Vec<TimerTag>,
   pub duration: Duration,
-  pub timer_start_behavior: TimerStartBehavior,
+  pub start_policy: TimerStartPolicy,
 
   /// When finished, the timer starts over until terminated
   pub repeats: bool,
 
   pub updates: Vec<TimerEffect>,
-}
-
-#[derive(TS, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum TimerStartBehavior {
-  StartNewTimer,
-  RestartTimer,
-  IgnoreIfRunning,
 }
 
 #[derive(TS, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

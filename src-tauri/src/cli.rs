@@ -1,17 +1,20 @@
-use crate::{common::fatal_error, ui::OverlayMode};
+use crate::common::fatal_error;
+use crate::state::overlay::OverlayMode;
 use clap::{command, Parser, Subcommand};
 use std::env;
 use std::path::PathBuf;
 
-/// If LogQuest is ran with a LQ_PARAMS environment variable, it will prioritize
+const LQ_CMD_OVERRIDE_ENV_VAR: &str = "LQ";
+
+/// If LogQuest is ran with a LQ environment variable, it will prioritize
 /// extracting its CLI params from that over those given via `std::env::args`.
 /// This is particularly useful when used with `npm run tauri dev` because Tauri
 /// doesn't allow any way (AFAIK) to pass through CLI params to the Rust process
-/// when running the development server. NOTE: If you pass in LQ_PARAMS, you
+/// when running the development server. NOTE: If you pass in LQ, you
 /// must give args that resolve to a command; for example, commands that end with
 /// "--help" are not considered commands by `clap`.
 pub fn cmd_with_optional_env_override() -> CLICommand {
-  if let Ok(params_override) = env::var("LQ_PARAMS") {
+  if let Ok(params_override) = env::var(LQ_CMD_OVERRIDE_ENV_VAR) {
     let params: Vec<String> = env::args()
       .take(1)
       .chain(
@@ -25,7 +28,9 @@ pub fn cmd_with_optional_env_override() -> CLICommand {
       Ok(CLI {
         command: Some(command),
       }) => return command,
-      _ => fatal_error(format!("Could not parse LQ_PARAMS: `{params:?}`")),
+      _ => fatal_error(format!(
+        "Could not parse {LQ_CMD_OVERRIDE_ENV_VAR} env var: `{params:?}`"
+      )),
     }
   }
   cmd()
