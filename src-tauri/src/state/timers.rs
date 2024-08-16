@@ -1,5 +1,8 @@
 use crate::{
-  common::{duration::Duration, fatal_error, shutdown::quitter, timestamp::Timestamp, UUID},
+  common::duration::Duration,
+  common::shutdown::quitter,
+  common::timestamp::Timestamp,
+  common::{fatal_error, UUID},
   matchers::MatchContext,
   triggers::{Timer, TimerStartPolicy},
 };

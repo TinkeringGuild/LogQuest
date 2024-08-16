@@ -1,4 +1,5 @@
-use crate::common::{fatal_error, shutdown::quitter};
+use crate::common::fatal_error;
+use crate::common::shutdown::quitter;
 use awedio::backends::CpalBackend;
 use awedio::manager::Manager;
 use cpal::traits::{DeviceTrait as _, HostTrait as _};

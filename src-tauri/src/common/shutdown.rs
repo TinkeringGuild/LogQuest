@@ -1,9 +1,7 @@
 use lazy_static::lazy_static;
 use std::collections::HashMap;
 use std::future::Future;
-use std::sync::atomic::AtomicBool;
-use std::sync::atomic::AtomicU64;
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::task::Poll;
 use std::task::Waker;
@@ -45,10 +43,9 @@ impl Future for ShutdownFuture {
     if IS_SHUTDOWN.load(Ordering::SeqCst) {
       Poll::Ready(())
     } else {
-      let waker = cx.waker().clone();
       let mut guard = WAKERS.lock().expect("WAKERS POISONED");
       if let Some(map) = &mut *guard {
-        map.insert(self.0.clone(), waker);
+        map.insert(self.0, cx.waker().clone());
         Poll::Pending
       } else {
         Poll::Ready(())
@@ -60,8 +57,8 @@ impl Future for ShutdownFuture {
 impl Drop for ShutdownFuture {
   fn drop(&mut self) {
     let mut guard = WAKERS.lock().expect("WAKERS POISONED");
-    if let Some(map) = &mut *guard {
-      map.remove(&self.0);
+    if let Some(wakers) = &mut *guard {
+      wakers.remove(&self.0);
     }
   }
 }

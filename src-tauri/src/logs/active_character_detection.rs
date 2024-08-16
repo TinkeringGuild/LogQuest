@@ -1,7 +1,6 @@
-use crate::common::shutdown::quitter;
-
 use super::log_event_broadcaster::NotifyError;
 use super::{LogFileEvent, LOG_FILENAME_PATTERN};
+use crate::common::shutdown::quitter;
 use futures::FutureExt as _;
 use std::path::PathBuf;
 use tauri::async_runtime::spawn;

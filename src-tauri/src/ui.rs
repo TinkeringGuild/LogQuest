@@ -1,6 +1,7 @@
 use crate::{
   commands,
-  common::{fatal_error, shutdown::shutdown, ternary},
+  common::shutdown::shutdown,
+  common::{fatal_error, ternary},
   reactor,
   state::{
     overlay::{OverlayManager, OverlayMode, OVERLAY_EDITABLE_CHANGED_EVENT_NAME},

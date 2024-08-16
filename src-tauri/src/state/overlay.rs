@@ -1,6 +1,5 @@
-use crate::common::shutdown::quitter;
-
 use super::timers::{LiveTimer, TimerManager, TimerStateUpdate};
+use crate::common::shutdown::quitter;
 use serde::{Deserialize, Serialize};
 use std::{
   collections::HashMap,

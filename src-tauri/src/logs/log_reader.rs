@@ -1,7 +1,6 @@
-use crate::common::shutdown::quitter;
-
 use super::log_event_broadcaster::NotifyError;
 use super::{Line, LogFileEvent, FILESYSTEM_EVENT_QUEUE_SIZE};
+use crate::common::shutdown::quitter;
 use futures::FutureExt as _;
 use std::ffi::OsStr;
 use std::path::Path;
