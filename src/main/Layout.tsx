@@ -1,15 +1,22 @@
-import React, { ReactNode, CSSProperties } from 'react';
-import { useSelector } from 'react-redux';
+import { SxProps } from '@mui/material';
 import Button from '@mui/material/Button';
 import Stack from '@mui/material/Stack';
+import React, { CSSProperties, ReactNode } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 
-import { selectEQDirIsBlank } from '../features/config/configSlice';
+import {
+  $currentMode,
+  $isBootstrapped,
+  $isLoading,
+  MODE,
+  navigateTo,
+} from '../features/app/appSlice';
+import { $eqDirBlank } from '../features/config/configSlice';
 import SelectEQFolderFooter from './SelectEQFolderFooter';
-import { hasBootstrapped } from '../features/app/appSlice';
 
 const Layout: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const bootstrapped = useSelector(hasBootstrapped);
-  const needsEQDir = useSelector(selectEQDirIsBlank);
+  const bootstrapped = useSelector($isBootstrapped);
+  const needsEQDir = useSelector($eqDirBlank);
 
   return (
     <div id="layout" style={styleLayout}>
@@ -33,30 +40,69 @@ const Layout: React.FC<{ children: ReactNode }> = ({ children }) => {
 };
 
 const NavSidebar: React.FC<{}> = () => {
-  const NavButton: React.FC<{
-    text: string;
-    size: 'small' | 'medium' | 'large';
-  }> = ({ text, size }) => (
-    <Button
-      size={size}
-      sx={{ padding: '10px 25px', color: 'black', borderRadius: 0 }}
-    >
-      {text}
-    </Button>
-  );
+  const mode = useSelector($currentMode);
   return (
     <div style={styleNavSidebar}>
       <Stack>
-        <NavButton size="large" text="Overview" />
-        <NavButton size="large" text="Triggers" />
-        <NavButton size="large" text="Overlay" />
+        <NavButton to="overview" current={mode} size="large" text="Overview" />
+        <NavButton to="triggers" current={mode} size="large" text="Triggers" />
+        <NavButton to="overlay" current={mode} size="large" text="Overlay" />
       </Stack>
       <Stack>
-        <NavButton size="medium" text="Settings" />
-        <NavButton size="medium" text="Help" />
-        <NavButton size="medium" text="About" />
+        <NavButton to="settings" current={mode} size="medium" text="Settings" />
+        <NavButton to="about" current={mode} size="medium" text="About" />
+        <NavButton to="help" current={mode} size="medium" text="Help" />
       </Stack>
     </div>
+  );
+};
+
+const NavButton: React.FC<{
+  text: string;
+  to: MODE;
+  current: MODE;
+  size: 'small' | 'medium' | 'large';
+}> = ({ to, current, text, size }) => {
+  const isLoading = useSelector($isLoading);
+  const dispatch = useDispatch();
+  const active = to == current;
+  const inactiveStyle: SxProps = {
+    padding: '10px 25px',
+    color: 'black',
+    borderRadius: 0,
+    '&:hover': {
+      backgroundColor: 'white',
+    },
+    '&:active': {
+      backgroundColor: 'black',
+      color: 'white',
+    },
+  };
+  const activeStyle: SxProps = {
+    ...inactiveStyle,
+    color: 'white',
+    backgroundColor: 'black',
+    '&:hover': {
+      cursor: 'default',
+      backgroundColor: 'black',
+    },
+    '&:active': {
+      backgroundColor: 'black',
+    },
+    '&:disabled': {
+      color: '#777',
+    },
+  };
+  return (
+    <Button
+      size={size}
+      className={active ? 'nav-active' : ''}
+      sx={active ? activeStyle : inactiveStyle}
+      disabled={isLoading}
+      onClick={() => dispatch(navigateTo(to))}
+    >
+      {text}
+    </Button>
   );
 };
 

@@ -169,7 +169,7 @@ fn set_overlay_editable(app: &AppHandle, new_value: bool) {
     overlay_window
       .set_ignore_cursor_events(!new_value)
       .expect("Failed to set_ignore_cursor_events");
-    let _ = overlay_window.emit(OVERLAY_EDITABLE_CHANGED_EVENT_NAME, new_value);
+    let _ = app.emit_all(OVERLAY_EDITABLE_CHANGED_EVENT_NAME, new_value);
     info!(
       "Overlay editing {}",
       ternary(new_value, "ENABLED", "DISABLED")

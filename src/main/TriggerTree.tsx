@@ -1,47 +1,18 @@
-import { CSSProperties, useEffect } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
-
 import DownloadingIcon from '@mui/icons-material/Downloading';
 import Button from '@mui/material/Button';
+import { CSSProperties } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 
 import openGINATriggerFileDialog from '../dialogs/importGINAFile';
-import { bootstrapHasLoaded, hasBootstrapped } from '../features/app/appSlice';
-import { initConfig } from '../features/config/configSlice';
-import { initOverlay } from '../features/overlay/overlaySlice';
-import {
-  initTriggers,
-  selectTriggerGroups,
-} from '../features/triggers/triggersSlice';
-import { Bootstrap } from '../generated/Bootstrap';
+import { $triggerGroups } from '../features/triggers/triggersSlice';
 import { Trigger } from '../generated/Trigger';
 import { TriggerGroup } from '../generated/TriggerGroup';
 import { TriggerGroupDescendant } from '../generated/TriggerGroupDescendant';
-import { getBootstrap } from '../ipc';
 import LoadingIndicator from '../widgets/LoadingIndicator';
 
 const TriggerTree: React.FC<{}> = () => {
   const dispatch = useDispatch();
-  const bootstrapped = useSelector(hasBootstrapped);
-
-  useEffect(() => {
-    getBootstrap().then((b: Bootstrap) => {
-      dispatch(initConfig(b.config));
-      dispatch(initTriggers(b.triggers));
-      dispatch(initOverlay(b.overlay));
-      dispatch(bootstrapHasLoaded());
-    });
-  }, []);
-
-  if (!bootstrapped) {
-    return <LoadingState />;
-  }
-
-  return <TreeView />;
-};
-
-const TreeView: React.FC<{}> = () => {
-  const dispatch = useDispatch();
-  const triggerGroups: TriggerGroup[] = useSelector(selectTriggerGroups);
+  const triggerGroups: TriggerGroup[] = useSelector($triggerGroups);
   return (
     <div id="main-scrollable" style={styleMainScrollable}>
       <p style={{ textAlign: 'right' }}>
@@ -79,7 +50,7 @@ const ViewTriggerGroup: React.FC<{ group: TriggerGroup }> = ({ group }) => {
   return (
     <li key={group.id}>
       {group.name}
-      {group.children.length > 0 && (
+      {group.children.length && (
         <ul>
           {group.children.map((descendant: TriggerGroupDescendant) => {
             if ('T' in descendant) {
@@ -93,23 +64,6 @@ const ViewTriggerGroup: React.FC<{ group: TriggerGroup }> = ({ group }) => {
     </li>
   );
 };
-
-const LoadingState: React.FC<{}> = () => (
-  <div
-    style={{
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      position: 'absolute',
-      top: 0,
-      right: 0,
-      bottom: 0,
-      left: 0,
-    }}
-  >
-    <LoadingIndicator />
-  </div>
-);
 
 const styleMainScrollable: CSSProperties = {
   position: 'absolute',

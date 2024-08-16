@@ -4,6 +4,8 @@ import { TimerStateUpdate } from '../../generated/TimerStateUpdate';
 import { remove } from 'lodash';
 import { eprintln } from '../../util';
 
+export const TIMERS_SLICE = 'timers';
+
 interface TimersState {
   liveTimers: LiveTimer[];
 }
@@ -13,7 +15,7 @@ const INITIAL_TIMERS_STATE: TimersState = {
 };
 
 const timersSlice = createSlice({
-  name: 'timers',
+  name: TIMERS_SLICE,
   initialState: INITIAL_TIMERS_STATE,
   reducers: {
     initTimers(
@@ -23,23 +25,24 @@ const timersSlice = createSlice({
       state.liveTimers = liveTimers;
     },
     timerStateUpdate(
-      state: TimersState,
+      slice: TimersState,
       { payload: update }: { payload: TimerStateUpdate }
     ) {
       if ('TimerAdded' in update) {
-        state.liveTimers.push(update.TimerAdded);
+        slice.liveTimers.push(update.TimerAdded);
       } else if ('TimerKilled' in update) {
-        remove(state.liveTimers, (timer) => timer.id == update.TimerKilled);
+        remove(slice.liveTimers, (timer) => timer.id == update.TimerKilled);
       } else {
         eprintln('UNHANDLED TIMER STATE UPDATE: ' + JSON.stringify(update));
       }
     },
   },
 });
-
 export default timersSlice.reducer;
-
 export const { timerStateUpdate, initTimers } = timersSlice.actions;
 
-export const selectLiveTimers = ({ timers }: { timers: TimersState }) =>
-  timers.liveTimers;
+export const $timers = ({
+  [TIMERS_SLICE]: timers,
+}: {
+  [TIMERS_SLICE]: TimersState;
+}) => timers.liveTimers;

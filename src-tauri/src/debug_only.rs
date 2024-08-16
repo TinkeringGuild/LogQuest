@@ -4,8 +4,9 @@
 use crate::{
   cli,
   commands::Bootstrap,
-  common,
-  common::{fatal_error, fatal_if_err, timestamp::Timestamp, UUID},
+  common::{
+    self, fatal_error, fatal_if_err, timestamp::Timestamp, LogQuestVersion, LOG_QUEST_VERSION, UUID,
+  },
   gina::xml::load_gina_triggers_from_file_path,
   logs::{
     log_event_broadcaster::{LogEventBroadcaster, NotifyError},
@@ -24,19 +25,18 @@ use tauri::async_runtime::spawn;
 use tracing::{info, warn};
 use ts_rs::TS;
 
+/// This macro is used to generate a `constants.ts` file from Rust constants. It takes a list of
+/// paths/identifiers, automatically JSON-serializes their values, and returns a vector of tuples
+/// containing this data/metadata.
 macro_rules! constants {
   ($($key:path),+) => {
     {
-      let count = 0 $( + { let _ = &$key; 1})+; // a reference to $key is needed to repeat this pattern
-      let mut vec = Vec::with_capacity(count);
+      let mut vec = Vec::new();
       $(
         let path = stringify!($key).to_owned();
         let name = path.rsplit("::").next().unwrap().to_owned();
-        vec.push((
-          path,
-          name.clone(),
-          serde_json::to_string(&$key).expect(&format!("Could not serialize {name}"))
-        ));
+        let value = serde_json::to_string(&$key).expect(&format!("Could not serialize {path}"));
+        vec.push((path, name, value));
       )+
       vec
     }
@@ -81,6 +81,7 @@ pub fn test_trigger_group() -> TriggerGroup {
   }
 }
 
+#[allow(unused)]
 pub fn generate_timer_noise(timer_manager: Arc<TimerManager>) {
   warn!("GENERATING TIMER NOISE");
 
@@ -211,9 +212,14 @@ pub fn generate_typescript() -> Result<(), ts_rs::ExportError> {
 
   Bootstrap::export_all_to(&out_dir)?;
   TimerStateUpdate::export_all_to(&out_dir)?;
+
+  #[allow(non_snake_case)]
+  let LQ_VERSION: LogQuestVersion = LOG_QUEST_VERSION.clone();
+
   generate_typescript_constants_file(
     &out_dir,
     constants![
+      LQ_VERSION,
       crate::state::overlay::OVERLAY_MESSAGE_EVENT_NAME,
       crate::state::overlay::OVERLAY_STATE_UPDATE_EVENT_NAME,
       crate::state::overlay::OVERLAY_EDITABLE_CHANGED_EVENT_NAME
@@ -275,9 +281,7 @@ fn delete_files_in_dir_with_extension(dir: &Path, extension: &str) {
         .take_if(|path| path.extension() == Some(&extension))
     })
     .for_each(|f| {
-      if let Err(e) = fs::remove_file(&f) {
-        fatal_error(format!("Could not remove file {}: {e:?}", f.display()));
-      }
+      fatal_if_err(fs::remove_file(&f));
       info!("DELETED: {}", f.display());
     });
 }

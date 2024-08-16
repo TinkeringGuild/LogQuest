@@ -8,9 +8,9 @@ use serde::{Deserialize, Serialize};
 use std::hash::{Hash, Hasher};
 use ts_rs::TS;
 
-pub type LogQuestVersionType = (usize, usize, usize);
 lazy_static! {
-  pub static ref LOG_QUEST_VERSION: LogQuestVersionType = {
+  #[derive(Serialize)]
+  pub static ref LOG_QUEST_VERSION: LogQuestVersion = {
     let crate_version: &str = env!("CARGO_PKG_VERSION");
     let parts: Vec<usize> = crate_version
       .split(".")
@@ -19,9 +19,12 @@ lazy_static! {
     let [major, minor, tiny] = parts.as_slice() else {
       panic!("INVALID VERSION FORMAT DEFINED IN Cargo.toml: {crate_version}");
     };
-    (*major, *minor, *tiny)
+    LogQuestVersion(*major, *minor, *tiny)
   };
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+pub struct LogQuestVersion(pub usize, pub usize, pub usize); // (major, minor, tiny)
 
 #[derive(TS, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct UUID(String);

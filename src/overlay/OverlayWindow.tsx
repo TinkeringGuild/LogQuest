@@ -4,7 +4,7 @@ import { useDispatch, useSelector } from 'react-redux';
 
 import {
   initTimers,
-  selectLiveTimers,
+  $timers,
   timerStateUpdate,
 } from '../features/timers/timersSlice';
 import {
@@ -56,7 +56,7 @@ function OverlayWindow() {
     });
   }, [dispatch]);
 
-  const liveTimers: LiveTimer[] = useSelector(selectLiveTimers);
+  const liveTimers: LiveTimer[] = useSelector($timers);
 
   return (
     <div className={`overlay ${editable ? 'is-editable' : 'is-static'}`}>

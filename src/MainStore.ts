@@ -1,16 +1,18 @@
 import { configureStore } from '@reduxjs/toolkit';
 
-import appReducer from './features/app/appSlice';
-import configReducer from './features/config/configSlice';
-import triggersReducer from './features/triggers/triggersSlice';
-import overlayReducer from './features/overlay/overlaySlice';
+import appReducer, { APP_SLICE } from './features/app/appSlice';
+import configReducer, { CONFIG_SLICE } from './features/config/configSlice';
+import triggersReducer, {
+  TRIGGERS_SLICE,
+} from './features/triggers/triggersSlice';
+import overlayReducer, { OVERLAY_SLICE } from './features/overlay/overlaySlice';
 
 const store = configureStore({
   reducer: {
-    app: appReducer,
-    config: configReducer,
-    triggers: triggersReducer,
-    overlay: overlayReducer,
+    [APP_SLICE]: appReducer,
+    [CONFIG_SLICE]: configReducer,
+    [TRIGGERS_SLICE]: triggersReducer,
+    [OVERLAY_SLICE]: overlayReducer,
   },
 });
 

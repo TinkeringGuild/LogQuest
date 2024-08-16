@@ -1,6 +1,7 @@
 import { open as openDialog } from '@tauri-apps/api/dialog';
 import { isString } from 'lodash';
 
+import { loadingWhile } from '../features/app/loadingWhile';
 import { initTriggers } from '../features/triggers/triggersSlice';
 import { importGinaTriggersFile } from '../ipc';
 import { MainDispatch } from '../MainStore';
@@ -12,7 +13,9 @@ export default async function openGINATriggerFileDialog(
   if (!isString(ginaTriggersFile)) {
     return;
   }
-  const trigger_root = await importGinaTriggersFile(ginaTriggersFile);
+  const trigger_root = await loadingWhile(
+    importGinaTriggersFile(ginaTriggersFile)
+  );
   dispatch(initTriggers(trigger_root));
 }
 

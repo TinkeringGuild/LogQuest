@@ -1,24 +1,39 @@
 import { createSlice } from '@reduxjs/toolkit';
 
 import { TriggerRoot } from '../../generated/TriggerRoot';
-import { MainRootState } from '../../MainStore';
+import { LQ_VERSION } from '../../generated/constants';
+import { LogQuestVersion } from '../../generated/LogQuestVersion';
 
-const INITIAL_TRIGGERS_STATE: TriggerRoot = {
-  log_quest_version: [0, 0, 0], // TODO: Use vite-plugin-package-config to get this initial value from package.json?
-  groups: [],
+export const TRIGGERS_SLICE = 'triggers';
+
+interface TriggersState {
+  root: TriggerRoot;
+}
+
+const INITIAL_TRIGGERS_STATE: TriggersState = {
+  root: {
+    groups: [],
+    log_quest_version: LQ_VERSION as LogQuestVersion,
+  },
 };
 
 const triggersSlice = createSlice({
-  name: 'triggers',
+  name: TRIGGERS_SLICE,
   initialState: INITIAL_TRIGGERS_STATE,
   reducers: {
-    initTriggers: (_state, { payload }) => payload,
+    initTriggers(
+      state: TriggersState,
+      { payload: root }: { payload: TriggerRoot }
+    ) {
+      state.root = root;
+    },
   },
 });
-
-export const selectTriggerGroups = (state: MainRootState) =>
-  state.triggers.groups;
-
 export const { initTriggers } = triggersSlice.actions;
-
 export default triggersSlice.reducer;
+
+export const $triggerGroups = ({
+  [TRIGGERS_SLICE]: triggers,
+}: {
+  [TRIGGERS_SLICE]: TriggersState;
+}) => triggers.root.groups;

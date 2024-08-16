@@ -2,9 +2,7 @@ pub mod effects;
 pub mod template_string;
 
 use crate::{
-  common::{
-    duration::Duration, timestamp::Timestamp, LogQuestVersionType, LOG_QUEST_VERSION, UUID,
-  },
+  common::{duration::Duration, timestamp::Timestamp, LogQuestVersion, LOG_QUEST_VERSION, UUID},
   gina::GINAImport,
   matchers,
   state::config::{LogQuestConfig, TriggersSaveError},
@@ -29,7 +27,7 @@ pub enum TriggerLoadOrCreateError {
 
 #[derive(TS, Clone, Serialize, Deserialize)]
 pub struct TriggerRoot {
-  log_quest_version: LogQuestVersionType,
+  log_quest_version: LogQuestVersion,
   groups: Vec<TriggerGroup>,
 }
 
