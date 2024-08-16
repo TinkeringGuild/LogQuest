@@ -1,5 +1,5 @@
 use crate::{
-  common::{duration::Duration, fatal_error, timestamp::Timestamp, UUID},
+  common::{duration::Duration, fatal_error, shutdown::quitter, timestamp::Timestamp, UUID},
   matchers::MatchContext,
   triggers::{Timer, TimerStartPolicy},
 };
@@ -125,10 +125,15 @@ fn spawn_timer_reaper(
   spawn(async move {
     debug!("Timer[{timer_id}] Reaper task spawned");
     let duration: std::time::Duration = duration.into();
+    let mut quit = quitter();
     loop {
       let timer_id = timer_id.clone();
       let duration = duration.clone();
       select! {
+        _ = &mut quit => {
+          debug!("Timer reaper QUITTING");
+          break;
+        }
         _ = tokio::time::sleep(duration) => {
           let _ = tx_timer_event.send(TimerCommand::LiveTimerElapsed(timer_id)).await;
           break;

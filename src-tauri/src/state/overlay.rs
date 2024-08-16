@@ -1,3 +1,5 @@
+use crate::common::shutdown::quitter;
+
 use super::timers::{LiveTimer, TimerManager, TimerStateUpdate};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -73,8 +75,10 @@ async fn emitter_loop(
   mut rx_stop: oneshot::Receiver<()>,
 ) {
   debug!("OverlayManager event loop starting...");
+  let mut quit = quitter();
   loop {
     select! {
+      _ = &mut quit => break,
       _ = &mut rx_stop => break,
       update = timer_state_updates.recv() =>  match update {
         Ok(update) => emit_to_window(&app, &window_label, OVERLAY_STATE_UPDATE_EVENT_NAME, update),

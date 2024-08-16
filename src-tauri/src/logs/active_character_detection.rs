@@ -1,3 +1,5 @@
+use crate::common::shutdown::quitter;
+
 use super::log_event_broadcaster::NotifyError;
 use super::{LogFileEvent, LOG_FILENAME_PATTERN};
 use futures::FutureExt as _;
@@ -96,13 +98,18 @@ async fn determine_active_character_from_file_events_async(
   // the fuse makes the oneshot receiver usable in a loop (avoiding a move error with previous loop iterations)
   let mut stop_receiver = stop_receiver.fuse();
 
+  let mut quit = quitter();
   debug!("Starting select loop for LogFileEvents");
   loop {
     // TODO: This should maybe debounce a timeout if a file hasn't been updated after N seconds.
     select! {
+        _ = &mut quit => {
+          debug!("ActiveCharacterDetector QUITTING");
+          break;
+        }
         _ = &mut stop_receiver => {
-            debug!("Received stop signal for LogFileEvent loop");
-            break;
+          debug!("Received stop signal for LogFileEvent loop");
+          break;
         },
 
         log_file_event = rx_fs_events.recv() => {

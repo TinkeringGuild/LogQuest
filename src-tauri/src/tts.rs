@@ -1,7 +1,7 @@
 use crate::{common::fatal_error, state::state_handle::StateHandle};
 use std::thread;
 use tokio::sync::mpsc;
-use tracing::{error, info};
+use tracing::{debug, error, info};
 use tts::{Gender, Tts};
 
 #[derive(Debug, Clone)]
@@ -9,6 +9,7 @@ pub enum TTS {
   Speak { text: String, interrupt: bool },
   StopSpeaking,
   SetVoice(String),
+  Quit,
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -39,6 +40,10 @@ fn thread_loop(mut t2s: Tts, _state_handle: StateHandle, mut rx: mpsc::Receiver<
   };
   loop {
     match rx.blocking_recv() {
+      Some(TTS::Quit) => {
+        debug!("TTS loop QUITTING");
+        break;
+      }
       Some(TTS::Speak { text, interrupt }) => {
         if let Err(e) = t2s.speak(text.clone(), interrupt) {
           error!(r#"Text-to-Speech engine FAILED to speak: "{text}" [ ERROR: {e:?} ]"#);

@@ -1,6 +1,6 @@
 use crate::{
   commands,
-  common::{fatal_error, ternary},
+  common::{fatal_error, shutdown::shutdown, ternary},
   reactor,
   state::{
     overlay::{OverlayManager, OverlayMode, OVERLAY_EDITABLE_CHANGED_EVENT_NAME},
@@ -34,6 +34,14 @@ pub fn launch(state: StateHandle) {
       Ok(())
     })
     .invoke_handler(commands::handler())
+    .on_window_event(|window_event| {
+      if let WindowEvent::CloseRequested { .. } = window_event.event() {
+        let window = window_event.window();
+        debug!("Window `{}` was closed. Shutting down...", window.label());
+        shutdown();
+        window.app_handle().exit(0);
+      }
+    })
     .run(tauri::generate_context!());
 
   if let Err(e) = result {
@@ -74,7 +82,6 @@ fn reactor(
 }
 
 fn setup(app: &AppHandle) {
-  register_main_window_close_event(app);
   register_global_shortcut_manager(app);
   setup_overlay(app);
 }
@@ -125,13 +132,12 @@ fn create_windowed_overlay_window(app: &AppHandle) -> tauri::Window {
   overlay_window
 }
 
-fn get_main_window(app: &AppHandle) -> Window {
-  // TODO: When the main Window is allowed to be closed, will this cause a panic
-  // because of the expect()? or does Tauri keep the Window instance while closed?
-  app
-    .get_window("main")
-    .expect("Expected main window to exist!")
-}
+// fn get_main_window(app: &AppHandle) -> Window {
+//   // TODO: If I ever allow the main window be fully closed, this would panic...
+//   app
+//     .get_window("main")
+//     .expect("Expected main window to exist!")
+// }
 
 fn get_overlay_window(app: &AppHandle) -> Option<Window> {
   let overlay_mode = state(app).select_overlay(|o| o.overlay_mode.clone());
@@ -139,17 +145,6 @@ fn get_overlay_window(app: &AppHandle) -> Option<Window> {
     return None;
   }
   app.get_window("overlay")
-}
-
-fn register_main_window_close_event(app: &AppHandle) {
-  let window = get_main_window(&app);
-  let app = app.clone();
-  window.on_window_event(move |window_event: &WindowEvent| match window_event {
-    WindowEvent::Destroyed => {
-      app.exit(0);
-    }
-    _ => {}
-  });
 }
 
 fn register_global_shortcut_manager(app: &AppHandle) {

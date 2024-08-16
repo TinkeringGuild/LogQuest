@@ -1,3 +1,5 @@
+use crate::common::shutdown::quitter;
+
 use super::log_event_broadcaster::NotifyError;
 use super::{Line, LogFileEvent, FILESYSTEM_EVENT_QUEUE_SIZE};
 use futures::FutureExt as _;
@@ -48,9 +50,14 @@ impl LogReader {
       let reader = tokio::io::BufReader::new(file);
       let mut lines = reader.lines();
 
+      let mut quit = quitter();
       debug!("Start LogReader loop");
       'select: loop {
         select! {
+          _ = &mut quit => {
+            debug!("LogReader QUITTING");
+            break;
+          }
           _ = &mut rx_stop => {
             debug!("No longer watching log file: {}", log_file_path.display());
             break;

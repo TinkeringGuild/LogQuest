@@ -1,5 +1,6 @@
 use crate::{
   audio::AudioMixer,
+  common::shutdown::quitter,
   logs::{
     active_character_detection::{ActiveCharacterDetector, Character},
     log_event_broadcaster::{LogEventBroadcaster, NotifyError},
@@ -170,7 +171,7 @@ impl EventLoop {
     reactor_tx: mpsc::Sender<ReactorEvent>,
     reactor_rx: mpsc::Receiver<ReactorEvent>,
     timer_manager: Arc<TimerManager>,
-    overlay_maybe: Arc<OverlayManager>,
+    overlay_manager: Arc<OverlayManager>,
   ) -> Self {
     let t2s_tx = create_tts_engine(state.clone());
     let mixer = AudioMixer::new();
@@ -182,7 +183,7 @@ impl EventLoop {
       t2s_tx,
       mixer,
       timer_manager,
-      overlay_manager: overlay_maybe,
+      overlay_manager,
     }
   }
 
@@ -214,9 +215,14 @@ impl EventLoop {
     let mut line_chan: (Option<broadcast::Sender<Line>>, broadcast::Receiver<Line>) =
       idle_line_chan();
 
+    let mut quit = quitter();
     loop {
       debug!("TICK...");
       select! {
+        _ = &mut quit => {
+          debug!("Reactor QUITTING");
+          break;
+        }
         reactor_event = self.reactor_rx.recv() => {
           debug!("GOT REACTOR EVENT: {reactor_event:?}");
           match reactor_event {
@@ -353,9 +359,13 @@ async fn react_to_active_character_change(
   mut active_character_detector: ActiveCharacterDetector,
   tx: mpsc::Sender<ReactorEvent>,
 ) {
+  let mut quit = quitter();
   debug!("Initializing reactor active character change detector");
   loop {
     select! {
+      _ = &mut quit => {
+        break;
+      }
       _signal = active_character_detector.changed() => {
         let new_current_char = active_character_detector.current();
         if let Err(mpsc::error::SendError(_)) = tx.send(ReactorEvent::SetActiveCharacter(new_current_char.clone())).await {
@@ -379,6 +389,13 @@ fn create_tts_engine(state: StateHandle) -> mpsc::Sender<TTS> {
     // messages get dropped.
     error!("Could not initialize Text-to-Speech engine! Feature will be disabled. Error: {e:?}");
   }
+
+  let tx_ = tx.clone();
+  spawn(async move {
+    quitter().await;
+    let _ = tx_.send(TTS::Quit).await;
+  });
+
   tx
 }
 

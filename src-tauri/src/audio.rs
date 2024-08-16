@@ -1,4 +1,4 @@
-use crate::common::fatal_error;
+use crate::common::{fatal_error, shutdown::quitter};
 use awedio::backends::CpalBackend;
 use awedio::manager::Manager;
 use cpal::traits::{DeviceTrait as _, HostTrait as _};
@@ -20,7 +20,6 @@ enum AudioMixerEvent {
   PlayFile(PathBuf),
   #[allow(unused)]
   Reset,
-  #[allow(unused)]
   Terminate,
 }
 
@@ -36,6 +35,12 @@ impl AudioMixer {
       .name("LogQuest AudioMixer".into())
       .spawn(move || mixer_loop(rx))
       .expect("Cannot create AudioMixer thread!"); // panic-worthy
+
+    let tx_ = tx.clone();
+    spawn(async move {
+      quitter().await;
+      let _ = tx_.send(AudioMixerEvent::Terminate).await;
+    });
 
     Self {
       join_handle,

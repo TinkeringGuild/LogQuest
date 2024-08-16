@@ -1,6 +1,7 @@
 pub mod duration;
 pub mod progress_reporter;
 pub mod serializable_regex;
+pub mod shutdown;
 pub mod timestamp;
 
 use lazy_static::lazy_static;
