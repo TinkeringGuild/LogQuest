@@ -1,6 +1,8 @@
 import { createSlice } from '@reduxjs/toolkit';
 
-import { MainDispatch, MainRootState } from '../../MainStore';
+import { MainRootState } from '../../MainStore';
+import { ProgressUpdate } from '../../generated/ProgressUpdate';
+import { seqFromProgressUpdate } from '../../util';
 
 export const APP_SLICE = 'app';
 
@@ -16,12 +18,14 @@ export interface AppState {
   bootstrapped: boolean;
   currentMode: MODE;
   isLoading: boolean;
+  progressUpdate: ProgressUpdate | null;
 }
 
 const INITIAL_APP_STATE: AppState = {
   bootstrapped: false,
   currentMode: 'triggers',
   isLoading: false,
+  progressUpdate: null,
 };
 
 const appSlice = createSlice({
@@ -40,6 +44,20 @@ const appSlice = createSlice({
     exitLoadingState(state: AppState) {
       state.isLoading = false;
     },
+    updateProgress(
+      state: AppState,
+      { payload: update }: { payload: ProgressUpdate }
+    ) {
+      if (
+        seqFromProgressUpdate(update) >
+        seqFromProgressUpdate(state.progressUpdate)
+      ) {
+        state.progressUpdate = update;
+      }
+    },
+    updateProgressFinished(state: AppState) {
+      state.progressUpdate = null;
+    },
   },
 });
 export default appSlice.reducer;
@@ -48,7 +66,11 @@ export const {
   navigateTo,
   enterLoadingState,
   exitLoadingState,
+  updateProgress,
+  updateProgressFinished,
 } = appSlice.actions;
+
+////////////////////////////////////////
 
 export const $isBootstrapped = ({ [APP_SLICE]: app }: MainRootState) =>
   app.bootstrapped;
@@ -58,3 +80,6 @@ export const $currentMode = ({ [APP_SLICE]: app }: { [APP_SLICE]: AppState }) =>
 
 export const $isLoading = ({ [APP_SLICE]: app }: { [APP_SLICE]: AppState }) =>
   app.isLoading || !app.bootstrapped;
+
+export const $progress = ({ [APP_SLICE]: app }: { [APP_SLICE]: AppState }) =>
+  app.progressUpdate;

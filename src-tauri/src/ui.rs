@@ -16,6 +16,9 @@ use tracing::{debug, info};
 
 pub type OverlayManagerState = Arc<OverlayManager>;
 
+pub const PROGRESS_UPDATE_EVENT_NAME: &str = "progress-update";
+pub const PROGRESS_UPDATE_FINISHED_EVENT_NAME: &str = "progress-update-finished";
+
 const TOGGLE_OVERLAY_ACCELERATOR: &str = "CommandOrControl+Alt+Shift+L";
 
 pub fn launch(state: StateHandle) {
@@ -97,6 +100,7 @@ fn create_default_overlay_window(app: &AppHandle) -> tauri::Window {
     .decorations(false)
     .fullscreen(true)
     .always_on_top(true)
+    .focused(false)
     .skip_taskbar(true)
     .build()
     .expect("Could not create overlay window!");
@@ -111,6 +115,7 @@ fn create_windowed_overlay_window(app: &AppHandle) -> tauri::Window {
   let window_uri = tauri::WindowUrl::App("overlay.html".into());
   let overlay_window = tauri::WindowBuilder::new(app, "overlay", window_uri)
     .title("LogQuest Overlay")
+    .focused(false)
     .build()
     .expect("Could not create overlay window!");
 

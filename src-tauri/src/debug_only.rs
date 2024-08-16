@@ -5,7 +5,10 @@ use crate::{
   cli,
   commands::Bootstrap,
   common::{
-    self, fatal_error, fatal_if_err, timestamp::Timestamp, LogQuestVersion, LOG_QUEST_VERSION, UUID,
+    self, fatal_error, fatal_if_err,
+    progress_reporter::{ProgressReporter, ProgressUpdate},
+    timestamp::Timestamp,
+    LogQuestVersion, LOG_QUEST_VERSION, UUID,
   },
   gina::xml::load_gina_triggers_from_file_path,
   logs::{
@@ -180,7 +183,8 @@ pub fn convert_gina(path: &PathBuf, format: cli::ConvertGinaFormat, out: Option<
     Box::new(std::io::stdout())
   };
 
-  let from_gina = fatal_if_err(load_gina_triggers_from_file_path(path));
+  let (progress, _) = ProgressReporter::new();
+  let from_gina = fatal_if_err(load_gina_triggers_from_file_path(path, &progress));
 
   match format {
     cli::ConvertGinaFormat::GinaInternal => {
@@ -193,7 +197,7 @@ pub fn convert_gina(path: &PathBuf, format: cli::ConvertGinaFormat, out: Option<
     _ => {}
   }
 
-  let root_trigger_group = fatal_if_err(from_gina.to_lq(&Timestamp::now()));
+  let root_trigger_group = fatal_if_err(from_gina.to_lq(&Timestamp::now(), &progress));
   match format {
     cli::ConvertGinaFormat::Internal => {
       fatal_if_err(writeln!(writer, "{root_trigger_group:#?}"));
@@ -212,6 +216,7 @@ pub fn generate_typescript() -> Result<(), ts_rs::ExportError> {
 
   Bootstrap::export_all_to(&out_dir)?;
   TimerStateUpdate::export_all_to(&out_dir)?;
+  ProgressUpdate::export_all_to(&out_dir)?;
 
   #[allow(non_snake_case)]
   let LQ_VERSION: LogQuestVersion = LOG_QUEST_VERSION.clone();
@@ -220,6 +225,8 @@ pub fn generate_typescript() -> Result<(), ts_rs::ExportError> {
     &out_dir,
     constants![
       LQ_VERSION,
+      crate::ui::PROGRESS_UPDATE_EVENT_NAME,
+      crate::ui::PROGRESS_UPDATE_FINISHED_EVENT_NAME,
       crate::state::overlay::OVERLAY_MESSAGE_EVENT_NAME,
       crate::state::overlay::OVERLAY_STATE_UPDATE_EVENT_NAME,
       crate::state::overlay::OVERLAY_EDITABLE_CHANGED_EVENT_NAME

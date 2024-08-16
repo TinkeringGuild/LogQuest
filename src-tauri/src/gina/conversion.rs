@@ -1,20 +1,18 @@
-use tracing::error;
-
-use super::xml::{load_gina_triggers_from_file_path, GINAParseError};
 use super::{
-  GINAEarlyEnder, GINAImport, GINATimerStartBehavior, GINATimerTrigger, GINATimerType, GINATrigger,
+  GINAEarlyEnder, GINATimerStartBehavior, GINATimerTrigger, GINATimerType, GINATrigger,
   GINATriggerGroup, GINATriggers,
 };
 use crate::common::duration::Duration;
+use crate::common::progress_reporter::ProgressReporter;
 use crate::common::timestamp::Timestamp;
-use crate::common::{random_id, UUID};
+use crate::common::{maybe_blank, random_id, UUID};
 use crate::matchers;
 use crate::triggers::effects::{TimerEffect, TriggerEffect};
 use crate::triggers::template_string::TemplateString;
 use crate::triggers::{
   Stopwatch, Timer, TimerStartPolicy, TimerTag, Trigger, TriggerGroup, TriggerGroupDescendant,
 };
-use std::path::Path;
+use tracing::error;
 
 #[derive(thiserror::Error, Debug)]
 pub enum GINAConversionError {
@@ -30,44 +28,30 @@ pub enum GINAConversionError {
   RegexError(#[from] fancy_regex::Error),
 }
 
-#[derive(thiserror::Error, Debug)]
-pub enum GINAImportError {
-  #[error("GINA conversion error")]
-  ConversionError(#[from] GINAConversionError),
-  #[error("GINA parse error")]
-  ParseError(#[from] GINAParseError),
-}
-
-// TODO: This should aggregate all tags and create an index
-#[allow(unused)]
-impl GINAImport {
-  pub fn load(file_path: &Path) -> Result<Self, GINAImportError> {
-    let import_time: Timestamp = Timestamp::now();
-    let from_gina = load_gina_triggers_from_file_path(file_path)?;
-    let file_path = file_path.to_owned();
-    let converted = from_gina.to_lq(&import_time)?;
-
-    Ok(Self {
-      file_path,
-      import_time,
-      from_gina,
-      converted,
-    })
-  }
-}
-
 impl GINATriggers {
-  pub fn to_lq(&self, import_time: &Timestamp) -> Result<Vec<TriggerGroup>, GINAConversionError> {
+  pub fn to_lq(
+    &self,
+    import_time: &Timestamp,
+    progress: &ProgressReporter,
+  ) -> Result<Vec<TriggerGroup>, GINAConversionError> {
     let mut trigger_groups = Vec::with_capacity(self.trigger_groups.len());
     for tg in self.trigger_groups.iter() {
-      trigger_groups.push(tg.to_lq(&import_time)?);
+      trigger_groups.push(tg.to_lq(&import_time, progress)?);
     }
     Ok(trigger_groups)
   }
 }
 
 impl GINATriggerGroup {
-  fn to_lq(&self, import_time: &Timestamp) -> Result<TriggerGroup, GINAConversionError> {
+  fn to_lq(
+    &self,
+    import_time: &Timestamp,
+    progress: &ProgressReporter,
+  ) -> Result<TriggerGroup, GINAConversionError> {
+    progress.update(format!(
+      "Converting Trigger Group\n{}",
+      maybe_blank(&self.name)
+    ));
     // Assume enable_by_default is a shallow-enable, affecting only immediate descendants
     let enable_children = self.enable_by_default.unwrap_or(false);
 
@@ -76,10 +60,12 @@ impl GINATriggerGroup {
 
     // Assume TriggerGroups should be first in descendants list
     for tg in self.trigger_groups.iter() {
-      children.push(TriggerGroupDescendant::TG(tg.to_lq(import_time)?));
+      children.push(TriggerGroupDescendant::TG(
+        tg.to_lq(import_time, &progress)?,
+      ));
     }
     for t in self.triggers.iter() {
-      let mut trigger = t.to_lq(import_time)?;
+      let mut trigger = t.to_lq(import_time, progress)?;
       if enable_children {
         trigger.enabled = true;
       }
@@ -102,9 +88,14 @@ impl GINATriggerGroup {
 
 impl GINATrigger {
   /// Converts this GINATrigger to a LogQuest Trigger
-  fn to_lq(&self, import_time: &Timestamp) -> Result<Trigger, GINAConversionError> {
+  fn to_lq(
+    &self,
+    import_time: &Timestamp,
+    progress: &ProgressReporter,
+  ) -> Result<Trigger, GINAConversionError> {
     let trigger_id = UUID::new();
     let trigger_name = self.name.clone().unwrap_or_else(|| untitled("Trigger"));
+    progress.update(format!("Converting Trigger\n{trigger_name}"));
     Ok(Trigger {
       id: trigger_id.clone(),
       name: trigger_name.clone(),

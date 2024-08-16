@@ -1,15 +1,16 @@
 use crate::{
-  gina::GINAImport,
+  common::{format_integer, progress_reporter::ProgressUpdate},
+  gina::importer::GINAImport,
   state::{
     config::LogQuestConfig, state_handle::StateHandle, state_tree::OverlayState, timers::LiveTimer,
   },
   triggers::TriggerRoot,
-  ui::OverlayManagerState,
+  ui::{OverlayManagerState, PROGRESS_UPDATE_EVENT_NAME, PROGRESS_UPDATE_FINISHED_EVENT_NAME},
 };
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use tauri::{State, Window};
-use tracing::{event, info};
+use tauri::{Manager, State, Window};
+use tracing::{debug, error, event, info};
 use ts_rs::TS;
 
 #[derive(TS, Serialize, Deserialize)]
@@ -66,22 +67,52 @@ async fn start_sync(
 
 #[tauri::command]
 async fn import_gina_triggers_file(
+  window: Window,
   state: State<'_, StateHandle>,
   path: String,
 ) -> Result<TriggerRoot, String> {
   let path: PathBuf = path.into();
-  let gina_import = GINAImport::load(&path).map_err(|e| e.to_string())?;
+  let (progress_reporter, watch_progress_updates, rx_gina_import) = GINAImport::load(&path);
 
   let count_before = state.select_triggers(|root| root.trigger_count());
 
+  let mut watch_progress_updates = Box::pin(watch_progress_updates);
+  let window_label = window.label().to_owned();
+  let app_handle = window.app_handle();
+  tauri::async_runtime::spawn(async move {
+    if let Some(window) = app_handle.get_window(&window_label) {
+      while let Ok(()) = watch_progress_updates.changed().await {
+        let current: &ProgressUpdate = &*watch_progress_updates.borrow();
+        let event_name = if let ProgressUpdate::Finished { .. } = current {
+          PROGRESS_UPDATE_FINISHED_EVENT_NAME
+        } else {
+          PROGRESS_UPDATE_EVENT_NAME
+        };
+        let _ = window.emit(event_name, current);
+      }
+    } else {
+      error!("Could not send updates to unknown window: {window_label}");
+    }
+    debug!("Progress update sender task complete");
+  });
+
+  progress_reporter.update("Starting import...");
+
+  let gina_import = match rx_gina_import.await {
+    Ok(Ok(import)) => import,
+    Ok(Err(import_error)) => return Err(import_error.to_string()),
+    Err(_recv_error) => return Err("Import crashed!".to_owned()),
+  };
+
+  progress_reporter.update("Adding everything to the Trigger Tree");
   state.update_triggers(move |trigger_root| trigger_root.ingest_gina_import(gina_import));
 
-  let (count_after, trigger_root) =
-    state.select_triggers(|root| (root.trigger_count(), root.clone()));
+  let (count_imported, trigger_root) =
+    state.select_triggers(|root| (root.trigger_count() - count_before, root.clone()));
 
+  progress_reporter.finished(format!("Added {} Triggers", format_integer(count_imported)));
   info!(
-    "Imported {} new triggers from GINA file: {}",
-    count_after - count_before,
+    "Imported {count_imported} new triggers from GINA file: {}",
     path.display()
   );
 

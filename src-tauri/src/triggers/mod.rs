@@ -3,7 +3,7 @@ pub mod template_string;
 
 use crate::{
   common::{duration::Duration, timestamp::Timestamp, LogQuestVersion, LOG_QUEST_VERSION, UUID},
-  gina::GINAImport,
+  gina::importer::GINAImport,
   matchers,
   state::config::{LogQuestConfig, TriggersSaveError},
 };

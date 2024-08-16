@@ -1,4 +1,5 @@
 pub mod duration;
+pub mod progress_reporter;
 pub mod serializable_regex;
 pub mod timestamp;
 
@@ -79,5 +80,51 @@ pub fn ternary<T>(condition: bool, if_true: T, if_false: T) -> T {
     if_true
   } else {
     if_false
+  }
+}
+
+pub fn maybe_blank<S>(option: &Option<S>) -> String
+where
+  S: ToOwned<Owned = String>,
+{
+  if let Some(s) = option {
+    s.to_owned()
+  } else {
+    String::new()
+  }
+}
+
+/// formats numbers with thousands separators. e.g. 12345 = "12,345" and 12 = "12"
+pub fn format_integer(number: usize) -> String {
+  format!("{number}")
+    .chars()
+    .rev()
+    .collect::<Vec<char>>()
+    .into_iter()
+    .enumerate()
+    .flat_map(|(index, digit)| {
+      if index % 3 == 0 && index != 0 {
+        vec![',', digit]
+      } else {
+        vec![digit]
+      }
+    })
+    .rev()
+    .collect()
+}
+
+mod tests {
+
+  #[test]
+  fn test_format_number() {
+    use super::format_integer;
+    assert_eq!(format_integer(0), "0");
+    assert_eq!(format_integer(123), "123");
+    assert_eq!(format_integer(1234), "1,234");
+    assert_eq!(format_integer(123456789), "123,456,789");
+    assert_eq!(
+      format_integer(1222333444555666777),
+      "1,222,333,444,555,666,777"
+    );
   }
 }

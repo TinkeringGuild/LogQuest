@@ -41,8 +41,9 @@ const TriggerTree: React.FC<{}> = () => {
 };
 
 const ViewTrigger: React.FC<{ trigger: Trigger }> = ({ trigger }) => (
-  <li>
-    <input type="checkbox" checked={trigger.enabled} /> {trigger.name}
+  <li key={trigger.id}>
+    <input type="checkbox" checked={trigger.enabled} onChange={() => {}} />{' '}
+    {trigger.name}
   </li>
 );
 
@@ -54,9 +55,19 @@ const ViewTriggerGroup: React.FC<{ group: TriggerGroup }> = ({ group }) => {
         <ul>
           {group.children.map((descendant: TriggerGroupDescendant) => {
             if ('T' in descendant) {
-              return <ViewTrigger trigger={descendant.T} />;
+              return (
+                <ViewTrigger
+                  key={`tgd-${descendant.T.id}`}
+                  trigger={descendant.T}
+                />
+              );
             } else if ('TG' in descendant) {
-              return <ViewTriggerGroup group={descendant.TG} />;
+              return (
+                <ViewTriggerGroup
+                  key={`tgd-${descendant.TG.id}`}
+                  group={descendant.TG}
+                />
+              );
             }
           })}
         </ul>

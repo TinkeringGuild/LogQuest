@@ -1,3 +1,5 @@
+use crate::common::progress_reporter::ProgressReporter;
+
 use super::{
   GINAEarlyEnder, GINATimerStartBehavior, GINATimerTrigger, GINATimerType, GINATrigger,
   GINATriggerGroup, GINATriggers,
@@ -25,7 +27,14 @@ pub enum GINAParseError {
   GINADataError(String),
 }
 
-pub fn load_gina_triggers_from_file_path(file_path: &Path) -> Result<GINATriggers, GINAParseError> {
+pub fn load_gina_triggers_from_file_path(
+  file_path: &Path,
+  progress_reporter: &ProgressReporter,
+) -> Result<GINATriggers, GINAParseError> {
+  progress_reporter.update(format!(
+    "Importing GINA triggers export file\n{}",
+    file_path.display()
+  ));
   let file_extension = file_path.extension().and_then(OsStr::to_str);
   let shared_data = match file_extension {
     Some("gtp") => {
