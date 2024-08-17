@@ -42,6 +42,7 @@ zip = { version = "2.1.3", default-features = false, features = ["deflate"] }
 notify = { version = "6", default-features = false, features = [
   "macos_kqueue",
 ] }
+indexmap = "2.4.0"
 
 
 [build-dependencies]

@@ -68,51 +68,59 @@ async fn event_loop(
 ) {
   debug!("Starting TimerManager event loop");
   let mut live_timers: LiveTimersMap = HashMap::new();
+  let mut quit = quitter();
   loop {
-    match rx_command.recv().await {
-      None => break,
-      Some(TimerCommand::CreateSubscription(setter)) => {
-        let snapshot: Vec<LiveTimer> = live_timers.values().map(|(live, _)| live.clone()).collect();
-        let subscription = tx_state_update.subscribe();
-        let setter = Arc::into_inner(setter).unwrap(); // unwrap is safe here
-        let _ = setter.send((snapshot, Arc::new(subscription)));
+    select! {
+      _ = &mut quit => {
+        debug!("Timers event loop QUITTING");
+        break;
       }
-      Some(TimerCommand::StartLiveTimer(live_timer)) => {
-        let LiveTimer {
-          id,
-          trigger_id,
-          name,
-          duration,
-          start_policy,
-          ..
-        } = &live_timer;
+      command = rx_command.recv() => match command {
+        None => break,
+        Some(TimerCommand::CreateSubscription(setter)) => {
+          let snapshot: Vec<LiveTimer> = live_timers.values().map(|(live, _)| live.clone()).collect();
+          let subscription = tx_state_update.subscribe();
+          let setter = Arc::into_inner(setter).unwrap(); // unwrap is safe here
+          let _ = setter.send((snapshot, Arc::new(subscription)));
+        }
+        Some(TimerCommand::StartLiveTimer(live_timer)) => {
+          let LiveTimer {
+            id,
+            trigger_id,
+            name,
+            duration,
+            start_policy,
+            ..
+          } = &live_timer;
 
-        match start_policy {
-          TimerStartPolicy::AlwaysStartNewTimer => { /* nothing to do here */ }
-          TimerStartPolicy::DoNothingIfTimerRunning => {
-            if is_timer_running_with_name(&name, &live_timers) {
-              debug!("Timer[{id}] DoNothingIfTimerRunning policy [ name = `{name}` ]");
-              return;
+          match start_policy {
+            TimerStartPolicy::AlwaysStartNewTimer => { /* nothing to do here */ }
+            TimerStartPolicy::DoNothingIfTimerRunning => {
+              if is_timer_running_with_name(&name, &live_timers) {
+                debug!("Timer[{id}] DoNothingIfTimerRunning policy [ name = `{name}` ]");
+                return;
+              }
+            }
+            TimerStartPolicy::StartAndReplacesAllTimersOfTrigger => {
+              kill_timers_of_trigger(trigger_id, &mut live_timers);
+            }
+            TimerStartPolicy::StartAndReplacesAnyTimerOfTriggerHavingName(replaced_name) => {
+              kill_timers_of_trigger_with_name(trigger_id, replaced_name, &mut live_timers);
             }
           }
-          TimerStartPolicy::StartAndReplacesAllTimersOfTrigger => {
-            kill_timers_of_trigger(trigger_id, &mut live_timers);
-          }
-          TimerStartPolicy::StartAndReplacesAnyTimerOfTriggerHavingName(replaced_name) => {
-            kill_timers_of_trigger_with_name(trigger_id, replaced_name, &mut live_timers);
-          }
-        }
 
-        let tx_reaper = spawn_timer_reaper(id.clone(), duration.clone(), tx_command.clone());
-        live_timers.insert(id.clone(), (live_timer.clone(), tx_reaper));
-        let _ = tx_state_update.send(TimerStateUpdate::TimerAdded(live_timer));
-      }
-      Some(TimerCommand::LiveTimerElapsed(live_timer_id)) => {
-        if let None = live_timers.remove(&live_timer_id) {
-          error!("Timer[{live_timer_id}] COULD NOT BE REMOVED! DID NOT EXIST");
+          let tx_reaper = spawn_timer_reaper(id.clone(), duration.clone(), tx_command.clone());
+          live_timers.insert(id.clone(), (live_timer.clone(), tx_reaper));
+          let _ = tx_state_update.send(TimerStateUpdate::TimerAdded(live_timer));
         }
-        let _ = tx_state_update.send(TimerStateUpdate::TimerKilled(live_timer_id));
+        Some(TimerCommand::LiveTimerElapsed(live_timer_id)) => {
+          if let None = live_timers.remove(&live_timer_id) {
+            error!("Timer[{live_timer_id}] COULD NOT BE REMOVED! DID NOT EXIST");
+          }
+          let _ = tx_state_update.send(TimerStateUpdate::TimerKilled(live_timer_id));
+        }
       }
+
     }
   }
   info!("Timer event loop stopped");

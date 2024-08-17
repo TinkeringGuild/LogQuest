@@ -57,9 +57,7 @@ impl ActiveCharacterDetector {
 
   pub fn stop(self) {
     debug!("Sending stop signal");
-    if let Err(e) = self.stopper.send(()) {
-      warn!("Got an error sending the stop signal: {e:#?}");
-    }
+    let _ = self.stopper.send(());
   }
 }
 
