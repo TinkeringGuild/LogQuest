@@ -1,9 +1,44 @@
-use super::{CommandTemplate, Stopwatch, TemplateString, Timer, TimerTag};
-use crate::{common::duration::Duration, matchers};
-use serde::{Deserialize, Serialize};
-use ts_rs::TS;
+mod clipboard;
+mod parallel;
+mod sequence;
 
-#[derive(TS, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+use super::{CommandTemplate, Stopwatch, TemplateString, Timer, TimerTag};
+use crate::common::duration::Duration;
+use crate::matchers;
+use crate::matchers::MatchContext;
+use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
+
+#[derive(thiserror::Error, Debug)]
+pub enum EffectError {
+  #[error("Multiple EffectErrors occurred")]
+  Multiple(Vec<EffectError>),
+  #[error(transparent)]
+  TauriError(#[from] tauri::Error),
+}
+
+pub type EffectResult = Result<(), EffectError>;
+
+#[async_trait]
+pub trait ReadyEffect
+where
+  Self: Send,
+{
+  async fn fire(self: Box<Self>) -> EffectResult;
+}
+
+pub trait EffectTemplate {
+  fn ready(&self, context: &MatchContext) -> Box<dyn ReadyEffect>;
+}
+
+////////////////////////////////////////
+////////////////////////////////////////
+////////////////////////////////////////
+////////////////////////////////////////
+////////////////////////////////////////
+////////////////////////////////////////
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
 pub enum TriggerEffect {
   Parallel(Vec<TriggerEffect>),
   Sequence(Vec<TriggerEffect>),
@@ -25,10 +60,11 @@ pub enum TriggerEffect {
   // AppendToLog { log_name: String, message: TemplateString }
 }
 
-#[derive(TS, Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, ts_rs::TS)]
 pub enum TimerEffect {
   Parallel(Vec<TimerEffect>),
   Sequence(Vec<TimerEffect>),
+
   Pause(Duration),
   PlayAudioFile(Option<TemplateString>),
   DoNothing,

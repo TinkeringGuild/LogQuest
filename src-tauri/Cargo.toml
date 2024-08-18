@@ -43,6 +43,7 @@ notify = { version = "6", default-features = false, features = [
   "macos_kqueue",
 ] }
 indexmap = "2.4.0"
+async-trait = "0.1.81"
 
 
 [build-dependencies]

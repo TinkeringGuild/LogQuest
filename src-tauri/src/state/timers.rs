@@ -52,12 +52,12 @@ pub struct LiveTimer {
   start_policy: TimerStartPolicy,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
-struct LiveRepeatingTimer {
-  name: String,
-  start_time: Timestamp,
-  interval_millis: usize,
-}
+// #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+// struct LiveRepeatingTimer {
+//   name: String,
+//   start_time: Timestamp,
+//   interval_millis: usize,
+// }
 
 type LiveTimersMap = HashMap<UUID, (LiveTimer, mpsc::Sender<ResetTimerEvent>)>;
 
