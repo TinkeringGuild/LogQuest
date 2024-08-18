@@ -1,4 +1,5 @@
 use crate::common::fatal_error;
+use crate::common::shutdown::critical_path;
 use crate::triggers::TriggerRoot;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -135,8 +136,10 @@ impl LogQuestConfig {
       }
     }
 
-    let mut file = fs::File::create(&self.config_file_path)?;
-    file.write_all(pretty_toml.as_bytes())?;
+    critical_path(|| {
+      let mut file = fs::File::create(&self.config_file_path)?;
+      file.write_all(pretty_toml.as_bytes())
+    })?;
 
     Ok(())
   }
@@ -147,8 +150,10 @@ impl LogQuestConfig {
     let json_bytes = pretty_json.into_bytes();
     let json_size = json_bytes.len();
 
-    let mut file = fs::File::create(&triggers_file_path)?;
-    file.write_all(&json_bytes)?;
+    critical_path(|| {
+      let mut file = fs::File::create(&triggers_file_path)?;
+      file.write_all(&json_bytes)
+    })?;
 
     debug!("Wrote {json_size} bytes to {TRIGGERS_FILE_NAME}");
     Ok(())

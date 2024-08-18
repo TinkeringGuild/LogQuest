@@ -7,17 +7,24 @@ use std::task::Poll;
 use std::task::Waker;
 use tracing::{debug, info};
 
+// TODO: Use LazyLock here
 lazy_static! {
   pub static ref IS_SHUTDOWN: AtomicBool = AtomicBool::new(false);
   static ref WAKERS: Mutex<Option<IndexMap<u64, Waker>>> = Mutex::new(Some(IndexMap::new()));
   static ref WAKER_SEQ: AtomicU64 = AtomicU64::new(1);
+  static ref CRITICAL_PATH_LOCK: Mutex<()> = Mutex::new(());
 }
 
 pub fn shutdown() {
   info!("Quit requested - stopping LogQuest gracefully");
+
+  #[allow(unused)]
+  let critical_path = CRITICAL_PATH_LOCK.lock().expect("CRITICAL PATH POISONED");
   let mut guard = WAKERS.lock().expect("WAKERS POISONED");
+
   if let Some(wakers) = guard.take() {
     IS_SHUTDOWN.store(true, Ordering::SeqCst);
+    debug!("Waking all ShutdownFutures in reverse order from creation");
     for (seq_id, waker) in wakers.into_iter().rev() {
       debug!("WAKING ShutdownFuture #{seq_id}");
       waker.wake();
@@ -27,6 +34,15 @@ pub fn shutdown() {
 
 pub fn quitter() -> ShutdownFuture {
   ShutdownFuture::new()
+}
+
+pub fn critical_path<F, R>(func: F) -> R
+where
+  F: FnOnce() -> R,
+{
+  #[allow(unused)]
+  let guard = CRITICAL_PATH_LOCK.lock().expect("CRITICAL PATH POISONED");
+  func()
 }
 
 #[derive(Debug)]
