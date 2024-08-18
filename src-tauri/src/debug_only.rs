@@ -16,7 +16,7 @@ use crate::{
     log_reader::LogReader,
   },
   matchers,
-  state::timers::{TimerManager, TimerStateUpdate},
+  state::timer_manager::{TimerManager, TimerStateUpdate},
   triggers::{
     effects::TriggerEffect, Timer, TimerStartPolicy, Trigger, TriggerGroup, TriggerGroupDescendant,
   },

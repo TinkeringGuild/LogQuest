@@ -2,7 +2,8 @@ use crate::{
   common::{format_integer, progress_reporter::ProgressUpdate},
   gina::importer::GINAImport,
   state::{
-    config::LogQuestConfig, state_handle::StateHandle, state_tree::OverlayState, timers::LiveTimer,
+    config::LogQuestConfig, state_handle::StateHandle, state_tree::OverlayState,
+    timer_manager::LiveTimer,
   },
   triggers::TriggerRoot,
   ui::{OverlayManagerState, PROGRESS_UPDATE_EVENT_NAME, PROGRESS_UPDATE_FINISHED_EVENT_NAME},

@@ -1,4 +1,4 @@
-use super::timers::{LiveTimer, TimerManager, TimerStateUpdate};
+use super::timer_manager::{LiveTimer, TimerManager, TimerStateUpdate};
 use crate::common::shutdown::quitter;
 use serde::{Deserialize, Serialize};
 use std::{

@@ -6,7 +6,7 @@ use crate::{
   state::{
     overlay::{OverlayManager, OverlayMode, OVERLAY_EDITABLE_CHANGED_EVENT_NAME},
     state_handle::StateHandle,
-    timers::TimerManager,
+    timer_manager::TimerManager,
   },
 };
 use std::sync::Arc;

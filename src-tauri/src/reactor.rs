@@ -8,7 +8,7 @@ use crate::{
     Line,
   },
   matchers::MatchContext,
-  state::{overlay::OverlayManager, state_handle::StateHandle, timers::TimerManager},
+  state::{overlay::OverlayManager, state_handle::StateHandle, timer_manager::TimerManager},
   triggers::{effects::TriggerEffect, TriggerGroup, TriggerGroupDescendant},
   tts::TTS,
 };
