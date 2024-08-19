@@ -14,6 +14,10 @@ pub struct TemplateString {
 }
 
 impl TemplateString {
+  pub fn template(&self) -> &str {
+    &self.tmpl
+  }
+
   pub fn render(&self, context: &MatchContext) -> String {
     TEMPLATE_VARS
       .replace_all(&self.tmpl, |caps: &fancy_regex::Captures| {
@@ -57,6 +61,7 @@ impl From<&str> for TemplateString {
     }
   }
 }
+
 impl From<String> for TemplateString {
   fn from(tmpl: String) -> Self {
     tmpl.as_str().into()

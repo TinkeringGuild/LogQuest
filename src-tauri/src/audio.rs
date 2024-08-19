@@ -2,11 +2,12 @@ use crate::common::fatal_error;
 use crate::common::shutdown::quitter;
 use awedio::backends::CpalBackend;
 use awedio::manager::Manager;
+use awedio::Sound as _;
 use cpal::traits::{DeviceTrait as _, HostTrait as _};
 use std::path::PathBuf;
 use std::thread;
 use tauri::async_runtime::spawn;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 use tracing::{debug, error};
 
 const AUDIO_MIXER_CHANNEL_SIZE: usize = 10;
@@ -18,7 +19,7 @@ pub struct AudioMixer {
 }
 
 enum AudioMixerEvent {
-  PlayFile(PathBuf),
+  PlayFile(PathBuf, oneshot::Sender<()>),
   #[allow(unused)]
   Reset,
   Terminate,
@@ -49,33 +50,26 @@ impl AudioMixer {
     }
   }
 
-  pub fn play_file(&self, file_path: &str) -> Result<(), PlayAudioFileError> {
+  pub async fn play_file(&self, file_path: &str) -> Result<(), PlayAudioFileError> {
     let file_path: PathBuf = file_path.into();
     if !file_path.is_file() {
       return Err(PlayAudioFileError(file_path));
     }
 
+    let (tx_complete, rx_complete) = oneshot::channel::<()>();
     let sender = self.sender.clone();
     spawn(async move {
-      if let Err(_send_error) = sender.send(AudioMixerEvent::PlayFile(file_path)).await {
+      if let Err(_send_error) = sender
+        .send(AudioMixerEvent::PlayFile(file_path, tx_complete))
+        .await
+      {
         error!("Could not send PlayFile message to the AudioMixer!");
       }
     });
 
+    let _ = rx_complete.await;
     Ok(())
   }
-
-  //// Leaving these commented out until they're used
-  //
-  // pub async fn interrupt(&self) {
-  //   let _ = self.sender.send(AudioMixerEvent::Reset).await;
-  // }
-  //
-  // pub fn terminate_blocking(self) {
-  //   let _ = self.sender.blocking_send(AudioMixerEvent::Terminate);
-  //   let _ = self.join_handle.join();
-  // }
-  //
 }
 
 fn mixer_loop(mut rx: mpsc::Receiver<AudioMixerEvent>) {
@@ -96,13 +90,20 @@ fn mixer_loop(mut rx: mpsc::Receiver<AudioMixerEvent>) {
         debug!("AudioMixer terminated");
         return;
       }
-      Some(AudioMixerEvent::PlayFile(next_file)) => {
-        if let Ok(file) = awedio::sounds::open_file(&next_file) {
-          debug!("Playing audio file: {}", next_file.display());
-          manager.play(file);
-        } else {
+      Some(AudioMixerEvent::PlayFile(next_file, tx_complete)) => {
+        let Ok(sound) = awedio::sounds::open_file(&next_file) else {
           error!("Could not open audio file: {}", next_file.display());
-        }
+          continue;
+        };
+        let (sound, rx_complete) = sound.with_async_completion_notifier();
+
+        debug!("Playing audio file: {}", next_file.display());
+        manager.play(Box::new(sound));
+
+        spawn(async move {
+          let _ = rx_complete.await;
+          let _ = tx_complete.send(());
+        });
       }
     }
   }
@@ -118,6 +119,7 @@ pub fn get_device_names() -> Vec<String> {
     .collect()
 }
 
+/// This function prints directly to STDOUT and calls exit(0) after printing.
 pub fn print_audio_devices() -> ! {
   let devices = get_device_names();
   if devices.is_empty() {
@@ -128,5 +130,5 @@ pub fn print_audio_devices() -> ! {
     println!(" - {device_name}");
   }
   println!("");
-  std::process::exit(0);
+  std::process::exit(0)
 }

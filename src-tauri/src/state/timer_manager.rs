@@ -1,12 +1,9 @@
 use crate::{
-  common::duration::Duration,
-  common::shutdown::quitter,
-  common::timestamp::Timestamp,
-  common::{fatal_error, UUID},
+  common::{duration::Duration, fatal_error, shutdown::quitter, timestamp::Timestamp, UUID},
   matchers::MatchContext,
-  triggers::{Timer, TimerStartPolicy},
+  triggers::timers::{Timer, TimerStartPolicy},
 };
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::{collections::HashMap, sync::Arc};
 use tauri::async_runtime::spawn;
 use tokio::select;
@@ -30,7 +27,7 @@ enum TimerCommand {
   ),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, ts_rs::TS)]
 pub enum TimerStateUpdate {
   TimerAdded(LiveTimer),
   TimerKilled(UUID),
@@ -40,7 +37,7 @@ pub enum TimerStateUpdate {
 /// (i.e. when it's dropped) as the signal that the reaper should terminate.
 struct ResetTimerEvent;
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, ts_rs::TS)]
 pub struct LiveTimer {
   id: UUID,
   trigger_id: UUID,
@@ -50,14 +47,10 @@ pub struct LiveTimer {
   duration: Duration,
   repeats: bool,
   start_policy: TimerStartPolicy,
+  #[serde(skip)]
+  #[ts(skip)]
+  context: MatchContext,
 }
-
-// #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
-// struct LiveRepeatingTimer {
-//   name: String,
-//   start_time: Timestamp,
-//   interval_millis: usize,
-// }
 
 type LiveTimersMap = HashMap<UUID, (LiveTimer, mpsc::Sender<ResetTimerEvent>)>;
 
@@ -90,6 +83,7 @@ async fn event_loop(
             name,
             duration,
             start_policy,
+            context,
             ..
           } = &live_timer;
 
@@ -104,8 +98,9 @@ async fn event_loop(
             TimerStartPolicy::StartAndReplacesAllTimersOfTrigger => {
               kill_timers_of_trigger(trigger_id, &mut live_timers);
             }
-            TimerStartPolicy::StartAndReplacesAnyTimerOfTriggerHavingName(replaced_name) => {
-              kill_timers_of_trigger_with_name(trigger_id, replaced_name, &mut live_timers);
+            TimerStartPolicy::StartAndReplacesAnyTimerOfTriggerWithNameTemplateMatching(replaced_name_template) => {
+              let replaced_name = replaced_name_template.render(&context);
+              kill_timers_of_trigger_with_name(trigger_id, &replaced_name, &mut live_timers);
             }
           }
 
@@ -217,24 +212,25 @@ impl TimerManager {
       duration,
       start_policy,
       repeats,
-      // tags, updates,
+      // tags, effects,
       ..
-    }: &Timer,
+    }: Timer,
     context: &MatchContext,
   ) {
     let name = name.render(context);
     let start_time = Timestamp::now();
-    let end_time = &start_time + duration;
+    let end_time = &start_time + &duration;
 
     let live_timer = LiveTimer {
       id: UUID::new(),
-      trigger_id: trigger_id.clone(),
+      trigger_id,
       name,
       start_time,
       end_time,
-      repeats: *repeats,
-      duration: duration.to_owned(),
-      start_policy: start_policy.clone(),
+      repeats,
+      duration,
+      start_policy,
+      context: context.clone(),
     };
 
     if let Err(_send_error) = self

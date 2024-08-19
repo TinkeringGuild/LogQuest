@@ -52,7 +52,7 @@ impl GINAImport {
     let progress_reporter_ = progress_reporter.clone();
     thread::spawn(move || {
       let imported = import(file_path, &progress_reporter_);
-      progress_reporter_.update("LogQuest conversion complete!\nSending data");
+      progress_reporter_.update("LogQuest conversion complete!\nReloading data");
       let _ = tx_result.send(imported);
     });
 

@@ -3,16 +3,16 @@ use crate::{reactor::ReactorContext, triggers::template_string::TemplateString};
 use async_trait::async_trait;
 use std::sync::Arc;
 
-fn copy_to_clipboard(_text: &str) -> EffectResult {
-  Ok(())
-}
-
-pub struct CopyToClipboardEffect(pub(super) TemplateString);
+pub(super) struct PlayAudioFileEffect(pub(super) TemplateString);
 
 #[async_trait]
-impl ReadyEffect for CopyToClipboardEffect {
+impl ReadyEffect for PlayAudioFileEffect {
   async fn fire(self: Box<Self>, context: Arc<ReactorContext>) -> EffectResult {
-    let text = self.0.render(&context.match_context);
-    copy_to_clipboard(&text)
+    let file_path = self.0.render(&context.match_context);
+    context
+      .mixer
+      .play_file(&file_path)
+      .await
+      .map_err(|e| e.into())
   }
 }

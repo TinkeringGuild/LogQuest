@@ -1,5 +1,6 @@
 pub mod duration;
 pub mod progress_reporter;
+pub mod security;
 pub mod serializable_regex;
 pub mod shutdown;
 pub mod timestamp;
@@ -23,6 +24,7 @@ lazy_static! {
     };
     LogQuestVersion(*major, *minor, *tiny)
   };
+
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -111,6 +113,13 @@ pub fn format_integer(number: usize) -> String {
       }
     })
     .rev()
+    .collect()
+}
+
+pub fn bytes_to_utf8_with_escaped_special_chars(bytes: &[u8]) -> String {
+  String::from_utf8_lossy(bytes)
+    .chars()
+    .flat_map(|c| c.escape_default())
     .collect()
 }
 

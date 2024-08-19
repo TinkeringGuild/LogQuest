@@ -1,28 +1,16 @@
-use super::{EffectResult, EffectTemplate, ReadyEffect};
-use crate::matchers::MatchContext;
+use super::{EffectResult, ReadyEffect};
+use crate::reactor::ReactorContext;
 use async_trait::async_trait;
+use std::sync::Arc;
 
-struct EffectSequence(Vec<Box<dyn ReadyEffect>>);
+pub(super) struct EffectSequence(pub(super) Vec<Box<dyn ReadyEffect>>);
 
 #[async_trait]
 impl ReadyEffect for EffectSequence {
-  async fn fire(self: Box<Self>) -> EffectResult {
+  async fn fire(self: Box<Self>, context: Arc<ReactorContext>) -> EffectResult {
     for effect in self.0.into_iter() {
-      effect.fire().await?;
+      effect.fire(context.clone()).await?;
     }
     Ok(())
-  }
-}
-
-struct TemplateSequence(Vec<Box<dyn EffectTemplate>>);
-
-impl EffectTemplate for TemplateSequence {
-  fn ready(&self, context: &MatchContext) -> Box<dyn ReadyEffect> {
-    let ready_effects = self
-      .0
-      .iter()
-      .map(|template| template.ready(context))
-      .collect::<Vec<_>>();
-    Box::new(EffectSequence(ready_effects))
   }
 }

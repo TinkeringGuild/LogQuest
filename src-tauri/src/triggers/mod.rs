@@ -1,13 +1,15 @@
+pub mod command_template;
 pub mod effects;
 pub mod template_string;
+pub mod timers;
 
 use crate::{
-  common::{duration::Duration, timestamp::Timestamp, LogQuestVersion, LOG_QUEST_VERSION, UUID},
+  common::{timestamp::Timestamp, LogQuestVersion, LOG_QUEST_VERSION, UUID},
   gina::importer::GINAImport,
   matchers,
   state::config::{LogQuestConfig, TriggersSaveError},
 };
-use effects::{TimerEffect, TriggerEffect};
+use effects::Effect;
 use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::BufReader;
@@ -59,6 +61,15 @@ impl TriggerRoot {
       .iter()
       .fold(0, |sum, tg| sum + descend_descendants(&tg.children))
   }
+
+  pub fn security_check(self) -> Self {
+    let groups = self
+      .groups
+      .into_iter()
+      .map(|g| g.security_check())
+      .collect();
+    Self { groups, ..self }
+  }
 }
 
 #[derive(TS, Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
@@ -84,58 +95,9 @@ pub struct Trigger {
   pub comment: Option<String>,
   pub enabled: bool,
   pub filter: matchers::Filter,
-  pub effects: Vec<TriggerEffect>,
+  pub effects: Vec<Effect>,
   pub created_at: Timestamp,
   pub updated_at: Timestamp, // tags: Vec<Tag>
-}
-
-#[derive(TS, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum TimerStartPolicy {
-  AlwaysStartNewTimer,
-  DoNothingIfTimerRunning,
-  StartAndReplacesAllTimersOfTrigger,
-  StartAndReplacesAnyTimerOfTriggerHavingName(String), // TODO: Maybe this should be TemplateString?
-}
-
-#[derive(TS, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct Stopwatch {
-  pub name: TemplateString,
-  pub tags: Vec<TimerTag>,
-  pub updates: Vec<TimerEffect>,
-}
-
-#[derive(TS, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct Timer {
-  pub trigger_id: UUID,
-  pub name: TemplateString,
-  pub tags: Vec<TimerTag>,
-  pub duration: Duration,
-  pub start_policy: TimerStartPolicy,
-
-  /// When finished, the timer starts over until terminated
-  pub repeats: bool,
-
-  pub updates: Vec<TimerEffect>,
-}
-
-#[derive(TS, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct TimerTag(String);
-impl TimerTag {
-  pub fn new(name: &str) -> Self {
-    Self(name.to_owned())
-  }
-
-  /// used for marking a Timer has entered the "ending" state
-  pub fn ending() -> Self {
-    Self::new("ENDING")
-  }
-}
-
-#[derive(TS, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct CommandTemplate {
-  pub command: TemplateString,
-  pub params: Vec<TemplateString>,
-  pub write_to_stdin: Option<TemplateString>,
 }
 
 impl From<TriggerGroup> for TriggerGroupDescendant {
@@ -150,6 +112,37 @@ impl From<Trigger> for TriggerGroupDescendant {
   }
 }
 
+impl TriggerGroup {
+  fn security_check(self) -> Self {
+    let children: Vec<TriggerGroupDescendant> = self
+      .children
+      .into_iter()
+      .map(|tgd| tgd.security_check())
+      .collect();
+    Self { children, ..self }
+  }
+}
+
+impl TriggerGroupDescendant {
+  fn security_check(self) -> Self {
+    match self {
+      Self::T(trigger) => Self::T(trigger.security_check()),
+      Self::TG(group) => Self::TG(group.security_check()),
+    }
+  }
+}
+
+impl Trigger {
+  fn security_check(self) -> Self {
+    let effects: Vec<Effect> = self
+      .effects
+      .into_iter()
+      .map(|e| e.security_check())
+      .collect();
+    Self { effects, ..self }
+  }
+}
+
 pub fn load_or_create_relative_to_config(
   config: &LogQuestConfig,
 ) -> Result<TriggerRoot, TriggerLoadOrCreateError> {
@@ -161,9 +154,10 @@ pub fn load_or_create_relative_to_config(
     );
     let reader = BufReader::new(File::open(triggers_file_path)?);
     let root: TriggerRoot = serde_json::from_reader(reader)?;
+    let root = root.security_check();
     Ok(root)
   } else {
-    let root = default_triggers();
+    let root = default_triggers().security_check();
     config.save_triggers(&root)?;
     Ok(root)
   }
@@ -181,7 +175,7 @@ pub fn default_triggers() -> TriggerRoot {
 
 #[cfg(test)]
 mod test {
-  use super::{Trigger, TriggerEffect, TriggerGroup};
+  use super::{Effect, Trigger, TriggerGroup};
   use crate::{
     common::{timestamp::Timestamp, UUID},
     matchers::Matcher,
@@ -207,9 +201,12 @@ mod test {
       created_at: now.clone(),
       updated_at: now.clone(),
       filter: vec![Matcher::gina("^{S1} hits {S2}").unwrap()].into(),
-      effects: vec![TriggerEffect::Sequence(vec![
-        TriggerEffect::TextToSpeech("This is only a test.".into()),
-        TriggerEffect::PlayAudioFile(Some("/dev/null".into())),
+      effects: vec![Effect::Sequence(vec![
+        Effect::Speak {
+          tmpl: "This is only a test.".into(),
+          interrupt: false,
+        },
+        Effect::PlayAudioFile(Some("/dev/null".into())),
       ])],
     };
     TriggerGroup {

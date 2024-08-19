@@ -62,7 +62,7 @@ impl OverlayManager {
     live_timers
   }
 
-  pub async fn message(&self, message: String) {
+  pub fn message(&self, message: String) {
     let _ = self.app.emit_all(OVERLAY_MESSAGE_EVENT_NAME, message);
   }
 }

@@ -18,7 +18,9 @@ use crate::{
   matchers,
   state::timer_manager::{TimerManager, TimerStateUpdate},
   triggers::{
-    effects::TriggerEffect, Timer, TimerStartPolicy, Trigger, TriggerGroup, TriggerGroupDescendant,
+    effects::Effect,
+    timers::{Timer, TimerStartPolicy},
+    Trigger, TriggerGroup, TriggerGroupDescendant,
   },
 };
 use std::path::{Path, PathBuf};
@@ -66,7 +68,10 @@ pub fn test_trigger_group() -> TriggerGroup {
     ]
     .into(),
     effects: vec![
-      TriggerEffect::TextToSpeech("Hail, ${C}!".into()),
+      Effect::Speak {
+        tmpl: "Hail, ${C}!".into(),
+        interrupt: false,
+      },
       // TriggerEffect::PlayAudioFile(Some(
       //   "/home/j/Downloads/sound effects/hail/hail-exclaim-callum.ogg".into(),
       // )),
@@ -97,16 +102,17 @@ pub fn generate_timer_noise(timer_manager: Arc<TimerManager>) {
       warn!("GENERATING TIMER NOISE WITH NAME: {timer_name}");
       timer_manager_
         .start_timer(
-          &Timer {
+          Timer {
             name: timer_name.into(),
             duration: common::duration::Duration(42 * 60 * 1000 / 100),
             repeats: false,
-            start_policy: TimerStartPolicy::StartAndReplacesAnyTimerOfTriggerHavingName(
-              timer_name.into(),
-            ),
+            start_policy:
+              TimerStartPolicy::StartAndReplacesAnyTimerOfTriggerWithNameTemplateMatching(
+                timer_name.into(),
+              ),
             trigger_id: trigger_id.clone(),
             tags: vec![],
-            updates: vec![],
+            effects: vec![],
           },
           &context,
         )
@@ -124,16 +130,17 @@ pub fn generate_timer_noise(timer_manager: Arc<TimerManager>) {
       warn!("GENERATING TIMER NOISE WITH NAME: {timer_name}");
       timer_manager_
         .start_timer(
-          &Timer {
+          Timer {
             name: timer_name.into(),
             duration: common::duration::Duration(20 * 1000),
             repeats: false,
-            start_policy: TimerStartPolicy::StartAndReplacesAnyTimerOfTriggerHavingName(
-              timer_name.into(),
-            ),
+            start_policy:
+              TimerStartPolicy::StartAndReplacesAnyTimerOfTriggerWithNameTemplateMatching(
+                timer_name.into(),
+              ),
             trigger_id: trigger_id.clone(),
             tags: vec![],
-            updates: vec![],
+            effects: vec![],
           },
           &context,
         )

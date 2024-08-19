@@ -7,21 +7,20 @@ use crate::common::progress_reporter::ProgressReporter;
 use crate::common::timestamp::Timestamp;
 use crate::common::{maybe_blank, random_id, UUID};
 use crate::matchers;
-use crate::triggers::effects::{TimerEffect, TriggerEffect};
+use crate::triggers::effects::Effect;
 use crate::triggers::template_string::TemplateString;
-use crate::triggers::{
-  Stopwatch, Timer, TimerStartPolicy, TimerTag, Trigger, TriggerGroup, TriggerGroupDescendant,
-};
+use crate::triggers::timers::{Stopwatch, Timer, TimerEffect, TimerStartPolicy, TimerTag};
+use crate::triggers::{Trigger, TriggerGroup, TriggerGroupDescendant};
 use tracing::error;
 
 #[derive(thiserror::Error, Debug)]
 pub enum GINAConversionError {
   #[error("Could not convert the pattern for trigger named `{0}`")]
   TriggerPatternError(String),
-  #[error("Encountered unknown Timer duration for trigger named `{0}`")]
-  TimerDurationError(String),
-  #[error("Encountered unknown Timer Start Behavior for trigger named `{0}`")]
-  TimerStartPolicyError(String),
+  #[error("Encountered unknown Timer duration for timer with name `{0:?}`")]
+  TimerDurationError(TemplateString),
+  #[error("Encountered unknown Timer Start Behavior for timer with name `{0:?}`")]
+  TimerStartPolicyError(TemplateString),
   #[error("Encountered an invalid Early Ender")]
   EarlyEnderPatternError,
   #[error("Invalid Regex in the GINA file")]
@@ -123,34 +122,47 @@ impl GINATrigger {
         }
       },
       effects: {
-        // TODO: timer_name should be a TemplateString
-        let timer_name = self.timer_name.clone().unwrap_or_else(|| untitled("Timer"));
+        let timer_name: TemplateString = self
+          .timer_name
+          .clone()
+          .unwrap_or_else(|| untitled("Timer"))
+          .into();
 
-        let display_text: Option<TriggerEffect> = effect_from_options(
-          &self.use_text,
-          &self.display_text,
-          TriggerEffect::OverlayMessage,
-        );
+        let display_text: Option<Effect> = {
+          match (&self.use_text, self.display_text.as_deref()) {
+            (Some(true), Some("")) => None,
+            (Some(true), Some(text)) => Some(Effect::OverlayMessage(text.into())),
+            _ => None,
+          }
+        };
 
-        let copy_text: Option<TriggerEffect> = effect_from_options(
-          &self.copy_to_clipboard,
-          &self.clipboard_text,
-          TriggerEffect::CopyToClipboard,
-        );
+        let copy_text: Option<Effect> = {
+          match (&self.copy_to_clipboard, self.clipboard_text.as_deref()) {
+            (Some(true), Some("")) => None,
+            (Some(true), Some(text)) => Some(Effect::CopyToClipboard(text.into())),
+            _ => None,
+          }
+        };
 
-        // TODO: This needs to handle self.interrupt_speech
-        let tts: Option<TriggerEffect> = effect_from_options(
+        let tts = match (
           &self.use_text_to_voice,
-          &self.text_to_voice_text,
-          TriggerEffect::TextToSpeech,
-        );
-
-        let play_sound_file: Option<TriggerEffect> = match self.play_media_file {
-          Some(true) => Some(TriggerEffect::PlayAudioFile(None)), // the XML does not include the sound file's filepath
+          self.text_to_voice_text.as_deref(),
+          &self.interrupt_speech,
+        ) {
+          (_, Some(""), _) => None,
+          (Some(true), Some(text), interrupt) => Some(Effect::Speak {
+            tmpl: text.into(),
+            interrupt: interrupt.unwrap_or(false),
+          }),
           _ => None,
         };
 
-        let timer: Option<TriggerEffect> = match self.timer_type {
+        let play_sound_file: Option<Effect> = match self.play_media_file {
+          Some(true) => Some(Effect::PlayAudioFile(None)), // the XML does not include the sound file's filepath
+          _ => None,
+        };
+
+        let timer: Option<Effect> = match self.timer_type {
           None | Some(GINATimerType::NoTimer) => None,
 
           Some(GINATimerType::Stopwatch) => {
@@ -158,7 +170,7 @@ impl GINATrigger {
               name: timer_name.into(),
               // TODO! THIS SHOULD USE CATEGORIES
               tags: vec![],
-              updates: {
+              effects: {
                 if let Some(terminator) = self.early_enders_to_terminator()? {
                   vec![terminator]
                 } else {
@@ -166,14 +178,14 @@ impl GINATrigger {
                 }
               },
             };
-            Some(TriggerEffect::StartStopwatch(stopwatch))
+            Some(Effect::StartStopwatch(stopwatch))
           }
 
           // TODO: ARE THERE ANY OTHER DIFFERENCES WITH REPEATING TIMERS?
           Some(GINATimerType::Timer | GINATimerType::RepeatingTimer) => {
             let timer = Timer {
               trigger_id: trigger_id.clone(),
-              name: timer_name.as_str().into(),
+              name: timer_name.clone(),
               tags: vec![/*
                 TODO
               */],
@@ -193,7 +205,9 @@ impl GINATrigger {
                   TimerStartPolicy::DoNothingIfTimerRunning
                 }
                 (Some(GINATimerStartBehavior::StartNewTimer), Some(true)) => {
-                  TimerStartPolicy::StartAndReplacesAnyTimerOfTriggerHavingName(timer_name.clone())
+                  TimerStartPolicy::StartAndReplacesAnyTimerOfTriggerWithNameTemplateMatching(
+                    timer_name.clone(),
+                  )
                 }
                 (Some(GINATimerStartBehavior::StartNewTimer), Some(false) | None) => {
                   TimerStartPolicy::AlwaysStartNewTimer
@@ -208,53 +222,51 @@ impl GINATrigger {
                   TimerStartPolicy::StartAndReplacesAllTimersOfTrigger
                 }
               },
-              updates: {
-                let mut updates: Vec<TimerEffect> = Vec::new();
+              effects: {
+                let mut effects: Vec<Effect> = Vec::new();
 
                 // Early Enders with WaitUntilFilterMatches + ClearTimer
                 if let Some(terminator) = self.early_enders_to_terminator()? {
-                  updates.push(terminator);
+                  effects.push(terminator);
                 }
 
                 // Timer Ending with WaitUntilSecondsRemain and Parallel effects
                 if let Some(secs) = self.timer_ending_time {
                   if secs > 0 {
                     let mut seq = vec![
-                      TimerEffect::WaitUntilSecondsRemain(secs),
-                      TimerEffect::AddTag(TimerTag::ending()),
+                      TimerEffect::WaitUntilSecondsRemain(secs).into(),
+                      TimerEffect::AddTag(TimerTag::ending()).into(),
                     ];
 
                     if let (Some(true), Some(ending)) =
                       (self.use_timer_ending, &self.timer_ending_trigger)
                     {
                       if let Some(singularized) =
-                        singularize_effects(ending.to_lq(), TimerEffect::Parallel)
+                        singularize_effects(ending.to_lq(), Effect::Parallel)
                       {
                         seq.push(singularized);
                       }
                     }
-                    updates.push(TimerEffect::Sequence(seq));
+                    effects.push(Effect::Sequence(seq));
                   }
                 }
 
                 // Timer Ended with WaitUntilFinished and Parallel effects
                 if let (Some(true), Some(ended)) = (self.use_timer_ended, &self.timer_ended_trigger)
                 {
-                  if let Some(singularized) =
-                    singularize_effects(ended.to_lq(), TimerEffect::Parallel)
-                  {
-                    updates.push(TimerEffect::Sequence(vec![
-                      TimerEffect::WaitUntilFinished,
+                  if let Some(singularized) = singularize_effects(ended.to_lq(), Effect::Parallel) {
+                    effects.push(Effect::Sequence(vec![
+                      TimerEffect::WaitUntilFinished.into(),
                       singularized,
                     ]));
                   }
                 }
 
-                updates
+                effects
               },
             };
 
-            Some(TriggerEffect::StartTimer(timer))
+            Some(Effect::StartTimer(timer))
           }
         };
 
@@ -266,7 +278,7 @@ impl GINATrigger {
     })
   }
 
-  fn early_enders_to_terminator(&self) -> Result<Option<TimerEffect>, GINAConversionError> {
+  fn early_enders_to_terminator(&self) -> Result<Option<Effect>, GINAConversionError> {
     if self.timer_early_enders.is_empty() {
       return Ok(None);
     }
@@ -276,9 +288,9 @@ impl GINATrigger {
     }
     let enders_filter: matchers::FilterWithContext = enders_filter_matchers.into();
 
-    let terminator = TimerEffect::Sequence(vec![
-      TimerEffect::WaitUntilFilterMatches(enders_filter),
-      TimerEffect::ClearTimer,
+    let terminator = Effect::Sequence(vec![
+      TimerEffect::WaitUntilFilterMatches(enders_filter).into(),
+      TimerEffect::ClearTimer.into(),
     ]);
 
     Ok(Some(terminator))
@@ -286,12 +298,12 @@ impl GINATrigger {
 }
 
 impl GINATimerTrigger {
-  fn to_lq(&self) -> Vec<TimerEffect> {
-    let mut timer_effects: Vec<TimerEffect> = vec![];
+  fn to_lq(&self) -> Vec<Effect> {
+    let mut timer_effects: Vec<Effect> = vec![];
 
     match (self.use_text, self.display_text.as_deref()) {
       (Some(true), Some("")) => {}
-      (Some(true), Some(text)) => timer_effects.push(TimerEffect::OverlayMessage(text.into())),
+      (Some(true), Some(text)) => timer_effects.push(Effect::OverlayMessage(text.into())),
       _ => {}
     }
 
@@ -301,18 +313,17 @@ impl GINATimerTrigger {
       self.interrupt_speech,
     ) {
       (Some(true), Some(""), _) => {}
-      (Some(true), Some(text), Some(false) | None) => {
-        timer_effects.push(TimerEffect::Speak(text.into()))
+      (Some(true), Some(text), interrupt) => {
+        timer_effects.push(Effect::Speak {
+          tmpl: text.into(),
+          interrupt: interrupt.unwrap_or(false),
+        });
       }
-      (Some(true), Some(text), Some(true)) => timer_effects.push(TimerEffect::Sequence(vec![
-        TimerEffect::SpeakStop,
-        TimerEffect::Speak(text.into()),
-      ])),
       _ => {}
     }
 
     if self.play_media_file.unwrap_or(false) {
-      timer_effects.push(TimerEffect::PlayAudioFile(None))
+      timer_effects.push(Effect::PlayAudioFile(None))
     }
 
     timer_effects
@@ -326,21 +337,6 @@ impl GINAEarlyEnder {
       (Some(false), Some(line)) => matchers::MatcherWithContext::WholeLine(line.to_owned()),
       _ => return Err(GINAConversionError::EarlyEnderPatternError),
     })
-  }
-}
-
-fn effect_from_options<F>(
-  condition: &Option<bool>,
-  text: &Option<String>,
-  converter: F,
-) -> Option<TriggerEffect>
-where
-  F: FnOnce(TemplateString) -> TriggerEffect,
-{
-  match (condition, text.as_deref()) {
-    (Some(true), Some("")) => None,
-    (Some(true), Some(text)) => Some(converter(text.into())),
-    _ => None,
   }
 }
 

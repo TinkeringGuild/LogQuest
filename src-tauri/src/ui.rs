@@ -13,7 +13,7 @@ use std::sync::Arc;
 use tauri::async_runtime::spawn;
 use tauri::App;
 use tauri::{AppHandle, GlobalShortcutManager, Manager, Window, WindowEvent};
-use tracing::{debug, info};
+use tracing::{debug, error, info};
 
 pub type OverlayManagerState = Arc<OverlayManager>;
 
@@ -30,7 +30,7 @@ pub fn launch(state: StateHandle) {
       let timer_manager = create_timer_manager();
       let overlay_manager = create_overlay_manager(&app_handle, &timer_manager);
       app.manage(overlay_manager.clone() as OverlayManagerState);
-      reactor(&state, timer_manager, overlay_manager);
+      reactor(&app_handle, &state, timer_manager, overlay_manager);
       setup(&app_handle);
       Ok(())
     })
@@ -62,14 +62,17 @@ fn create_overlay_manager(
 }
 
 fn reactor(
+  app: &AppHandle,
   state: &StateHandle,
   timer_manager: Arc<TimerManager>,
   overlay_manager: Arc<OverlayManager>,
 ) {
   let future = reactor::start_when_config_is_ready(state, timer_manager, overlay_manager);
+  let app = app.clone();
   spawn(async move {
     match future.await {
-      Ok(Ok(_stop_reactor)) => {
+      Ok(Ok(tx_reactor)) => {
+        app.manage(tx_reactor);
         debug!("Reactor started from UI");
       }
       Err(_recv_error) => {
@@ -166,16 +169,22 @@ fn toggle_overlay_editable(app: &AppHandle) {
 fn set_overlay_editable(app: &AppHandle, new_value: bool) {
   let state = state(app);
   state.update_overlay(|overlay| overlay.overlay_editable = new_value);
-  if let Some(overlay_window) = get_overlay_window(app) {
-    overlay_window
-      .set_ignore_cursor_events(!new_value)
-      .expect("Failed to set_ignore_cursor_events");
-    let _ = app.emit_all(OVERLAY_EDITABLE_CHANGED_EVENT_NAME, new_value);
-    info!(
-      "Overlay editing {}",
-      ternary(new_value, "ENABLED", "DISABLED")
-    )
+  let Some(overlay_window) = get_overlay_window(app) else {
+    return;
+  };
+  overlay_window
+    .set_ignore_cursor_events(!new_value)
+    .expect("Failed to set_ignore_cursor_events");
+  if new_value {
+    if let Err(e) = overlay_window.set_focus() {
+      error!("Failed to focus overlay window: {e:?}");
+    }
   }
+  let _ = app.emit_all(OVERLAY_EDITABLE_CHANGED_EVENT_NAME, new_value);
+  info!(
+    "Overlay editing {}",
+    ternary(new_value, "ENABLED", "DISABLED")
+  )
 }
 
 fn state(app: &AppHandle) -> tauri::State<StateHandle> {

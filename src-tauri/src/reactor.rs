@@ -9,7 +9,7 @@ use crate::{
   },
   matchers::MatchContext,
   state::{overlay::OverlayManager, state_handle::StateHandle, timer_manager::TimerManager},
-  triggers::{effects::TriggerEffect, TriggerGroup, TriggerGroupDescendant},
+  triggers::{effects::Effect, TriggerGroup, TriggerGroupDescendant},
   tts::TTS,
 };
 use std::collections::LinkedList;
@@ -17,49 +17,55 @@ use std::sync::Arc;
 use tauri::async_runtime::spawn;
 use tokio::sync::{broadcast, mpsc};
 use tokio::{select, sync::oneshot};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, debug_span, error, info, warn};
 
 const REACTOR_EVENT_QUEUE_DEPTH: usize = 1000;
+
+pub struct ReactorContext {
+  pub timer_manager: Arc<TimerManager>,
+  pub overlay_manager: Arc<OverlayManager>,
+  pub mixer: Arc<AudioMixer>,
+  pub t2s_tx: mpsc::Sender<TTS>,
+  pub match_context: MatchContext,
+}
+
+#[derive(Debug)]
+pub enum ReactorEvent {
+  SetActiveCharacter(Option<Character>),
+  ExecTriggerEffect {
+    effect: Effect,
+    context: Arc<MatchContext>,
+  },
+}
 
 struct EventLoop {
   state: StateHandle,
   log_events: LogEventBroadcaster,
   reactor_tx: mpsc::Sender<ReactorEvent>,
   reactor_rx: mpsc::Receiver<ReactorEvent>,
-  mixer: AudioMixer,
+  mixer: Arc<AudioMixer>,
   t2s_tx: mpsc::Sender<TTS>,
   timer_manager: Arc<TimerManager>,
   overlay_manager: Arc<OverlayManager>,
 }
 
-#[derive(Debug)]
-enum ReactorEvent {
-  SetActiveCharacter(Option<Character>),
-  ExecTriggerEffect {
-    effect: TriggerEffect,
-    context: Arc<MatchContext>,
-  },
-  Shutdown,
-}
-
 #[derive(thiserror::Error, Debug)]
 pub enum ReactorStartError {
-  /// This error is recoverable
+  /// This error could be recoverable
   #[error("Cannot start reactor when no Logs directory is known")]
   NoLogsDir,
   #[error("Failed to watch filesystem events for Logs directory")]
   WatchError(#[from] NotifyError),
 }
 
-type StopReactor = Box<dyn FnOnce() + 'static + Send + Sync>;
-
 pub fn start_when_config_is_ready(
   state_handle: &StateHandle,
   timer_manager: Arc<TimerManager>,
   overlay_manager: Arc<OverlayManager>,
-) -> oneshot::Receiver<Result<StopReactor, ReactorStartError>> {
+) -> oneshot::Receiver<Result<mpsc::Sender<ReactorEvent>, ReactorStartError>> {
   let state_handle = state_handle.to_owned();
-  let (resolver, future) = oneshot::channel::<Result<StopReactor, ReactorStartError>>();
+  let (resolver, future) =
+    oneshot::channel::<Result<mpsc::Sender<ReactorEvent>, ReactorStartError>>();
   spawn(async move {
     loop {
       match start_if_ready(&state_handle, timer_manager.clone(), &overlay_manager) {
@@ -87,13 +93,13 @@ fn start_if_ready(
   state: &StateHandle,
   timer_manager: Arc<TimerManager>,
   overlay_manager: &Arc<OverlayManager>,
-) -> Result<Option<StopReactor>, ReactorStartError> {
+) -> Result<Option<mpsc::Sender<ReactorEvent>>, ReactorStartError> {
   // LogQuestConfig validates that the directory saved is a valid EQ dir before
   // it allows a value to be set into `everquest_directory`
   let is_ready = state.select_config(|c| c.is_ready());
   if is_ready {
     match start(state.clone(), timer_manager, overlay_manager.clone()) {
-      Ok(stop_reactor) => Ok(Some(stop_reactor)),
+      Ok(tx_reactor) => Ok(Some(tx_reactor)),
       Err(err) => Err(err),
     }
   } else {
@@ -105,7 +111,7 @@ pub fn start(
   state_handle: StateHandle,
   timer_manager: Arc<TimerManager>,
   overlay_manager: Arc<OverlayManager>,
-) -> Result<StopReactor, ReactorStartError> {
+) -> Result<mpsc::Sender<ReactorEvent>, ReactorStartError> {
   let Some(logs_dir) = state_handle.select_config(|config| config.logs_dir_path.clone()) else {
     return Err(ReactorStartError::NoLogsDir);
   };
@@ -123,7 +129,7 @@ pub fn start(
     reactor_tx_,
   ));
 
-  let join_handle = spawn(run_event_loop(
+  spawn(run_event_loop(
     state_handle,
     log_events,
     reactor_tx.clone(),
@@ -132,16 +138,7 @@ pub fn start(
     overlay_manager,
   ));
 
-  let reactor_tx_ = reactor_tx.clone();
-  let stopper = move || {
-    let rt = tauri::async_runtime::handle();
-    let _ = reactor_tx_.blocking_send(ReactorEvent::Shutdown);
-    if let Err(e) = rt.block_on(join_handle) {
-      error!("Error blocking on the reactor shutdown join handle! {e:?}");
-    }
-  };
-
-  Ok(Box::new(stopper))
+  Ok(reactor_tx)
 }
 
 async fn run_event_loop(
@@ -174,7 +171,7 @@ impl EventLoop {
     overlay_manager: Arc<OverlayManager>,
   ) -> Self {
     let t2s_tx = create_tts_engine(state.clone());
-    let mixer = AudioMixer::new();
+    let mixer = Arc::new(AudioMixer::new());
     Self {
       state,
       log_events,
@@ -227,10 +224,6 @@ impl EventLoop {
           debug!("GOT REACTOR EVENT: {reactor_event:?}");
           match reactor_event {
             None => break,
-            Some(ReactorEvent::Shutdown) => {
-              debug!("Reactor shutting down");
-              break;
-            }
             Some(ReactorEvent::SetActiveCharacter(Some(new_char))) => {
               let new_log_reader = LogReader::start(&new_char.log_file_pathbuf(), self.log_events.subscribe());
               line_chan = (None, new_log_reader.subscribe());
@@ -246,7 +239,7 @@ impl EventLoop {
               self.state.update_reactor(|r| r.current_character = None);
             }
             Some(ReactorEvent::ExecTriggerEffect{effect, context}) => {
-              self.exec_effect(&effect, &context).await;
+              self.exec_effect(effect, &context).await;
             }
           }
         }
@@ -254,7 +247,7 @@ impl EventLoop {
           match line {
             Ok(line) => {
               debug!("LINE: {:?}", line);
-              self.react_to_line(&line).await;
+              self.react_to_line(&line).await; // TODO: can spawn be used here if self is an &Arc<Self>?
             }
             Err(_recv_error) => {
               // LINE_CHAN IS CLOSED! NEED TO DE-DUPLICATE LOOP RESET LOGIC
@@ -314,43 +307,23 @@ impl EventLoop {
     });
   }
 
-  async fn exec_effect(&self, effect: &TriggerEffect, context: &MatchContext) {
-    match effect {
-      TriggerEffect::PlayAudioFile(Some(file_path)) => {
-        if let Err(e) = self.mixer.play_file(&file_path.render(&context)) {
-          error!("Error playing file! {e:?}");
-        }
+  fn create_reactor_context(&self, match_context: &MatchContext) -> Arc<ReactorContext> {
+    Arc::new(ReactorContext {
+      timer_manager: self.timer_manager.clone(),
+      overlay_manager: self.overlay_manager.clone(),
+      mixer: self.mixer.clone(),
+      t2s_tx: self.t2s_tx.clone(),
+      match_context: match_context.clone(),
+    })
+  }
+
+  async fn exec_effect(&self, effect: Effect, match_context: &MatchContext) {
+    let reactor_context = self.create_reactor_context(match_context);
+    spawn(async move {
+      if let Err(effect_error) = effect.ready().fire(reactor_context).await {
+        error!("Encountered error executing Effect: {effect_error:?}");
       }
-      TriggerEffect::TextToSpeech(template) => {
-        let message = template.render(&context);
-        if let Err(_) = self
-          .t2s_tx
-          .send(TTS::Speak {
-            text: message.clone(),
-            interrupt: false,
-          })
-          .await
-        {
-          error!(r#"Text-to-Speech channel closed! Ignoring TTS message: "{message}""#);
-        }
-      }
-      TriggerEffect::StartTimer(timer) => self.timer_manager.start_timer(timer, &context).await,
-      TriggerEffect::StartStopwatch(stopwatch) => {
-        debug!("TriggerEffect::StartStopwatch({stopwatch:?})");
-        // self.timer_manager.start_stopwatch(stopwatch);
-      }
-      TriggerEffect::OverlayMessage(template) => {
-        let message = template.render(&context);
-        info!(r#"TriggerEffect::OverlayMessage("{message}")"#);
-        self.overlay_manager.message(message).await;
-      }
-      TriggerEffect::DoNothing => {
-        debug!("TriggerEffect::DoNothing");
-      }
-      unhandled => {
-        debug!("UNIMPLEMENTED EFFECT: {unhandled:?}");
-      }
-    }
+    });
   }
 }
 

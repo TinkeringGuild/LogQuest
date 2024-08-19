@@ -1,30 +1,22 @@
-use super::{EffectError, EffectResult, EffectTemplate, ReadyEffect};
-use crate::matchers::MatchContext;
+use super::{EffectError, EffectResult, ReadyEffect};
+use crate::reactor::ReactorContext;
 use async_trait::async_trait;
 use futures::future::join_all;
+use std::sync::Arc;
 use tauri::async_runtime::{spawn, JoinHandle};
 
-struct TemplateParallel(Vec<Box<dyn EffectTemplate>>);
-struct EffectParallel(Vec<Box<dyn ReadyEffect>>);
-
-impl EffectTemplate for TemplateParallel {
-  fn ready(&self, context: &MatchContext) -> Box<dyn ReadyEffect> {
-    let ready_effects = self
-      .0
-      .iter()
-      .map(|template| template.ready(context))
-      .collect::<Vec<_>>();
-    Box::new(EffectParallel(ready_effects))
-  }
-}
+pub(super) struct EffectParallel(pub(super) Vec<Box<dyn ReadyEffect>>);
 
 #[async_trait]
 impl ReadyEffect for EffectParallel {
-  async fn fire(self: Box<Self>) -> EffectResult {
+  async fn fire(self: Box<Self>, context: Arc<ReactorContext>) -> EffectResult {
+    let contexts = (0..self.0.len()).map(|_| context.clone());
+
     let join_handles: Vec<JoinHandle<EffectResult>> = self
       .0
       .into_iter()
-      .map(|effect| spawn(async move { effect.fire().await }))
+      .zip(contexts)
+      .map(|(effect, ctx)| spawn(async move { effect.fire(ctx).await }))
       .collect();
 
     let errors = join_all(join_handles)
@@ -35,7 +27,7 @@ impl ReadyEffect for EffectParallel {
         Ok(Err(effect_error)) => Some(effect_error),
         Err(tauri_error) => Some(tauri_error.into()),
       })
-      .collect::<Vec<_>>();
+      .collect::<Vec<EffectError>>();
 
     match errors.len() {
       0 => Ok(()),

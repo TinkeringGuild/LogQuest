@@ -52,6 +52,16 @@ async fn bootstrap<'a>(state: State<'_, StateHandle>) -> Result<Bootstrap, Strin
 }
 
 #[tauri::command]
+fn print_to_stdout(message: String) {
+  event!(target: "UI", tracing::Level::INFO, message);
+}
+
+#[tauri::command]
+fn print_to_stderr(message: String) {
+  event!(target: "UI", tracing::Level::ERROR, message);
+}
+
+#[tauri::command]
 fn get_config(state: State<StateHandle>) -> Result<LogQuestConfig, String> {
   let config = state.select_config(|c| c.clone());
   Ok(config)
@@ -111,7 +121,8 @@ async fn import_gina_triggers_file(
   let (count_imported, trigger_root) =
     state.select_triggers(|root| (root.trigger_count() - count_before, root.clone()));
 
-  progress_reporter.finished(format!("Added {} Triggers", format_integer(count_imported)));
+  let count_imported = format_integer(count_imported);
+  progress_reporter.finished(format!("Added {} Triggers", count_imported));
   info!(
     "Imported {count_imported} new triggers from GINA file: {}",
     path.display()
@@ -128,14 +139,4 @@ fn set_everquest_dir(state: State<StateHandle>, new_dir: String) -> Result<LogQu
       .map(|_| config.clone())
       .map_err(|e| e.to_string())
   })
-}
-
-#[tauri::command]
-fn print_to_stdout(message: String) {
-  event!(target: "UI", tracing::Level::INFO, message);
-}
-
-#[tauri::command]
-fn print_to_stderr(message: String) {
-  event!(target: "UI", tracing::Level::ERROR, message);
 }

@@ -1,12 +1,20 @@
 use crate::{common::fatal_error, state::state_handle::StateHandle};
-use std::thread;
-use tokio::sync::mpsc;
+use std::{
+  collections::LinkedList,
+  sync::{Arc, Mutex},
+  thread,
+};
+use tokio::sync::{mpsc, oneshot};
 use tracing::{debug, error, info};
 use tts::{Gender, Tts};
 
 #[derive(Debug, Clone)]
 pub enum TTS {
-  Speak { text: String, interrupt: bool },
+  Speak {
+    text: String,
+    interrupt: bool,
+    tx_done: Arc<oneshot::Sender<()>>,
+  },
   StopSpeaking,
   SetVoice(String),
   Quit,
@@ -16,7 +24,7 @@ pub enum TTS {
 pub enum SpeakError {
   #[error("Unknown voice: {0}")]
   UnknownVoice(String),
-  #[error("Failed to speak with the TTS backend")]
+  #[error(transparent)]
   TTS(#[from] tts::Error),
 }
 
@@ -38,15 +46,47 @@ fn thread_loop(mut t2s: Tts, _state_handle: StateHandle, mut rx: mpsc::Receiver<
       return;
     }
   };
+
+  let locked_done_sender_queue =
+    Arc::new(Mutex::new(LinkedList::<Arc<oneshot::Sender<()>>>::new()));
+
+  let locked_done_sender_queue_ = locked_done_sender_queue.clone();
+  let utterance_end_callback = move |_| {
+    let mut queue = locked_done_sender_queue_
+      .lock()
+      .expect("TTS futures queue poisoned!");
+    let Some(next_sender) = queue.pop_front() else {
+      error!("Found no callback to send the TTS completion notification to!");
+      return;
+    };
+    let next_sender = Arc::into_inner(next_sender).unwrap();
+    let _ = next_sender.send(());
+  };
+
+  if let Err(e) = t2s.on_utterance_end(Some(Box::new(utterance_end_callback))) {
+    error!("Could not bind on_utterance_end callback on the TTS engine: {e:?}");
+    return;
+  }
+
   loop {
     match rx.blocking_recv() {
       Some(TTS::Quit) => {
         debug!("TTS loop QUITTING");
         break;
       }
-      Some(TTS::Speak { text, interrupt }) => {
+      Some(TTS::Speak {
+        text,
+        interrupt,
+        tx_done,
+      }) => {
+        let mut queue = locked_done_sender_queue
+          .lock()
+          .expect("TTS futures queue poisoned!");
+        queue.push_back(tx_done);
         if let Err(e) = t2s.speak(text.clone(), interrupt) {
           error!(r#"Text-to-Speech engine FAILED to speak: "{text}" [ ERROR: {e:?} ]"#);
+          let tx_done = Arc::into_inner(queue.pop_back().unwrap()).unwrap();
+          let _ = tx_done.send(());
         }
       }
       Some(TTS::SetVoice(voice_id)) => {
@@ -73,6 +113,7 @@ fn thread_loop(mut t2s: Tts, _state_handle: StateHandle, mut rx: mpsc::Receiver<
   }
 }
 
+/// This function is designed to be used from the CLI, not via the reactor.
 pub fn speak_once(message: String, voice: Option<String>) -> Result<(), SpeakError> {
   let mut t2s = tts::Tts::default()?;
   if let Some(voice_id) = voice {

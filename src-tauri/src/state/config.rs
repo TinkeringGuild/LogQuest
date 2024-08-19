@@ -1,5 +1,5 @@
-use crate::common::fatal_error;
 use crate::common::shutdown::critical_path;
+use crate::common::{fatal_error, format_integer};
 use crate::triggers::TriggerRoot;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -155,7 +155,10 @@ impl LogQuestConfig {
       file.write_all(&json_bytes)
     })?;
 
-    debug!("Wrote {json_size} bytes to {TRIGGERS_FILE_NAME}");
+    debug!(
+      "Wrote {} bytes to {TRIGGERS_FILE_NAME}",
+      format_integer(json_size)
+    );
     Ok(())
   }
 
