@@ -1,6 +1,7 @@
 pub mod active_character_detection;
 pub mod log_event_broadcaster;
-pub mod log_reader;
+pub mod log_file_cursor;
+pub mod log_line_stream;
 
 use fancy_regex::Regex;
 

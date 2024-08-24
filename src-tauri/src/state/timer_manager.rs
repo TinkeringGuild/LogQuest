@@ -1,6 +1,6 @@
 use crate::{
   common::{duration::Duration, fatal_error, shutdown::quitter, timestamp::Timestamp, UUID},
-  matchers::MatchContext,
+  reactor::ReactorContext,
   triggers::timers::{Timer, TimerStartPolicy},
 };
 use serde::Serialize;
@@ -14,22 +14,28 @@ const TIMER_COMMAND_CHANNEL_SIZE: usize = 50;
 const TIMER_STATE_UPDATE_CHANNEL_SIZE: usize = 50;
 const RESET_TIMER_CHANNEL_SIZE: usize = 5;
 
+#[derive(Debug)]
 pub struct TimerManager {
   tx_commands: mpsc::Sender<TimerCommand>,
 }
 
 #[derive(Debug, Clone)]
 enum TimerCommand {
-  StartLiveTimer(LiveTimer),
+  StartLiveTimer(TimerLifetime),
   LiveTimerElapsed(UUID),
   CreateSubscription(
-    Arc<oneshot::Sender<(Vec<LiveTimer>, Arc<broadcast::Receiver<TimerStateUpdate>>)>>,
+    Arc<
+      oneshot::Sender<(
+        Vec<TimerLifetime>,
+        Arc<broadcast::Receiver<TimerStateUpdate>>,
+      )>,
+    >,
   ),
 }
 
 #[derive(Debug, Clone, Serialize, ts_rs::TS)]
 pub enum TimerStateUpdate {
-  TimerAdded(LiveTimer),
+  TimerAdded(TimerLifetime),
   TimerKilled(UUID),
 }
 
@@ -38,21 +44,82 @@ pub enum TimerStateUpdate {
 struct ResetTimerEvent;
 
 #[derive(Debug, Clone, Serialize, ts_rs::TS)]
-pub struct LiveTimer {
+pub struct TimerLifetime {
+  timer: Timer,
   id: UUID,
-  trigger_id: UUID,
   name: String,
   start_time: Timestamp,
-  end_time: Timestamp,
-  duration: Duration,
-  repeats: bool,
-  start_policy: TimerStartPolicy,
   #[serde(skip)]
   #[ts(skip)]
-  context: MatchContext,
+  context: Arc<ReactorContext>,
 }
 
-type LiveTimersMap = HashMap<UUID, (LiveTimer, mpsc::Sender<ResetTimerEvent>)>;
+type LiveTimersMap = HashMap<UUID, (TimerLifetime, mpsc::Sender<ResetTimerEvent>)>;
+
+impl TimerManager {
+  pub fn new() -> Self {
+    let (tx_commands, rx_commands) = mpsc::channel::<TimerCommand>(TIMER_COMMAND_CHANNEL_SIZE);
+
+    let (tx_state_updates, _) =
+      broadcast::channel::<TimerStateUpdate>(TIMER_STATE_UPDATE_CHANNEL_SIZE);
+
+    spawn(event_loop(
+      rx_commands,
+      tx_commands.clone(),
+      tx_state_updates.clone(),
+    ));
+
+    Self { tx_commands }
+  }
+
+  pub async fn start_timer(&self, timer: Timer, context: Arc<ReactorContext>) {
+    let id = UUID::new();
+    let name = timer.name_tmpl.render(&context.match_context);
+    let start_time = Timestamp::now();
+    let context = context.to_owned();
+
+    let live_timer = TimerLifetime {
+      timer,
+      id,
+      name,
+      start_time,
+      context,
+    };
+
+    if let Err(_send_error) = self
+      .tx_commands
+      .send(TimerCommand::StartLiveTimer(live_timer))
+      .await
+    {
+      error!("Tried to send StartLiveTimer, but the channel was closed");
+    }
+  }
+
+  /// This functions atomically obtains a snapshot of the LiveTimers and a
+  /// broadcast::Receiver that was subscribed before any other changes could
+  /// have been made to LiveTimers, guaranteeing the events can keep the shared
+  /// state up-to-date (as long as the broadcast::Receiver doesn't become Lagged
+  /// before it begins consuming events, in which case it must call this function
+  /// again to get a fresh snapshot and new up-to-date broadcast::Receiver).
+  pub async fn subscribe(&self) -> (Vec<TimerLifetime>, broadcast::Receiver<TimerStateUpdate>) {
+    let (setter, getter) = oneshot::channel::<(
+      Vec<TimerLifetime>,
+      Arc<broadcast::Receiver<TimerStateUpdate>>,
+    )>();
+
+    if let Err(_send_error) = self
+      .tx_commands
+      .send(TimerCommand::CreateSubscription(Arc::new(setter)))
+      .await
+    {
+      fatal_error("Attempted to subscribe to TimerManager but its worker task has stopped");
+    }
+
+    let (live_timers, subscription) = getter.await.expect("TimerManager event loop appears dead");
+    let subscription = Arc::into_inner(subscription).unwrap(); // unwrap is safe here
+    (live_timers, subscription)
+  }
+}
 
 async fn event_loop(
   mut rx_command: mpsc::Receiver<TimerCommand>,
@@ -71,23 +138,21 @@ async fn event_loop(
       command = rx_command.recv() => match command {
         None => break,
         Some(TimerCommand::CreateSubscription(setter)) => {
-          let snapshot: Vec<LiveTimer> = live_timers.values().map(|(live, _)| live.clone()).collect();
+          let snapshot: Vec<TimerLifetime> = live_timers.values().map(|(live, _)| live.clone()).collect();
           let subscription = tx_state_update.subscribe();
           let setter = Arc::into_inner(setter).unwrap(); // unwrap is safe here
           let _ = setter.send((snapshot, Arc::new(subscription)));
         }
         Some(TimerCommand::StartLiveTimer(live_timer)) => {
-          let LiveTimer {
+          let TimerLifetime {
             id,
-            trigger_id,
+            timer,
             name,
-            duration,
-            start_policy,
             context,
             ..
           } = &live_timer;
 
-          match start_policy {
+          match &timer.start_policy {
             TimerStartPolicy::AlwaysStartNewTimer => { /* nothing to do here */ }
             TimerStartPolicy::DoNothingIfTimerRunning => {
               if is_timer_running_with_name(&name, &live_timers) {
@@ -96,15 +161,15 @@ async fn event_loop(
               }
             }
             TimerStartPolicy::StartAndReplacesAllTimersOfTrigger => {
-              kill_timers_of_trigger(trigger_id, &mut live_timers);
+              kill_timers_of_trigger(&timer.trigger_id, &mut live_timers);
             }
             TimerStartPolicy::StartAndReplacesAnyTimerOfTriggerWithNameTemplateMatching(replaced_name_template) => {
-              let replaced_name = replaced_name_template.render(&context);
-              kill_timers_of_trigger_with_name(trigger_id, &replaced_name, &mut live_timers);
+              let replaced_name = replaced_name_template.render(&context.match_context);
+              kill_timers_of_trigger_with_name(&timer.trigger_id, &replaced_name, &mut live_timers);
             }
           }
 
-          let tx_reaper = spawn_timer_reaper(id.clone(), duration.clone(), tx_command.clone());
+          let tx_reaper = spawn_timer_reaper(id.clone(), timer.duration.clone(), tx_command.clone());
           live_timers.insert(id.clone(), (live_timer.clone(), tx_reaper));
           let _ = tx_state_update.send(TimerStateUpdate::TimerAdded(live_timer));
         }
@@ -165,84 +230,6 @@ fn spawn_timer_reaper(
   tx_reaper_event
 }
 
-impl TimerManager {
-  pub fn new() -> Self {
-    let (tx_commands, rx_commands) = mpsc::channel::<TimerCommand>(TIMER_COMMAND_CHANNEL_SIZE);
-
-    let (tx_state_updates, _) =
-      broadcast::channel::<TimerStateUpdate>(TIMER_STATE_UPDATE_CHANNEL_SIZE);
-
-    spawn(event_loop(
-      rx_commands,
-      tx_commands.clone(),
-      tx_state_updates.clone(),
-    ));
-
-    Self { tx_commands }
-  }
-
-  /// This functions atomically obtains a snapshot of the LiveTimers and a
-  /// broadcast::Receiver that was subscribed before any other changes could
-  /// have been made to LiveTimers, guaranteeing the events can keep the shared
-  /// state up-to-date (as long as the broadcast::Receiver doesn't become Lagged
-  /// before it begins consuming events, in which case it must call this function
-  /// again to get a fresh snapshot and new up-to-date broadcast::Receiver).
-  pub async fn subscribe(&self) -> (Vec<LiveTimer>, broadcast::Receiver<TimerStateUpdate>) {
-    let (setter, getter) =
-      oneshot::channel::<(Vec<LiveTimer>, Arc<broadcast::Receiver<TimerStateUpdate>>)>();
-
-    if let Err(_send_error) = self
-      .tx_commands
-      .send(TimerCommand::CreateSubscription(Arc::new(setter)))
-      .await
-    {
-      fatal_error("Attempted to subscribe to TimerManager but its worker task has stopped");
-    }
-
-    let (live_timers, subscription) = getter.await.expect("TimerManager event loop appears dead");
-    let subscription = Arc::into_inner(subscription).unwrap(); // unwrap is safe here
-    (live_timers, subscription)
-  }
-
-  pub async fn start_timer(
-    &self,
-    Timer {
-      trigger_id,
-      name,
-      duration,
-      start_policy,
-      repeats,
-      // tags, effects,
-      ..
-    }: Timer,
-    context: &MatchContext,
-  ) {
-    let name = name.render(context);
-    let start_time = Timestamp::now();
-    let end_time = &start_time + &duration;
-
-    let live_timer = LiveTimer {
-      id: UUID::new(),
-      trigger_id,
-      name,
-      start_time,
-      end_time,
-      repeats,
-      duration,
-      start_policy,
-      context: context.clone(),
-    };
-
-    if let Err(_send_error) = self
-      .tx_commands
-      .send(TimerCommand::StartLiveTimer(live_timer))
-      .await
-    {
-      error!("Tried to send StartLiveTimer, but the channel was closed");
-    }
-  }
-}
-
 fn is_timer_running_with_name(name: &str, live_timers: &LiveTimersMap) -> bool {
   live_timers.values().any(|(live, _)| live.name == name)
 }
@@ -290,7 +277,7 @@ fn live_timers_for_trigger(
   live_timers
     .values()
     .filter_map(|(live, _)| {
-      if &live.trigger_id == trigger_id {
+      if &live.timer.trigger_id == trigger_id {
         Some((live.id.clone(), live.name.clone()))
       } else {
         None

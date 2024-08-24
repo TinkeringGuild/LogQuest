@@ -3,7 +3,7 @@ use crate::{
   gina::importer::GINAImport,
   state::{
     config::LogQuestConfig, state_handle::StateHandle, state_tree::OverlayState,
-    timer_manager::LiveTimer,
+    timer_manager::TimerLifetime,
   },
   triggers::TriggerRoot,
   ui::{OverlayManagerState, PROGRESS_UPDATE_EVENT_NAME, PROGRESS_UPDATE_FINISHED_EVENT_NAME},
@@ -47,7 +47,7 @@ pub fn handler() -> impl Fn(tauri::Invoke) {
 }
 
 #[tauri::command]
-async fn bootstrap<'a>(state: State<'_, StateHandle>) -> Result<Bootstrap, String> {
+async fn bootstrap(state: State<'_, StateHandle>) -> Result<Bootstrap, String> {
   Ok(Bootstrap::from_state(&state))
 }
 
@@ -71,7 +71,7 @@ fn get_config(state: State<StateHandle>) -> Result<LogQuestConfig, String> {
 async fn start_sync(
   window: Window,
   overlay_manager: State<'_, OverlayManagerState>,
-) -> Result<Vec<LiveTimer>, ()> {
+) -> Result<Vec<TimerLifetime>, ()> {
   let window_label = window.label();
   Ok(overlay_manager.start_emitter(window_label).await)
 }

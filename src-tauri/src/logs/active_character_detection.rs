@@ -2,7 +2,6 @@ use super::log_event_broadcaster::NotifyError;
 use super::{LogFileEvent, LOG_FILENAME_PATTERN};
 use crate::common::shutdown::quitter;
 use futures::FutureExt as _;
-use std::path::PathBuf;
 use tauri::async_runtime::spawn;
 use tokio::select;
 use tokio::sync::{broadcast, oneshot, watch};
@@ -15,11 +14,6 @@ pub struct Character {
   #[allow(unused)]
   pub server: String,
   pub log_file_path: String,
-}
-impl Character {
-  pub fn log_file_pathbuf(&self) -> PathBuf {
-    PathBuf::from(&self.log_file_path)
-  }
 }
 
 pub struct ActiveCharacterDetector {

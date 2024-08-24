@@ -185,7 +185,7 @@ impl GINATrigger {
           Some(GINATimerType::Timer | GINATimerType::RepeatingTimer) => {
             let timer = Timer {
               trigger_id: trigger_id.clone(),
-              name: timer_name.clone(),
+              name_tmpl: timer_name.clone(),
               tags: vec![/*
                 TODO
               */],

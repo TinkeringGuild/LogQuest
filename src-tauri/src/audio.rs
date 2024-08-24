@@ -12,6 +12,7 @@ use tracing::{debug, error};
 
 const AUDIO_MIXER_CHANNEL_SIZE: usize = 10;
 
+#[derive(Debug)]
 pub struct AudioMixer {
   #[allow(unused)]
   join_handle: thread::JoinHandle<()>,

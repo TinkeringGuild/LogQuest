@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
 pub struct Timer {
   pub trigger_id: UUID,
-  pub name: TemplateString,
+  pub name_tmpl: TemplateString,
   pub tags: Vec<TimerTag>,
   pub duration: Duration,
   pub start_policy: TimerStartPolicy,

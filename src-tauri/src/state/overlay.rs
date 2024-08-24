@@ -1,4 +1,4 @@
-use super::timer_manager::{LiveTimer, TimerManager, TimerStateUpdate};
+use super::timer_manager::{TimerLifetime, TimerManager, TimerStateUpdate};
 use crate::common::shutdown::quitter;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -26,6 +26,7 @@ pub enum OverlayMode {
   None,
 }
 
+#[derive(Debug)]
 pub struct OverlayManager {
   app: AppHandle,
   timer_manager: Arc<TimerManager>,
@@ -41,7 +42,7 @@ impl OverlayManager {
     }
   }
 
-  pub async fn start_emitter(&self, window_label: &str) -> Vec<LiveTimer> {
+  pub async fn start_emitter(&self, window_label: &str) -> Vec<TimerLifetime> {
     let (live_timers, timer_state_updates_subscription) = self.timer_manager.subscribe().await;
     let (tx_stop, rx_stop) = oneshot::channel::<()>();
     spawn(emitter_loop(

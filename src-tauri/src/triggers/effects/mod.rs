@@ -19,7 +19,7 @@ use pause::PauseEffect;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use sys_cmd::SystemCommandEffect;
-use tracing::{error, info};
+use tracing::error;
 
 use clipboard::CopyToClipboardEffect;
 use nothing::DoNothingEffect;

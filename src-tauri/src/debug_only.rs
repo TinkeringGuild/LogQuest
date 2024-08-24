@@ -1,6 +1,5 @@
 //! This file contains only code that is available in debug builds of LogQuest.
 #![cfg(debug_assertions)]
-
 use crate::{
   cli,
   commands::Bootstrap,
@@ -13,10 +12,12 @@ use crate::{
   gina::xml::load_gina_triggers_from_file_path,
   logs::{
     log_event_broadcaster::{LogEventBroadcaster, NotifyError},
-    log_reader::LogReader,
+    log_file_cursor::LogFileCursor,
+    log_line_stream::LogLineStream,
   },
   matchers,
-  state::timer_manager::{TimerManager, TimerStateUpdate},
+  reactor::ReactorContext,
+  state::timer_manager::TimerStateUpdate,
   triggers::{
     effects::Effect,
     timers::{Timer, TimerStartPolicy},
@@ -27,6 +28,7 @@ use std::path::{Path, PathBuf};
 use std::{ffi::OsString, fs::File};
 use std::{fs, sync::Arc};
 use tauri::async_runtime::spawn;
+use tokio_stream::StreamExt as _;
 use tracing::{info, warn};
 use ts_rs::TS;
 
@@ -90,20 +92,21 @@ pub fn test_trigger_group() -> TriggerGroup {
 }
 
 #[allow(unused)]
-pub fn generate_timer_noise(timer_manager: Arc<TimerManager>) {
+pub fn generate_timer_noise(context: Arc<ReactorContext>) {
   warn!("GENERATING TIMER NOISE");
 
   let trigger_id = UUID::new();
-  let timer_manager_ = timer_manager.clone();
+  let context_ = context.clone();
   spawn(async move {
-    let context = matchers::MatchContext::empty("Xenk");
     loop {
+      let context = context_.clone();
       let timer_name = "Visions of Grandeur";
       warn!("GENERATING TIMER NOISE WITH NAME: {timer_name}");
-      timer_manager_
+      context
+        .timer_manager
         .start_timer(
           Timer {
-            name: timer_name.into(),
+            name_tmpl: timer_name.into(),
             duration: common::duration::Duration(42 * 60 * 1000 / 100),
             repeats: false,
             start_policy:
@@ -114,7 +117,7 @@ pub fn generate_timer_noise(timer_manager: Arc<TimerManager>) {
             tags: vec![],
             effects: vec![],
           },
-          &context,
+          context.clone(),
         )
         .await;
       tokio::time::sleep(std::time::Duration::from_secs(30)).await;
@@ -122,16 +125,16 @@ pub fn generate_timer_noise(timer_manager: Arc<TimerManager>) {
   });
 
   let trigger_id = UUID::new();
-  let timer_manager_ = timer_manager.clone();
   spawn(async move {
     let timer_name = "Divine Aura";
-    let context = matchers::MatchContext::empty("Xenk");
     loop {
       warn!("GENERATING TIMER NOISE WITH NAME: {timer_name}");
-      timer_manager_
+      let context = context.clone();
+      let timer_manager = &context.timer_manager;
+      timer_manager
         .start_timer(
           Timer {
-            name: timer_name.into(),
+            name_tmpl: timer_name.into(),
             duration: common::duration::Duration(20 * 1000),
             repeats: false,
             start_policy:
@@ -142,7 +145,7 @@ pub fn generate_timer_noise(timer_manager: Arc<TimerManager>) {
             tags: vec![],
             effects: vec![],
           },
-          &context,
+          context.clone(),
         )
         .await;
       tokio::time::sleep(std::time::Duration::from_secs(23)).await;
@@ -158,25 +161,13 @@ pub fn tail(log_file_path: &std::path::Path) -> Result<(), NotifyError> {
   fs_events.start()?;
   let fs_event_rx = fs_events.subscribe();
 
-  let reader = LogReader::start(&log_file_path, fs_event_rx);
-  let mut rx = reader.subscribe();
-
-  // info!("Spawning task");
-  // rt.spawn(async move {
-  //   let sleep_secs = 30;
-  //   info!("Sleeping for {sleep_secs} seconds, then stopping the log reader");
-  //   tokio::time::sleep(std::time::Duration::from_secs(sleep_secs)).await;
-  //   info!("Stopping log reader now");
-  //   reader.stop();
-  // });
+  let cursor = LogFileCursor::new(&log_file_path.to_string_lossy()).unwrap();
 
   rt.block_on(async move {
-    loop {
-      tokio::select! {
-          line = rx.recv() => {
-              info!("{line:#?}");
-          }
-      }
+    let stream = LogLineStream::create(&cursor, fs_event_rx);
+    let mut stream = stream.await.unwrap();
+    while let Some(line) = stream.next().await {
+      info!("{line:#?}");
     }
   });
   Ok(())
