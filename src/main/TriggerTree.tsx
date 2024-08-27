@@ -8,7 +8,6 @@ import { $triggerGroups } from '../features/triggers/triggersSlice';
 import { Trigger } from '../generated/Trigger';
 import { TriggerGroup } from '../generated/TriggerGroup';
 import { TriggerGroupDescendant } from '../generated/TriggerGroupDescendant';
-import LoadingIndicator from '../widgets/LoadingIndicator';
 
 const TriggerTree: React.FC<{}> = () => {
   const dispatch = useDispatch();

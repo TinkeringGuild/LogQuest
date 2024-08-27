@@ -1,5 +1,5 @@
 import { createSlice } from '@reduxjs/toolkit';
-import { LiveTimer } from '../../generated/LiveTimer';
+import { TimerLifetime } from '../../generated/TimerLifetime';
 import { TimerStateUpdate } from '../../generated/TimerStateUpdate';
 import { remove } from 'lodash';
 import { eprintln } from '../../util';
@@ -7,11 +7,11 @@ import { eprintln } from '../../util';
 export const TIMERS_SLICE = 'timers';
 
 interface TimersState {
-  liveTimers: LiveTimer[];
+  timerLifetimes: TimerLifetime[];
 }
 
 const INITIAL_TIMERS_STATE: TimersState = {
-  liveTimers: [],
+  timerLifetimes: [],
 };
 
 const timersSlice = createSlice({
@@ -20,18 +20,18 @@ const timersSlice = createSlice({
   reducers: {
     initTimers(
       state: TimersState,
-      { payload: liveTimers }: { payload: LiveTimer[] }
+      { payload: timerLifetimes }: { payload: TimerLifetime[] }
     ) {
-      state.liveTimers = liveTimers;
+      state.timerLifetimes = timerLifetimes;
     },
     timerStateUpdate(
       slice: TimersState,
       { payload: update }: { payload: TimerStateUpdate }
     ) {
       if ('TimerAdded' in update) {
-        slice.liveTimers.push(update.TimerAdded);
+        slice.timerLifetimes.push(update.TimerAdded);
       } else if ('TimerKilled' in update) {
-        remove(slice.liveTimers, (timer) => timer.id == update.TimerKilled);
+        remove(slice.timerLifetimes, (timer) => timer.id == update.TimerKilled);
       } else {
         eprintln('UNHANDLED TIMER STATE UPDATE: ' + JSON.stringify(update));
       }
@@ -45,4 +45,4 @@ export const $timers = ({
   [TIMERS_SLICE]: timers,
 }: {
   [TIMERS_SLICE]: TimersState;
-}) => timers.liveTimers;
+}) => timers.timerLifetimes;

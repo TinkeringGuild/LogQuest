@@ -11,7 +11,7 @@ import {
   OVERLAY_EDITABLE_CHANGED_EVENT_NAME,
   OVERLAY_STATE_UPDATE_EVENT_NAME,
 } from '../generated/constants';
-import { LiveTimer } from '../generated/LiveTimer';
+import { TimerLifetime } from '../generated/TimerLifetime';
 import { TimerStateUpdate } from '../generated/TimerStateUpdate';
 import { startSync } from '../ipc';
 import { println } from '../util';
@@ -50,18 +50,17 @@ function OverlayWindow() {
   });
 
   useEffect(() => {
-    startSync().then((liveTimers) => {
-      println('GOT LIVE TIMERS: ' + JSON.stringify(liveTimers));
-      dispatch(initTimers(liveTimers));
+    startSync().then((timerLifetimes) => {
+      dispatch(initTimers(timerLifetimes));
     });
   }, [dispatch]);
 
-  const liveTimers: LiveTimer[] = useSelector($timers);
+  const timerLifetimes: TimerLifetime[] = useSelector($timers);
 
   return (
     <div className={`overlay ${editable ? 'is-editable' : 'is-static'}`}>
       <DynamicContainer width={450} height={500} x={0} y={0}>
-        {liveTimers.map(({ id, name, duration }) => (
+        {timerLifetimes.map(({ id, name, timer: { duration } }) => (
           <Countdown label={name} duration={duration} key={id} />
         ))}
       </DynamicContainer>

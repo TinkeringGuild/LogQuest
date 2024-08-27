@@ -1,4 +1,3 @@
-import { println } from '../util';
 import './Countdown.css';
 
 interface CountdownProps {

@@ -43,7 +43,7 @@ impl OverlayManager {
   }
 
   pub async fn start_emitter(&self, window_label: &str) -> Vec<TimerLifetime> {
-    let (live_timers, timer_state_updates_subscription) = self.timer_manager.subscribe().await;
+    let (timer_lifetimes, timer_state_updates_subscription) = self.timer_manager.subscribe().await;
     let (tx_stop, rx_stop) = oneshot::channel::<()>();
     spawn(emitter_loop(
       self.app.clone(),
@@ -60,7 +60,7 @@ impl OverlayManager {
       let _ = replaced_stopper.send(());
     }
 
-    live_timers
+    timer_lifetimes
   }
 
   pub fn message(&self, message: String) {
