@@ -51,7 +51,7 @@ impl Serialize for Timestamp {
   where
     S: Serializer,
   {
-    serializer.serialize_str(self.to_string().as_str())
+    serializer.serialize_str(&self.to_string()) // uses the custom Display impl
   }
 }
 
@@ -68,7 +68,12 @@ impl<'de> Deserialize<'de> for Timestamp {
 
 impl std::fmt::Display for Timestamp {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    f.write_str(self.0.to_rfc3339().as_str())?;
+    f.write_str(
+      self
+        .0
+        .to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
+        .as_str(),
+    )?;
     Ok(())
   }
 }

@@ -19,21 +19,38 @@ const timersSlice = createSlice({
   initialState: INITIAL_TIMERS_STATE,
   reducers: {
     initTimers(
-      state: TimersState,
+      slice: TimersState,
       { payload: timerLifetimes }: { payload: TimerLifetime[] }
     ) {
-      state.timerLifetimes = timerLifetimes;
+      slice.timerLifetimes = timerLifetimes;
     },
     timerStateUpdate(
       slice: TimersState,
-      { payload: update }: { payload: TimerStateUpdate }
+      { payload: { variant, value } }: { payload: TimerStateUpdate }
     ) {
-      if ('TimerAdded' in update) {
-        slice.timerLifetimes.push(update.TimerAdded);
-      } else if ('TimerKilled' in update) {
-        remove(slice.timerLifetimes, (timer) => timer.id == update.TimerKilled);
+      if (variant === 'TimerAdded') {
+        slice.timerLifetimes.push(value);
+      } else if (variant === 'TimerKilled') {
+        remove(slice.timerLifetimes, (timer) => timer.id === value);
+      } else if (variant == 'TimerHiddenUpdated') {
+        const [timerID, newValue] = value;
+        const timerLifetime = slice.timerLifetimes.find((t) => t.id == timerID);
+        if (timerLifetime) {
+          timerLifetime.is_hidden = newValue;
+        }
+      } else if (variant === 'TimerRestarted') {
+        const timerLifetime = slice.timerLifetimes.find(
+          (t) => t.id === value.id
+        );
+        if (timerLifetime) {
+          timerLifetime.start_time = value.start_time;
+          timerLifetime.end_time = value.end_time;
+        }
       } else {
-        eprintln('UNHANDLED TIMER STATE UPDATE: ' + JSON.stringify(update));
+        eprintln(
+          `UNHANDLED TIMER STATE UPDATE ${variant} WITH VALUE: ` +
+            JSON.stringify(value)
+        );
       }
     },
   },

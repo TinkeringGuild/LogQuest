@@ -15,9 +15,9 @@ use crate::{
     log_file_cursor::LogFileCursor,
     log_line_stream::LogLineStream,
   },
-  matchers,
-  reactor::EventContext,
-  state::timer_manager::TimerStateUpdate,
+  matchers::{self, MatchContext},
+  reactor::EventLoop,
+  state::timer_manager::{TimerCommand, TimerStateUpdate},
   triggers::{
     effects::Effect,
     timers::{Timer, TimerStartPolicy},
@@ -92,8 +92,16 @@ pub fn test_trigger_group() -> TriggerGroup {
 }
 
 #[allow(unused)]
-pub fn generate_timer_noise(context: Arc<EventContext>) {
+pub fn generate_timer_noise(event_loop: &EventLoop) {
   warn!("GENERATING TIMER NOISE");
+
+  let context = event_loop.create_event_context(
+    Arc::new(MatchContext::empty("Xenk")),
+    Arc::new(LogFileCursor {
+      path: String::new(),
+      position: 0,
+    }),
+  );
 
   let trigger_id = UUID::new();
   let context_ = context.clone();
@@ -125,11 +133,12 @@ pub fn generate_timer_noise(context: Arc<EventContext>) {
   });
 
   let trigger_id = UUID::new();
+  let context_ = context.clone();
   spawn(async move {
     let timer_name = "Divine Aura";
     loop {
       warn!("GENERATING TIMER NOISE WITH NAME: {timer_name}");
-      let context = context.clone();
+      let context = context_.clone();
       let timer_manager = &context.timer_manager;
       timer_manager
         .start_timer(
@@ -149,6 +158,56 @@ pub fn generate_timer_noise(context: Arc<EventContext>) {
         )
         .await;
       tokio::time::sleep(std::time::Duration::from_secs(23)).await;
+    }
+  });
+
+  let trigger_id = UUID::new();
+  let context_ = context.clone();
+  spawn(async move {
+    let timer_name = "Reset Every 3 sec and I have a really long name";
+    loop {
+      warn!("GENERATING TIMER NOISE WITH NAME: {timer_name}");
+      let context = context_.clone();
+      let timer_manager = &context.timer_manager;
+      let id = timer_manager
+        .start_timer(
+          Timer {
+            name_tmpl: timer_name.into(),
+            duration: common::duration::Duration(10 * 1000),
+            repeats: false,
+            start_policy:
+              TimerStartPolicy::StartAndReplacesAnyTimerOfTriggerWithNameTemplateMatching(
+                timer_name.into(),
+              ),
+            trigger_id: trigger_id.clone(),
+            tags: vec![],
+            effects: vec![],
+          },
+          context.clone(),
+        )
+        .await
+        .unwrap();
+
+      // let id_ = id.clone();
+      // let timer_manager_ = timer_manager.clone();
+      // spawn(async move {
+      //   loop {
+      //     let _ = timer_manager_
+      //       .send(TimerCommand::SetHidden(id_.clone(), true))
+      //       .await;
+      //     tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+      //     let _ = timer_manager_
+      //       .send(TimerCommand::SetHidden(id_.clone(), false))
+      //       .await;
+      //     tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+      //   }
+      // });
+
+      let mut interval = tokio::time::interval(std::time::Duration::from_secs(3));
+      loop {
+        interval.tick().await;
+        let _ = timer_manager.send(TimerCommand::Restart(id.clone())).await;
+      }
     }
   });
 }

@@ -8,7 +8,10 @@ pub mod timestamp;
 use lazy_static::lazy_static;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
-use std::hash::{Hash, Hasher};
+use std::{
+  hash::{Hash, Hasher},
+  path::{Path, PathBuf},
+};
 use ts_rs::TS;
 
 lazy_static! {
@@ -95,6 +98,35 @@ where
   } else {
     String::new()
   }
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum AbsolutePathResolutionError {
+  #[error("Could not determine the system home directory")]
+  UnknownHomeDir,
+
+  #[error(transparent)]
+  CouldNotCanonicalize(#[from] std::io::Error),
+}
+
+pub fn absolute_path_handling_tilde<P>(path: P) -> Result<PathBuf, AbsolutePathResolutionError>
+where
+  P: AsRef<Path>,
+{
+  let path = path.as_ref();
+  let path_string = path.to_string_lossy();
+
+  let path = if path_string.starts_with("~/") {
+    if let Some(home_dir) = dirs::home_dir() {
+      home_dir.join(&path_string[2..])
+    } else {
+      return Err(AbsolutePathResolutionError::UnknownHomeDir);
+    }
+  } else {
+    path.to_owned()
+  };
+
+  path.canonicalize().map_err(|e| e.into())
 }
 
 /// formats numbers with thousands separators. e.g. 12345 = "12,345" and 12 = "12"

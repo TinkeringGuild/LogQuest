@@ -1,45 +1,80 @@
 .countdown {
+  --countdown-height: 25px;
+  height: var(--countdown-height);
   width: 100%;
-  height: 40px;
-  background-color: red;
   padding: 0;
   position: relative;
+  pointer-events: none;
+  border: 1px solid black;
+  box-sizing: border-box;
 }
 
 .countdown p {
-  font-size: 1em;
-  font-family: Tahoma;
+  font-family: 'Roboto', Verdana, Geneva, Tahoma, sans-serif;
+
+  line-height: var(--countdown-height);
+  font-size: calc(var(--countdown-height) * 0.7);
   display: flex;
-  align-items: center;
-  justify-content: center;
+
+  --border-color: black;
+  text-shadow:
+    1px 1px 0px var(--border-color) /*    Right and down  */,
+    -1px -1px 0px var(--border-color) /*  Left and up     */,
+    1px -1px 0px var(--border-color) /*   Right and up    */,
+    -1px 1px 0px var(--border-color) /*   Left and down   */;
 
   position: absolute;
-  top: 0;
+  top: -1px;
   bottom: 0;
-  left: 0;
+  left: 8px;
   right: 0;
-  text-align: center;
-  color: black;
-  font-weight: bold;
-  text-transform: uppercase;
   height: 100%;
   margin: 0;
   padding: 0;
+  color: white;
+  text-wrap: nowrap;
+  font-weight: 600;
+  /* text-transform: uppercase; */
 }
-.countdown .visual-timer {
-  width: 100%;
-  height: 100%;
-  background-color: cyan;
-  animation-name: shrinkWidth;
+
+.countdown.countdown-animation-warning {
+  /* animation-duration is set in the style attr */
+  animation-name: warning-background-color;
   animation-fill-mode: forwards;
   animation-timing-function: linear;
 }
 
-@keyframes shrinkWidth {
+.countdown .countdown-animation-remaining {
+  /* animation-duration is set in the style attr */
+  /* width is set in the style attr */
+  width: var(--start-percent);
+  height: 100%;
+  background: linear-gradient(to left, darkslateblue, skyblue, darkslateblue);
+  animation-name: shrink-width;
+  animation-fill-mode: forwards;
+  animation-timing-function: linear;
+}
+
+@keyframes shrink-width {
   from {
-    width: 100%;
+    width: var(--start-percent);
   }
   to {
     width: 0%;
+  }
+}
+
+@keyframes warning-background-color {
+  0% {
+    background-color: yellow;
+  }
+  50% {
+    background-color: orange;
+  }
+  85% {
+    background-color: red;
+  }
+  100% {
+    background-color: #c00;
   }
 }

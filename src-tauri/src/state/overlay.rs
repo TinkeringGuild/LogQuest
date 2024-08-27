@@ -78,11 +78,20 @@ async fn emitter_loop(
   let mut quit = quitter();
   loop {
     select! {
-      _ = &mut quit => break,
-      _ = &mut rx_stop => break,
+      _ = &mut quit => {
+        debug!("OverlayManager QUITTING");
+        break;
+      },
+      _ = &mut rx_stop => {
+        debug!("OverlayManager received stop signal");
+        break;
+      },
       update = timer_state_updates.recv() =>  match update {
         Ok(update) => emit_to_window(&app, &window_label, OVERLAY_STATE_UPDATE_EVENT_NAME, update),
-        Err(_recv_error) => break,
+        Err(_recv_error) => {
+          debug!("OverlayManager ending due to time_state_updates broadcast channel closing");
+          break;
+        },
       }
     }
   }
@@ -93,8 +102,8 @@ fn emit_to_window<S>(app: &AppHandle, window_label: &str, event_name: &str, even
 where
   S: Serialize + Clone + std::fmt::Debug,
 {
-  debug!("Sending `{event_name}` event to the the `{window_label}` window: {event:?}");
+  debug!("Sending `{event_name}` event to the the `{window_label}` window");
   if let Err(e) = app.emit_to(window_label, event_name, event) {
-    error!("Tried to emit an overlay event to the frontend, but received error: {e:?}");
+    error!("Tried to emit an `{event_name}` event to the frontend, but received error: {e:?}");
   }
 }

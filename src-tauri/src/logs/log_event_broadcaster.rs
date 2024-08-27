@@ -29,7 +29,10 @@ impl LogEventBroadcaster {
     let callback = new_notify_event_handler(tx.clone());
     // TODO! Should use a notify::Config
     let watcher = notify::recommended_watcher(callback)?;
-    debug!("Watch dir for filesystem events: {}", logs_dir.display());
+    debug!(
+      "Created (unstarted) LogEventBroadcaster for dir: {}",
+      logs_dir.display()
+    );
     Ok(Self {
       logs_dir: logs_dir.to_owned(),
       watcher,
@@ -38,6 +41,7 @@ impl LogEventBroadcaster {
   }
 
   pub fn start(&mut self) -> Result<(), notify::Error> {
+    debug!("Starting LogEventBroadcaster");
     self
       .watcher
       .watch(&self.logs_dir, notify::RecursiveMode::NonRecursive)

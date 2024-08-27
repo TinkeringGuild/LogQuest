@@ -124,11 +124,11 @@ pub enum ConvertGinaFormat {
 pub struct StartCommand {
   /// Override the path to the LogQuest configuration directory
   #[arg(long = "config-dir", short = 'C')]
-  pub config_dir: Option<PathBuf>,
+  pub config_dir_override: Option<PathBuf>,
 
   /// Override the path to EverQuest's logs
   #[arg(long = "logs-dir", short = 'L')]
-  pub logs_dir: Option<PathBuf>,
+  pub logs_dir_override: Option<PathBuf>,
 
   /// Specify how the overlay should be shown
   #[arg(long="overlay", value_enum, default_value_t=OverlayMode::Default)]

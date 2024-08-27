@@ -49,7 +49,7 @@ pub enum ReactorEvent {
   },
 }
 
-struct EventLoop {
+pub struct EventLoop {
   state: StateHandle,
   cursors: LogFileCursorCache,
   log_events: LogEventBroadcaster,
@@ -210,7 +210,6 @@ impl EventLoop {
           break;
         }
         reactor_event = self.reactor_rx.recv() => {
-          debug!("GOT REACTOR EVENT: {reactor_event:?}");
           match reactor_event {
             None => break,
             Some(ReactorEvent::SetActiveCharacter(Some(new_char))) => {
@@ -315,7 +314,7 @@ impl EventLoop {
     });
   }
 
-  fn create_event_context(
+  pub fn create_event_context(
     &self,
     match_context: Arc<MatchContext>,
     cursor_after: Arc<LogFileCursor>,

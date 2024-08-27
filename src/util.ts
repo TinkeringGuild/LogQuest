@@ -2,12 +2,12 @@ import { invoke } from '@tauri-apps/api/tauri';
 import { ProgressUpdate } from './generated/ProgressUpdate';
 
 export function println(message: any) {
-  console.log('PRINTLN: ' + JSON.stringify(message));
+  console.log('PRINTLN:', message);
   invoke('print_to_stdout', { message });
 }
 
 export function eprintln(message: any) {
-  console.error('EPRINTLN: ' + JSON.stringify(message));
+  console.error('EPRINTLN', message);
   invoke('print_to_stderr', { message });
 }
 

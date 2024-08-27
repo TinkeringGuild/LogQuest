@@ -1,5 +1,5 @@
 use crate::common::shutdown::critical_path;
-use crate::common::{fatal_error, format_integer};
+use crate::common::{absolute_path_handling_tilde, fatal_error, format_integer};
 use crate::triggers::TriggerRoot;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -118,7 +118,15 @@ impl LogQuestConfig {
       config.everquest_directory = validate_eq_dir(&eq_dir).ok();
     }
     config.logs_dir_path = match (&config.everquest_directory, logs_dir_override) {
-      (_, Some(overridden)) => Some(overridden.to_owned()),
+      (_, Some(overridden)) => {
+        let Ok(logs_dir) = absolute_path_handling_tilde(overridden) else {
+          fatal_error(&format!(
+            "Could not determine absolute path of log dir override param: {}",
+            overridden.display()
+          ));
+        };
+        Some(logs_dir)
+      }
       (Some(eq_dir), _) => default_logs_dir_from_eq_dir(&eq_dir).ok(),
       _ => None,
     };
@@ -204,6 +212,12 @@ impl LogQuestConfig {
 /// panic if the directories could not be created, since this is essentially unrecoverable.
 pub fn get_config_dir_with_optional_override(path_override: Option<PathBuf>) -> PathBuf {
   let config_dir = path_override.unwrap_or_else(default_config_dir);
+  let Ok(config_dir) = absolute_path_handling_tilde(&config_dir) else {
+    fatal_error(&format!(
+      "Could not determine absolute path of config dir: {}",
+      config_dir.display()
+    ));
+  };
   if let Err(e) = fs::create_dir_all(&config_dir) {
     fatal_error(format!(
       "Creating config dir failed: {}  [ ERROR: {e:?} ]",

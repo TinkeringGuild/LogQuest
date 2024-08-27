@@ -48,11 +48,17 @@ pub enum TimerCommand {
 }
 
 #[derive(Debug, Clone, Serialize, ts_rs::TS)]
+#[serde(tag = "variant", content = "value")]
+#[ts(tag = "variant", content = "value")]
 pub enum TimerStateUpdate {
   TimerAdded(TimerLifetime),
-  TimerHiddenUpdated(UUID, bool),
-  TimerRestarted(UUID),
   TimerKilled(UUID),
+  TimerHiddenUpdated(UUID, bool),
+  TimerRestarted {
+    id: UUID,
+    start_time: Timestamp,
+    end_time: Timestamp,
+  },
 }
 
 /// This is used by a timer reaper task that kills the timer after its duration has
@@ -152,7 +158,18 @@ impl TimerManager {
     Self { tx_commands }
   }
 
-  pub async fn start_timer(&self, timer: Timer, context: Arc<EventContext>) {
+  pub async fn send(
+    &self,
+    command: TimerCommand,
+  ) -> Result<(), mpsc::error::SendError<TimerCommand>> {
+    self.tx_commands.send(command).await
+  }
+
+  pub async fn start_timer(
+    &self,
+    timer: Timer,
+    context: Arc<EventContext>,
+  ) -> Result<UUID, mpsc::error::SendError<TimerCommand>> {
     let id = UUID::new();
     let name = timer.name_tmpl.render(&context.match_context);
     let start_time = Timestamp::now();
@@ -161,9 +178,11 @@ impl TimerManager {
     let is_finished = Arc::new(AtomicBool::new(false));
     let notify_finished = Arc::new(Notify::new());
 
+    debug!("Starting Timer `{name}` with duration {:?}", timer.duration);
+
     let timer_lifetime = TimerLifetime {
+      id: id.clone(),
       timer,
-      id,
       name,
       start_time,
       end_time,
@@ -173,13 +192,11 @@ impl TimerManager {
       is_hidden: false,
     };
 
-    if let Err(_send_error) = self
+    self
       .tx_commands
       .send(TimerCommand::Begin(timer_lifetime))
       .await
-    {
-      error!("Tried to send TimerBegin, but the channel was closed");
-    }
+      .map(|_| id)
   }
 
   /// This functions atomically obtains a snapshot of the `TimerLifetimes` and a
@@ -287,11 +304,16 @@ async fn event_loop(
         }
         Some(TimerCommand::Restart(timer_id)) => {
           if let Some((timer_lifetime, reaper_sender)) = timer_lifetimes.get(&timer_id) {
-            let new_end_timestamp = &Timestamp::now() + &timer_lifetime.timer.duration;
-            timer_lifetime.end_time.set(new_end_timestamp);
+            let new_start_timestamp = Timestamp::now();
+            let new_end_timestamp = &new_start_timestamp + &timer_lifetime.timer.duration;
+            timer_lifetime.end_time.set(new_end_timestamp.clone());
 
             let _ = reaper_sender.send(ResetTimerEvent).await;
-            let _ = tx_state_update.send(TimerStateUpdate::TimerRestarted(timer_id));
+            let _ = tx_state_update.send(TimerStateUpdate::TimerRestarted {
+              id: timer_id,
+              start_time: new_start_timestamp,
+              end_time: new_end_timestamp,
+            });
           }
         }
         Some(TimerCommand::SetHidden(timer_id, is_hidden)) => {

@@ -18,6 +18,7 @@ import { println } from '../util';
 import Countdown from './Countdown';
 import DynamicContainer from './DynamicContainer';
 
+import '../base.css';
 import './OverlayWindow.css';
 
 function OverlayWindow() {
@@ -28,7 +29,7 @@ function OverlayWindow() {
     const unlisten = listen<TimerStateUpdate>(
       OVERLAY_STATE_UPDATE_EVENT_NAME,
       ({ payload: update }) => {
-        println('GOT OVERLAY STATE UPDATE: ' + JSON.stringify(update));
+        println('GOT OVERLAY TIMER STATE UPDATE: ' + JSON.stringify(update));
         dispatch(timerStateUpdate(update));
       }
     );
@@ -59,9 +60,15 @@ function OverlayWindow() {
 
   return (
     <div className={`overlay ${editable ? 'is-editable' : 'is-static'}`}>
-      <DynamicContainer width={450} height={500} x={0} y={0}>
-        {timerLifetimes.map(({ id, name, timer: { duration } }) => (
-          <Countdown label={name} duration={duration} key={id} />
+      <DynamicContainer width={300} height={500} x={0} y={0}>
+        {timerLifetimes.map(({ id, name, start_time, end_time, is_hidden }) => (
+          <Countdown
+            label={name}
+            startTime={start_time}
+            endTime={end_time}
+            isHidden={is_hidden}
+            key={id}
+          />
         ))}
       </DynamicContainer>
     </div>

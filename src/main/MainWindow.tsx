@@ -28,6 +28,8 @@ import LoadingIndicator from '../widgets/LoadingIndicator';
 import Layout from './Layout';
 import TriggerTree from './TriggerTree';
 
+import './MainWindow.css';
+
 const MainWindow: React.FC<{}> = () => {
   const dispatch = useDispatch();
   const isLoading = useSelector($isLoading);

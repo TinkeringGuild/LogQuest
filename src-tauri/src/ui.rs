@@ -67,10 +67,11 @@ fn reactor(
   timer_manager: Arc<TimerManager>,
   overlay_manager: Arc<OverlayManager>,
 ) {
-  let future = reactor::start_when_config_is_ready(state, timer_manager, overlay_manager);
+  let reactor_started_future =
+    reactor::start_when_config_is_ready(state, timer_manager, overlay_manager);
   let app = app.clone();
   spawn(async move {
-    match future.await {
+    match reactor_started_future.await {
       Ok(Ok(tx_reactor)) => {
         app.manage(tx_reactor);
         debug!("Reactor started from UI");

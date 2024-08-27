@@ -1,10 +1,10 @@
 .dynamic-container {
-    border: 3px dotted rgba(0, 0, 0, 0);
-    overflow: hidden;
-    line-height: 1;
+  border: 3px double rgba(0, 0, 0, 0);
+  overflow: hidden;
+  line-height: 1;
 }
 
 .overlay.is-editable .dynamic-container {
-    background-color: cyan;
-    border-color: blue;
+  background-color: black;
+  border-color: white;
 }
