@@ -1,5 +1,5 @@
 use super::{EffectError, EffectResult, ReadyEffect};
-use crate::reactor::ReactorContext;
+use crate::reactor::EventContext;
 use async_trait::async_trait;
 use futures::future::join_all;
 use std::sync::Arc;
@@ -9,7 +9,7 @@ pub(super) struct EffectParallel(pub(super) Vec<Box<dyn ReadyEffect>>);
 
 #[async_trait]
 impl ReadyEffect for EffectParallel {
-  async fn fire(self: Box<Self>, context: Arc<ReactorContext>) -> EffectResult {
+  async fn fire(self: Box<Self>, context: Arc<EventContext>) -> EffectResult {
     let contexts = (0..self.0.len()).map(|_| context.clone());
 
     let join_handles: Vec<JoinHandle<EffectResult>> = self

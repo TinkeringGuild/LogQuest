@@ -289,7 +289,7 @@ impl GINATrigger {
     let enders_filter: matchers::FilterWithContext = enders_filter_matchers.into();
 
     let terminator = Effect::Sequence(vec![
-      TimerEffect::WaitUntilFilterMatches(enders_filter).into(),
+      TimerEffect::WaitUntilFilterMatches(enders_filter, None).into(),
       TimerEffect::ClearTimer.into(),
     ]);
 

@@ -21,19 +21,20 @@ pub struct Timer {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, ts_rs::TS)]
 pub enum TimerEffect {
+  ClearTimer,
   HideTimer,
   RestartTimer,
-  IncrementCounter,
-  DecrementCounter,
-  ResetCounter,
+  UnhideTimer,
+  WaitUntilFilterMatches(FilterWithContext, Option<Duration>),
+  WaitUntilFinished,
+  WaitUntilSecondsRemain(u32),
+  // WaitUntilRestarted,
   AddTag(TimerTag),
   RemoveTag(TimerTag),
   WaitUntilTagged(TimerTag),
-  WaitUntilSecondsRemain(u32),
-  WaitUntilFilterMatches(FilterWithContext),
-  // WaitUntilRestarted,
-  WaitUntilFinished,
-  ClearTimer,
+  IncrementCounter,
+  DecrementCounter,
+  ResetCounter,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
@@ -41,6 +42,7 @@ pub enum TimerStartPolicy {
   AlwaysStartNewTimer,
   DoNothingIfTimerRunning,
   StartAndReplacesAllTimersOfTrigger,
+  /// lol, yeah, this has a long name but the verbosity helps me remember what it does
   StartAndReplacesAnyTimerOfTriggerWithNameTemplateMatching(TemplateString),
 }
 

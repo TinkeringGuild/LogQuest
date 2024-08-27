@@ -65,7 +65,7 @@ impl Filter {
 }
 
 impl FilterWithContext {
-  fn compile_with_context(&self, context: &MatchContext) -> Filter {
+  pub fn compile_with_context(&self, context: &MatchContext) -> Filter {
     self
       .0
       .iter()

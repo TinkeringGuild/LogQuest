@@ -16,7 +16,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::{debug, error};
 
 pub struct LogLineStream {
-  pub file_path: String,
+  pub cursor: LogFileCursor,
   reader: tokio_stream::wrappers::LinesStream<tokio::io::BufReader<tokio::fs::File>>,
   cancel_token: CancellationToken,
   waker_maybe: Arc<tokio::sync::Mutex<Option<Waker>>>,
@@ -52,7 +52,7 @@ impl LogLineStream {
     ));
 
     Ok(Self {
-      file_path: cursor.path.clone(),
+      cursor: cursor.to_owned(),
       reader,
       waker_maybe,
       cancel_token,
@@ -117,7 +117,7 @@ impl LogLineStream {
 }
 
 impl futures::Stream for LogLineStream {
-  type Item = Line;
+  type Item = (Line, LogFileCursor);
 
   fn poll_next(
     mut self: Pin<&mut Self>,
@@ -125,23 +125,31 @@ impl futures::Stream for LogLineStream {
   ) -> Poll<Option<Self::Item>> {
     loop {
       if self.cancel_token.is_cancelled() {
-        debug!("LogLineStream cancelled for file {}", self.file_path);
+        debug!("LogLineStream cancelled for file {}", self.cursor.path);
         return Poll::Ready(None);
       }
       match Pin::new(&mut self.reader).poll_next(cx) {
-        Poll::Pending => {
-          return Poll::Pending;
-        }
+        Poll::Pending => return Poll::Pending,
         Poll::Ready(Some(Err(io_error))) => {
           error!(
             "Terminating LogLineStream due to IO error while polling {} [ ERROR = {io_error:?} ]",
-            self.file_path
+            self.cursor.path
           );
           return Poll::Ready(None);
         }
         Poll::Ready(Some(Ok(line))) => {
-          if let Ok(line) = Line::from(&line) {
-            return Poll::Ready(Some(line));
+          let line_len = line.len();
+          self.cursor.position += 1 + line_len as u64;
+
+          let line: &str = if line.ends_with("\r") {
+            self.cursor.position += 1;
+            &line[..(line_len - 1)]
+          } else {
+            &line
+          };
+
+          if let Ok(parsed_line) = Line::from(line) {
+            return Poll::Ready(Some((parsed_line, self.cursor.clone())));
           } else {
             // line failed to parse; drop the data and continue with loop
           }
@@ -163,7 +171,7 @@ impl futures::Stream for LogLineStream {
 
 impl Drop for LogLineStream {
   fn drop(&mut self) {
-    debug!("LogLineStream dropped for file {}", self.file_path);
+    debug!("LogLineStream dropped for file {}", self.cursor.path);
     self.cancel_token.cancel();
   }
 }

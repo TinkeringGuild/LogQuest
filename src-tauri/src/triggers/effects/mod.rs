@@ -8,27 +8,36 @@ mod sequence;
 mod speak;
 mod start_timer;
 mod sys_cmd;
+mod timer_effects;
 
 use super::command_template::{CommandTemplate, CommandTemplateSecurityCheck};
 use super::timers::{Stopwatch, Timer, TimerEffect};
 use super::TemplateString;
 use crate::audio::PlayAudioFileError;
-use crate::{common::duration::Duration, reactor::ReactorContext};
+use crate::state::timer_manager::TimerCommand;
+use crate::{common::duration::Duration, reactor::EventContext};
 use async_trait::async_trait;
-use pause::PauseEffect;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use sys_cmd::SystemCommandEffect;
+use tokio::sync::mpsc;
 use tracing::error;
 
 use clipboard::CopyToClipboardEffect;
 use nothing::DoNothingEffect;
 use overlay_message::OverlayMessageEffect;
 use parallel::EffectParallel;
+use pause::PauseEffect;
 use play_audio::PlayAudioFileEffect;
 use sequence::EffectSequence;
 use speak::{SpeakEffect, SpeakStopEffect};
 use start_timer::StartTimerEffect;
+use sys_cmd::SystemCommandEffect;
+use timer_effects::clear::ClearTimerEffect;
+use timer_effects::hide::{HideTimerEffect, UnhideTimerEffect};
+use timer_effects::restart::RestartTimerEffect;
+use timer_effects::wait_until_filter_matches::WaitUntilFilterMatchesTimerEffect;
+use timer_effects::wait_until_finished::WaitUntilFinishedEffect;
+use timer_effects::wait_until_seconds_remain::WaitUntilSecondsRemainEffect;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
 pub enum Effect {
@@ -84,6 +93,12 @@ pub enum EffectError {
 
   #[error("Refused to execute an unapproved CommandTemplate: {0:?}")]
   CommandSecurityCheckFail(CommandTemplate),
+
+  #[error("Encountered a TimerEffect created incorrectly! No TimerContext")]
+  TimerEffectWithoutTimerContext,
+
+  #[error("Tried to send a message to a dead Timer")]
+  TimerCommandChannelClosedError(#[from] mpsc::error::SendError<TimerCommand>),
 }
 
 pub type EffectResult = Result<(), EffectError>;
@@ -93,7 +108,7 @@ pub trait ReadyEffect
 where
   Self: Send,
 {
-  async fn fire(self: Box<Self>, context: Arc<ReactorContext>) -> EffectResult;
+  async fn fire(self: Box<Self>, context: Arc<EventContext>) -> EffectResult;
 }
 
 impl Effect {
@@ -134,10 +149,27 @@ impl Effect {
           }
         }
       }
-      Self::ScopedTimerEffect(timer_effect) => {
-        error!("INVALID TRIGGER EFFECT ENCOUNTERED: TimerEffect outside the context of a Timer! [ {timer_effect:?} ]");
-        Box::new(DoNothingEffect)
-      }
+      Self::ScopedTimerEffect(timer_effect) => match timer_effect {
+        TimerEffect::WaitUntilFilterMatches(filter, duration) => {
+          Box::new(WaitUntilFilterMatchesTimerEffect(filter, duration))
+        }
+        TimerEffect::HideTimer => Box::new(HideTimerEffect),
+        TimerEffect::UnhideTimer => Box::new(UnhideTimerEffect),
+        TimerEffect::RestartTimer => Box::new(RestartTimerEffect),
+        TimerEffect::WaitUntilFinished => Box::new(WaitUntilFinishedEffect),
+        TimerEffect::ClearTimer => Box::new(ClearTimerEffect),
+        TimerEffect::WaitUntilSecondsRemain(secs) => Box::new(WaitUntilSecondsRemainEffect(secs)),
+
+        TimerEffect::IncrementCounter
+        | TimerEffect::DecrementCounter
+        | TimerEffect::ResetCounter
+        | TimerEffect::AddTag(_)
+        | TimerEffect::RemoveTag(_)
+        | TimerEffect::WaitUntilTagged(_) => {
+          error!("UNIMPLEMENTED TIMER EFFECT: {timer_effect:?}");
+          Box::new(DoNothingEffect)
+        }
+      },
       Self::StartStopwatch(_) => {
         // TODO!
         Box::new(DoNothingEffect)

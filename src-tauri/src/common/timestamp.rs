@@ -1,12 +1,30 @@
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use ts_rs::TS;
+use tokio::sync::watch;
 
-#[derive(TS, Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, ts_rs::TS)]
 pub struct Timestamp(chrono::DateTime<chrono::Utc>);
 
 impl Timestamp {
   pub fn now() -> Self {
     Self(chrono::Utc::now())
+  }
+
+  pub fn duration_until(&self, future_timestamp: &Timestamp) -> std::time::Duration {
+    let delta = future_timestamp.0.signed_duration_since(self.0);
+    delta.to_std().unwrap_or(std::time::Duration::ZERO)
+  }
+}
+
+#[derive(Clone, ts_rs::TS)]
+#[ts(type = "Timestamp")]
+pub struct ObservableTimestamp(watch::Sender<Timestamp>, watch::Receiver<Timestamp>);
+
+impl std::ops::Add<&super::duration::Duration> for &Timestamp {
+  type Output = Timestamp;
+
+  fn add(self, rhs: &super::duration::Duration) -> Self::Output {
+    let rhs: std::time::Duration = rhs.clone().into();
+    Timestamp(self.0.add(rhs))
   }
 }
 
@@ -52,5 +70,43 @@ impl std::fmt::Display for Timestamp {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     f.write_str(self.0.to_rfc3339().as_str())?;
     Ok(())
+  }
+}
+
+impl ObservableTimestamp {
+  pub fn new(timestamp: Timestamp) -> Self {
+    let (setter, getter) = watch::channel(timestamp);
+    Self(setter, getter)
+  }
+
+  pub fn get(&self) -> watch::Ref<'_, Timestamp> {
+    self.1.borrow()
+  }
+
+  pub fn set(&self, new_timestamp: Timestamp) {
+    let _ = self.0.send(new_timestamp);
+  }
+
+  pub fn changed(
+    &mut self,
+  ) -> impl std::future::Future<Output = Result<(), watch::error::RecvError>> + '_ {
+    self.1.changed()
+  }
+}
+
+impl std::fmt::Debug for ObservableTimestamp {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    let timestamp = self.1.borrow();
+    timestamp.fmt(f)
+  }
+}
+
+impl Serialize for ObservableTimestamp {
+  fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+  where
+    S: serde::Serializer,
+  {
+    let timestamp = self.1.borrow();
+    timestamp.serialize(serializer)
   }
 }

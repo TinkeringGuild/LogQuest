@@ -4,12 +4,16 @@ use crate::{
   logs::{
     active_character_detection::{ActiveCharacterDetector, Character},
     log_event_broadcaster::{LogEventBroadcaster, NotifyError},
-    log_file_cursor::LogFileCursorCache,
+    log_file_cursor::{LogFileCursor, LogFileCursorCache},
     log_line_stream::LogLineStream,
-    Line,
+    Line, LogFileEvent,
   },
   matchers::MatchContext,
-  state::{overlay::OverlayManager, state_handle::StateHandle, timer_manager::TimerManager},
+  state::{
+    overlay::OverlayManager,
+    state_handle::StateHandle,
+    timer_manager::{TimerContext, TimerManager},
+  },
   triggers::{effects::Effect, TriggerGroup, TriggerGroupDescendant},
   tts::TTS,
 };
@@ -17,27 +21,31 @@ use futures::StreamExt as _;
 use std::collections::LinkedList;
 use std::sync::Arc;
 use tauri::async_runtime::spawn;
-use tokio::sync::mpsc;
+use tokio::sync::{broadcast, mpsc};
 use tokio::{select, sync::oneshot};
 use tracing::{debug, error, info, warn};
 
 const REACTOR_EVENT_QUEUE_DEPTH: usize = 1000;
 
 #[derive(Debug, Clone)]
-pub struct ReactorContext {
+pub struct EventContext {
   pub timer_manager: Arc<TimerManager>,
   pub overlay_manager: Arc<OverlayManager>,
   pub mixer: Arc<AudioMixer>,
+  pub reactor_tx: mpsc::Sender<ReactorEvent>,
   pub t2s_tx: mpsc::Sender<TTS>,
-  pub match_context: MatchContext,
+  pub match_context: Arc<MatchContext>,
+  pub cursor_after: Arc<LogFileCursor>,
+  pub timer_context: Option<TimerContext>,
+  pub tx_log_file_events: broadcast::Sender<Result<LogFileEvent, NotifyError>>,
 }
 
 #[derive(Debug)]
 pub enum ReactorEvent {
   SetActiveCharacter(Option<Character>),
-  ExecTriggerEffect {
+  ExecEffect {
     effect: Effect,
-    context: Arc<MatchContext>,
+    event_context: Arc<EventContext>,
   },
 }
 
@@ -222,13 +230,13 @@ impl EventLoop {
             }
             Some(ReactorEvent::SetActiveCharacter(None)) => {
               if let Some(line_stream) = line_stream_maybe.take() {
-                self.cursors.reset_cursor_position(&line_stream.file_path);
+                self.cursors.reset_cursor_position(&line_stream.cursor.path);
               }
               info!("Setting reactor state to have no current character");
               self.state.update_reactor(|r| r.current_character = None);
             }
-            Some(ReactorEvent::ExecTriggerEffect{effect, context}) => {
-              self.exec_effect(effect, &context).await;
+            Some(ReactorEvent::ExecEffect{effect, event_context}) => {
+              self.exec_effect(effect, event_context).await;
             }
           }
         }
@@ -238,14 +246,14 @@ impl EventLoop {
           line_stream_maybe.as_mut().unwrap().next().await // unwrap is infallible here due to is_some() check
         }, if line_stream_maybe.is_some() => {
           match line_maybe {
-            Some(line) => {
+            Some((line, cursor_after)) => {
               debug!("LINE: {:?}", line);
-              self.react_to_line(&line).await; // TODO: can spawn be used here if self is an &Arc<Self>?
+              self.react_to_line(line, cursor_after).await; // TODO: can spawn be used here if self is an &Arc<Self>?
             },
             None => {
               debug!("Reactor encountered end of LogLineStream");
               if let Some(line_stream) = line_stream_maybe.take() {
-                self.cursors.reset_cursor_position(&line_stream.file_path);
+                self.cursors.reset_cursor_position(&line_stream.cursor.path);
               }
               self.state.update_reactor(|r| r.current_character = None);
             }
@@ -257,7 +265,7 @@ impl EventLoop {
     debug!("Event Loop finished");
   }
 
-  async fn react_to_line(&self, line: &Line) {
+  async fn react_to_line(&self, line: Line, cursor_after: LogFileCursor) {
     self.state.with_reactor(|reactor_state| {
       self.state.with_triggers(|root| {
         let mut next_groups: LinkedList<&TriggerGroup> = LinkedList::from_iter(root.iter());
@@ -266,6 +274,8 @@ impl EventLoop {
           warn!("Cannot process line! No current character detected!");
           return;
         };
+
+        let cursor_after = Arc::new(cursor_after);
 
         while let Some(dequeued_tg) = next_groups.pop_front() {
           for tgd in dequeued_tg.children.iter() {
@@ -278,9 +288,10 @@ impl EventLoop {
                   let match_context = Arc::new(match_context);
                   for effect in trigger.effects.iter() {
                     debug!("TRIGGER EFFECT: {effect:?}");
-                    self.send(ReactorEvent::ExecTriggerEffect {
+                    self.send(ReactorEvent::ExecEffect {
                       effect: effect.clone(),
-                      context: match_context.clone(),
+                      event_context: self
+                        .create_event_context(match_context.clone(), cursor_after.clone()),
                     });
                   }
                 }
@@ -304,23 +315,39 @@ impl EventLoop {
     });
   }
 
-  fn create_reactor_context(&self, match_context: &MatchContext) -> Arc<ReactorContext> {
-    Arc::new(ReactorContext {
+  fn create_event_context(
+    &self,
+    match_context: Arc<MatchContext>,
+    cursor_after: Arc<LogFileCursor>,
+  ) -> Arc<EventContext> {
+    Arc::new(EventContext {
+      reactor_tx: self.reactor_tx.clone(),
       timer_manager: self.timer_manager.clone(),
       overlay_manager: self.overlay_manager.clone(),
       mixer: self.mixer.clone(),
       t2s_tx: self.t2s_tx.clone(),
-      match_context: match_context.clone(),
+      match_context,
+      cursor_after,
+      timer_context: None,
+      tx_log_file_events: self.log_events.sender(),
     })
   }
 
-  async fn exec_effect(&self, effect: Effect, match_context: &MatchContext) {
-    let reactor_context = self.create_reactor_context(match_context);
+  async fn exec_effect(&self, effect: Effect, event_context: Arc<EventContext>) {
     spawn(async move {
-      if let Err(effect_error) = effect.ready().fire(reactor_context).await {
+      if let Err(effect_error) = effect.ready().fire(event_context).await {
         error!("Encountered error executing Effect: {effect_error:?}");
       }
     });
+  }
+}
+
+impl EventContext {
+  pub fn with_timer_context(&self, timer_context: TimerContext) -> Arc<Self> {
+    Arc::new(Self {
+      timer_context: Some(timer_context),
+      ..self.clone()
+    })
   }
 }
 

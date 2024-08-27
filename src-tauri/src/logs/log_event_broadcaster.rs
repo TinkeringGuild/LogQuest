@@ -50,6 +50,10 @@ impl LogEventBroadcaster {
   pub fn stop(mut self) -> Result<(), notify::Error> {
     self.watcher.unwatch(&self.logs_dir)
   }
+
+  pub fn sender(&self) -> broadcast::Sender<Result<LogFileEvent, NotifyError>> {
+    self.tx.clone()
+  }
 }
 
 fn new_notify_event_handler(

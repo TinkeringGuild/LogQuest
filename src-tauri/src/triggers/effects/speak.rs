@@ -1,5 +1,5 @@
 use super::{EffectResult, ReadyEffect};
-use crate::{reactor::ReactorContext, triggers::template_string::TemplateString, tts::TTS};
+use crate::{reactor::EventContext, triggers::template_string::TemplateString, tts::TTS};
 use async_trait::async_trait;
 use std::sync::Arc;
 use tokio::sync::oneshot;
@@ -15,7 +15,7 @@ pub(super) struct SpeakStopEffect;
 
 #[async_trait]
 impl ReadyEffect for SpeakEffect {
-  async fn fire(self: Box<Self>, context: Arc<ReactorContext>) -> EffectResult {
+  async fn fire(self: Box<Self>, context: Arc<EventContext>) -> EffectResult {
     let message = self.tmpl.render(&context.match_context);
 
     let (tx_done, rx_done) = oneshot::channel::<()>();
@@ -42,7 +42,7 @@ impl ReadyEffect for SpeakEffect {
 
 #[async_trait]
 impl ReadyEffect for SpeakStopEffect {
-  async fn fire(self: Box<Self>, context: Arc<ReactorContext>) -> EffectResult {
+  async fn fire(self: Box<Self>, context: Arc<EventContext>) -> EffectResult {
     if let Err(_send_error) = context.t2s_tx.send(TTS::StopSpeaking).await {
       warn!("Cannot send StopSpeaking effect to the Text-to-Speech engine");
     }

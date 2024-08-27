@@ -16,7 +16,7 @@ use crate::{
     log_line_stream::LogLineStream,
   },
   matchers,
-  reactor::ReactorContext,
+  reactor::EventContext,
   state::timer_manager::TimerStateUpdate,
   triggers::{
     effects::Effect,
@@ -92,7 +92,7 @@ pub fn test_trigger_group() -> TriggerGroup {
 }
 
 #[allow(unused)]
-pub fn generate_timer_noise(context: Arc<ReactorContext>) {
+pub fn generate_timer_noise(context: Arc<EventContext>) {
   warn!("GENERATING TIMER NOISE");
 
   let trigger_id = UUID::new();

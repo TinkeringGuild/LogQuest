@@ -1,13 +1,26 @@
 use crate::{
-  common::{duration::Duration, fatal_error, shutdown::quitter, timestamp::Timestamp, UUID},
-  reactor::ReactorContext,
+  common::{
+    duration::Duration,
+    fatal_error,
+    shutdown::quitter,
+    timestamp::{ObservableTimestamp, Timestamp},
+    UUID,
+  },
+  reactor::{EventContext, ReactorEvent},
   triggers::timers::{Timer, TimerStartPolicy},
 };
 use serde::Serialize;
-use std::{collections::HashMap, sync::Arc};
+use std::{
+  collections::HashMap,
+  sync::{atomic::Ordering, Arc},
+};
+use std::{iter::once, sync::atomic::AtomicBool};
 use tauri::async_runtime::spawn;
-use tokio::select;
-use tokio::sync::{broadcast, mpsc, oneshot};
+use tokio::{select, sync::Notify};
+use tokio::{
+  sync::{broadcast, mpsc, oneshot},
+  time::Instant,
+};
 use tracing::{debug, error, info};
 
 const TIMER_COMMAND_CHANNEL_SIZE: usize = 50;
@@ -19,10 +32,11 @@ pub struct TimerManager {
   tx_commands: mpsc::Sender<TimerCommand>,
 }
 
-#[derive(Debug, Clone)]
-enum TimerCommand {
-  StartLiveTimer(TimerLifetime),
-  LiveTimerElapsed(UUID),
+pub enum TimerCommand {
+  Begin(TimerLifetime),
+  Terminate(UUID),
+  SetHidden(UUID, bool),
+  Restart(UUID),
   CreateSubscription(
     Arc<
       oneshot::Sender<(
@@ -36,31 +50,97 @@ enum TimerCommand {
 #[derive(Debug, Clone, Serialize, ts_rs::TS)]
 pub enum TimerStateUpdate {
   TimerAdded(TimerLifetime),
+  TimerHiddenUpdated(UUID, bool),
+  TimerRestarted(UUID),
   TimerKilled(UUID),
 }
 
-/// The reaper does not need a "kill" event because it uses the closure of its Sender
-/// (i.e. when it's dropped) as the signal that the reaper should terminate.
-struct ResetTimerEvent;
+/// This is used by a timer reaper task that kills the timer after its duration has
+/// elapsed. The reaper does not need a specific "kill" event because it uses the
+/// closure of its Sender (i.e. when it's dropped) as the signal that the reaper
+/// should terminate.
+struct ResetTimerEvent; // used by a timer reaper task
 
 #[derive(Debug, Clone, Serialize, ts_rs::TS)]
 pub struct TimerLifetime {
   timer: Timer,
   id: UUID,
   name: String,
+  is_hidden: bool,
   start_time: Timestamp,
+  end_time: ObservableTimestamp,
+
   #[serde(skip)]
   #[ts(skip)]
-  context: Arc<ReactorContext>,
+  context: Arc<EventContext>,
+  #[serde(skip)]
+  #[ts(skip)]
+  is_finished: Arc<AtomicBool>,
+  #[serde(skip)]
+  #[ts(skip)]
+  notify_finished: Arc<Notify>,
 }
 
-type LiveTimersMap = HashMap<UUID, (TimerLifetime, mpsc::Sender<ResetTimerEvent>)>;
+impl TimerLifetime {
+  fn terminate(&self) {
+    self.is_finished.store(true, Ordering::Release);
+    self.notify_finished.notify_waiters();
+  }
+}
+
+#[derive(Debug, Clone)]
+pub struct TimerContext {
+  pub timer_id: UUID,
+  pub end_time: ObservableTimestamp,
+  sender: mpsc::Sender<TimerCommand>,
+  is_finished: Arc<AtomicBool>,
+  notify_finished: Arc<Notify>,
+}
+
+impl TimerContext {
+  pub async fn finished(&self) {
+    if self.is_finished.load(Ordering::Acquire) {
+      return;
+    }
+    self.notify_finished.notified().await;
+  }
+
+  pub async fn send(
+    &self,
+    timer_command: TimerCommand,
+  ) -> Result<(), mpsc::error::SendError<TimerCommand>> {
+    self.sender.send(timer_command).await
+  }
+
+  pub async fn set_is_hidden(
+    &self,
+    is_hidden: bool,
+  ) -> Result<(), mpsc::error::SendError<TimerCommand>> {
+    self
+      .send(TimerCommand::SetHidden(self.timer_id.clone(), is_hidden))
+      .await
+  }
+
+  pub async fn restart(&self) -> Result<(), mpsc::error::SendError<TimerCommand>> {
+    self
+      .send(TimerCommand::Restart(self.timer_id.clone()))
+      .await
+  }
+
+  pub async fn terminate(&self) -> Result<(), mpsc::error::SendError<TimerCommand>> {
+    self
+      .send(TimerCommand::Terminate(self.timer_id.clone()))
+      .await
+  }
+}
+
+type TimerLifetimesMap = HashMap<UUID, (TimerLifetime, mpsc::Sender<ResetTimerEvent>)>;
 
 impl TimerManager {
   pub fn new() -> Self {
     let (tx_commands, rx_commands) = mpsc::channel::<TimerCommand>(TIMER_COMMAND_CHANNEL_SIZE);
 
-    let (tx_state_updates, _) =
+    let (tx_state_updates, _rx_state_updates) =
       broadcast::channel::<TimerStateUpdate>(TIMER_STATE_UPDATE_CHANNEL_SIZE);
 
     spawn(event_loop(
@@ -72,35 +152,42 @@ impl TimerManager {
     Self { tx_commands }
   }
 
-  pub async fn start_timer(&self, timer: Timer, context: Arc<ReactorContext>) {
+  pub async fn start_timer(&self, timer: Timer, context: Arc<EventContext>) {
     let id = UUID::new();
     let name = timer.name_tmpl.render(&context.match_context);
     let start_time = Timestamp::now();
+    let end_time = ObservableTimestamp::new(&start_time + &timer.duration);
     let context = context.to_owned();
+    let is_finished = Arc::new(AtomicBool::new(false));
+    let notify_finished = Arc::new(Notify::new());
 
-    let live_timer = TimerLifetime {
+    let timer_lifetime = TimerLifetime {
       timer,
       id,
       name,
       start_time,
+      end_time,
       context,
+      is_finished,
+      notify_finished,
+      is_hidden: false,
     };
 
     if let Err(_send_error) = self
       .tx_commands
-      .send(TimerCommand::StartLiveTimer(live_timer))
+      .send(TimerCommand::Begin(timer_lifetime))
       .await
     {
-      error!("Tried to send StartLiveTimer, but the channel was closed");
+      error!("Tried to send TimerBegin, but the channel was closed");
     }
   }
 
-  /// This functions atomically obtains a snapshot of the LiveTimers and a
-  /// broadcast::Receiver that was subscribed before any other changes could
-  /// have been made to LiveTimers, guaranteeing the events can keep the shared
-  /// state up-to-date (as long as the broadcast::Receiver doesn't become Lagged
+  /// This functions atomically obtains a snapshot of the `TimerLifetimes` and a
+  /// `broadcast::Receiver` that was subscribed before any other changes could
+  /// have been made to `TimerLifetimes`, guaranteeing the events can keep the shared
+  /// state up-to-date (as long as the `broadcast::Receiver` doesn't become `Lagged`
   /// before it begins consuming events, in which case it must call this function
-  /// again to get a fresh snapshot and new up-to-date broadcast::Receiver).
+  /// again to get a fresh snapshot and a new up-to-date `broadcast::Receiver`).
   pub async fn subscribe(&self) -> (Vec<TimerLifetime>, broadcast::Receiver<TimerStateUpdate>) {
     let (setter, getter) = oneshot::channel::<(
       Vec<TimerLifetime>,
@@ -115,9 +202,12 @@ impl TimerManager {
       fatal_error("Attempted to subscribe to TimerManager but its worker task has stopped");
     }
 
-    let (live_timers, subscription) = getter.await.expect("TimerManager event loop appears dead");
+    let (timer_lifetimes, subscription) =
+      getter.await.expect("TimerManager event loop appears dead");
+
     let subscription = Arc::into_inner(subscription).unwrap(); // unwrap is safe here
-    (live_timers, subscription)
+
+    (timer_lifetimes, subscription)
   }
 }
 
@@ -127,7 +217,7 @@ async fn event_loop(
   tx_state_update: broadcast::Sender<TimerStateUpdate>,
 ) {
   debug!("Starting TimerManager event loop");
-  let mut live_timers: LiveTimersMap = HashMap::new();
+  let mut timer_lifetimes: TimerLifetimesMap = HashMap::new();
   let mut quit = quitter();
   loop {
     select! {
@@ -138,46 +228,79 @@ async fn event_loop(
       command = rx_command.recv() => match command {
         None => break,
         Some(TimerCommand::CreateSubscription(setter)) => {
-          let snapshot: Vec<TimerLifetime> = live_timers.values().map(|(live, _)| live.clone()).collect();
+          let snapshot: Vec<TimerLifetime> = timer_lifetimes.values().map(|(t, _)| t.clone()).collect();
           let subscription = tx_state_update.subscribe();
           let setter = Arc::into_inner(setter).unwrap(); // unwrap is safe here
           let _ = setter.send((snapshot, Arc::new(subscription)));
         }
-        Some(TimerCommand::StartLiveTimer(live_timer)) => {
+        Some(TimerCommand::Begin(timer_lifetime)) => {
           let TimerLifetime {
             id,
             timer,
             name,
             context,
+            is_finished,
+            notify_finished,
+            end_time,
             ..
-          } = &live_timer;
+          } = &timer_lifetime;
 
           match &timer.start_policy {
             TimerStartPolicy::AlwaysStartNewTimer => { /* nothing to do here */ }
             TimerStartPolicy::DoNothingIfTimerRunning => {
-              if is_timer_running_with_name(&name, &live_timers) {
+              if is_timer_running_with_name(&name, &timer_lifetimes) {
                 debug!("Timer[{id}] DoNothingIfTimerRunning policy [ name = `{name}` ]");
                 return;
               }
             }
             TimerStartPolicy::StartAndReplacesAllTimersOfTrigger => {
-              kill_timers_of_trigger(&timer.trigger_id, &mut live_timers);
+              kill_timers_of_trigger(&timer.trigger_id, &mut timer_lifetimes, &tx_state_update);
             }
             TimerStartPolicy::StartAndReplacesAnyTimerOfTriggerWithNameTemplateMatching(replaced_name_template) => {
               let replaced_name = replaced_name_template.render(&context.match_context);
-              kill_timers_of_trigger_with_name(&timer.trigger_id, &replaced_name, &mut live_timers);
+              kill_timers_of_trigger_with_name(&timer.trigger_id, &replaced_name, &mut timer_lifetimes, &tx_state_update);
             }
           }
 
           let tx_reaper = spawn_timer_reaper(id.clone(), timer.duration.clone(), tx_command.clone());
-          live_timers.insert(id.clone(), (live_timer.clone(), tx_reaper));
-          let _ = tx_state_update.send(TimerStateUpdate::TimerAdded(live_timer));
-        }
-        Some(TimerCommand::LiveTimerElapsed(live_timer_id)) => {
-          if let None = live_timers.remove(&live_timer_id) {
-            error!("Timer[{live_timer_id}] COULD NOT BE REMOVED! DID NOT EXIST");
+          timer_lifetimes.insert(id.clone(), (timer_lifetime.clone(), tx_reaper));
+
+          let _ = tx_state_update.send(TimerStateUpdate::TimerAdded(timer_lifetime.clone()));
+
+          let context = context.with_timer_context(TimerContext {
+            timer_id: id.clone(),
+            sender: tx_command.clone(),
+            end_time: end_time.clone(),
+            is_finished: is_finished.clone(),
+            notify_finished: notify_finished.clone(),
+          });
+
+          for effect in timer_lifetime.timer.effects.iter() {
+            let _ = context.reactor_tx.send(ReactorEvent::ExecEffect {
+              effect: effect.clone(),
+              event_context: context.clone()
+            }).await;
           }
-          let _ = tx_state_update.send(TimerStateUpdate::TimerKilled(live_timer_id));
+        }
+        Some(TimerCommand::Terminate(timer_lifetime_id)) => {
+          kill_timers(once(&timer_lifetime_id), &mut timer_lifetimes, &tx_state_update);
+        }
+        Some(TimerCommand::Restart(timer_id)) => {
+          if let Some((timer_lifetime, reaper_sender)) = timer_lifetimes.get(&timer_id) {
+            let new_end_timestamp = &Timestamp::now() + &timer_lifetime.timer.duration;
+            timer_lifetime.end_time.set(new_end_timestamp);
+
+            let _ = reaper_sender.send(ResetTimerEvent).await;
+            let _ = tx_state_update.send(TimerStateUpdate::TimerRestarted(timer_id));
+          }
+        }
+        Some(TimerCommand::SetHidden(timer_id, is_hidden)) => {
+          if let Some((timer_lifetime, _reaper_sender)) = timer_lifetimes.get_mut(&timer_id) {
+            if timer_lifetime.is_hidden != is_hidden {
+              timer_lifetime.is_hidden = is_hidden;
+              let _ = tx_state_update.send(TimerStateUpdate::TimerHiddenUpdated(timer_lifetime.id.clone(), is_hidden));
+            }
+          }
         }
       }
 
@@ -195,18 +318,20 @@ fn spawn_timer_reaper(
     mpsc::channel::<ResetTimerEvent>(RESET_TIMER_CHANNEL_SIZE);
   spawn(async move {
     debug!("Timer[{timer_id}] Reaper task spawned");
-    let duration: std::time::Duration = duration.into();
+
+    let duration: tokio::time::Duration = duration.into();
+    let mut end_instant: Instant = Instant::now() + duration;
+
     let mut quit = quitter();
     loop {
       let timer_id = timer_id.clone();
-      let duration = duration.clone();
       select! {
-        _ = &mut quit => {
+        () = &mut quit => {
           debug!("Timer reaper QUITTING");
           break;
         }
-        _ = tokio::time::sleep(duration) => {
-          let _ = tx_timer_event.send(TimerCommand::LiveTimerElapsed(timer_id)).await;
+        () = tokio::time::sleep_until(end_instant) => { // Instant implements Copy
+          let _ = tx_timer_event.send(TimerCommand::Terminate(timer_id)).await;
           break;
         }
         event = rx_reaper_event.recv() => {
@@ -217,9 +342,8 @@ fn spawn_timer_reaper(
               // indicating that the Timer has been killed.
               break;
             }
-            Some(_reset_timer) => {
-              // restarting the loop causes the sleep() future to be re-created anew
-              continue;
+            Some(_reset_timer_event) => {
+              end_instant = Instant::now() + duration;
             },
           }
         },
@@ -230,33 +354,47 @@ fn spawn_timer_reaper(
   tx_reaper_event
 }
 
-fn is_timer_running_with_name(name: &str, live_timers: &LiveTimersMap) -> bool {
-  live_timers.values().any(|(live, _)| live.name == name)
+fn is_timer_running_with_name(name: &str, timer_lifetimes: &TimerLifetimesMap) -> bool {
+  timer_lifetimes.values().any(|(t, _)| t.name == name)
 }
 
-fn kill_timers<'a, I>(timer_ids: I, live_timers: &mut LiveTimersMap)
-where
+fn kill_timers<'a, I>(
+  timer_ids: I,
+  timer_lifetimes: &mut TimerLifetimesMap,
+  tx_state_update: &broadcast::Sender<TimerStateUpdate>,
+) where
   I: Iterator<Item = &'a UUID>,
 {
-  // TODO: SEND DOWNSTREAM CHANGE EVENTS
   for timer_id in timer_ids {
-    if let None = live_timers.remove(timer_id) {
+    if let Some((timer_lifetime, _reaper_sender)) = timer_lifetimes.remove(timer_id) {
+      timer_lifetime.terminate();
+      let _ = tx_state_update.send(TimerStateUpdate::TimerKilled(timer_lifetime.id));
+    } else {
       error!("Tried killing Timer[{timer_id}] but it wasn't found!");
     }
   }
 }
 
-fn kill_timers_of_trigger(trigger_id: &UUID, live_timers: &mut LiveTimersMap) {
-  let trigger_ids = live_timers_for_trigger(trigger_id, live_timers);
-  kill_timers(trigger_ids.iter().map(|tup| &tup.0), live_timers);
+fn kill_timers_of_trigger(
+  trigger_id: &UUID,
+  timer_lifetimes: &mut TimerLifetimesMap,
+  tx_state_update: &broadcast::Sender<TimerStateUpdate>,
+) {
+  let trigger_ids = timer_lifetimes_for_trigger(trigger_id, timer_lifetimes);
+  kill_timers(
+    trigger_ids.iter().map(|tup| &tup.0),
+    timer_lifetimes,
+    tx_state_update,
+  );
 }
 
 fn kill_timers_of_trigger_with_name(
   trigger_id: &UUID,
   timer_name: &str,
-  live_timers: &mut LiveTimersMap,
+  timer_lifetimes: &mut TimerLifetimesMap,
+  tx_state_update: &broadcast::Sender<TimerStateUpdate>,
 ) {
-  let trigger_ids: Vec<UUID> = live_timers_for_trigger(trigger_id, live_timers)
+  let trigger_ids: Vec<UUID> = timer_lifetimes_for_trigger(trigger_id, timer_lifetimes)
     .into_iter()
     .filter_map(|(timer_id, each_timer_name)| {
       if timer_name == each_timer_name {
@@ -266,19 +404,19 @@ fn kill_timers_of_trigger_with_name(
       }
     })
     .collect();
-  kill_timers(trigger_ids.iter(), live_timers);
+  kill_timers(trigger_ids.iter(), timer_lifetimes, tx_state_update);
 }
 
 /// Returns a vector of (<TIMER ID>, <TIMER NAME>) tuples
-fn live_timers_for_trigger(
+fn timer_lifetimes_for_trigger(
   trigger_id: &UUID,
-  live_timers: &mut LiveTimersMap,
+  timer_lifetimes: &mut TimerLifetimesMap,
 ) -> Vec<(UUID, String)> {
-  live_timers
+  timer_lifetimes
     .values()
-    .filter_map(|(live, _)| {
-      if &live.timer.trigger_id == trigger_id {
-        Some((live.id.clone(), live.name.clone()))
+    .filter_map(|(life, _)| {
+      if &life.timer.trigger_id == trigger_id {
+        Some((life.id.clone(), life.name.clone()))
       } else {
         None
       }

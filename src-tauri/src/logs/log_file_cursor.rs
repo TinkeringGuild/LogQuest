@@ -2,18 +2,19 @@ use super::LOG_FILENAME_PATTERN;
 use std::{collections::HashMap, path::Path};
 use tracing::error;
 
+#[derive(Debug, Clone)]
 pub struct LogFileCursor {
   pub path: String,
   pub position: u64,
 }
 
-pub enum LogFileSizeCache {
-  CachedSize(u64),
-  StaleSize,
+pub struct LogFileCursorCache {
+  cursors: HashMap<String, LogFileCursorCacheEntry>,
 }
 
-pub struct LogFileCursorCache {
-  cursors: HashMap<String, LogFileSizeCache>,
+pub enum LogFileCursorCacheEntry {
+  CachedSize(u64),
+  StaleSize,
 }
 
 impl LogFileCursorCache {
@@ -21,7 +22,7 @@ impl LogFileCursorCache {
   where
     P: AsRef<Path>,
   {
-    let cursors: HashMap<String, LogFileSizeCache> = logs_dir
+    let cursors: HashMap<String, LogFileCursorCacheEntry> = logs_dir
       .as_ref()
       .read_dir()?
       .filter_map(|entry| entry.ok())
@@ -30,7 +31,7 @@ impl LogFileCursorCache {
       .filter(|path| LOG_FILENAME_PATTERN.is_match(path).unwrap())
       .map(|path| {
         let size = file_size(&path)?;
-        Ok((path, LogFileSizeCache::CachedSize(size)))
+        Ok((path, LogFileCursorCacheEntry::CachedSize(size)))
       })
       .filter_map(|kvp: std::io::Result<_>| kvp.ok())
       .collect();
@@ -45,13 +46,13 @@ impl LogFileCursorCache {
     let path = path.as_ref().to_owned();
     let taken_value = self
       .cursors
-      .insert(path.clone(), LogFileSizeCache::StaleSize);
+      .insert(path.clone(), LogFileCursorCacheEntry::StaleSize);
     match taken_value {
-      Some(LogFileSizeCache::CachedSize(size)) => Ok(LogFileCursor {
+      Some(LogFileCursorCacheEntry::CachedSize(size)) => Ok(LogFileCursor {
         path,
         position: size,
       }),
-      None | Some(LogFileSizeCache::StaleSize) => Ok(LogFileCursor::new(path)?),
+      None | Some(LogFileCursorCacheEntry::StaleSize) => Ok(LogFileCursor::new(path)?),
     }
   }
 
@@ -65,9 +66,9 @@ impl LogFileCursorCache {
       self.cursors.remove(path);
       return;
     };
-    self
+    let _ = self
       .cursors
-      .insert(path.to_owned(), LogFileSizeCache::CachedSize(size));
+      .insert(path.to_owned(), LogFileCursorCacheEntry::CachedSize(size));
   }
 }
 

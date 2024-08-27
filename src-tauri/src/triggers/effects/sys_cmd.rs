@@ -1,6 +1,6 @@
 use super::{EffectError, EffectResult, ReadyEffect};
 use crate::{
-  common::bytes_to_utf8_with_escaped_special_chars, reactor::ReactorContext,
+  common::bytes_to_utf8_with_escaped_special_chars, reactor::EventContext,
   triggers::command_template::CommandTemplateSecurityCheck,
 };
 use async_trait::async_trait;
@@ -18,7 +18,7 @@ pub(super) struct SystemCommandEffect {
 
 #[async_trait]
 impl ReadyEffect for SystemCommandEffect {
-  async fn fire(self: Box<Self>, context: Arc<ReactorContext>) -> EffectResult {
+  async fn fire(self: Box<Self>, context: Arc<EventContext>) -> EffectResult {
     let command_template = match self.cmd_tmpl_sec_check.security_check() {
       CommandTemplateSecurityCheck::Approved(_, cmd_tmpl) => cmd_tmpl,
       CommandTemplateSecurityCheck::Unapproved(cmd_tmpl) => {

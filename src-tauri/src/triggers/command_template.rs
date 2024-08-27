@@ -19,19 +19,20 @@ pub enum CommandTemplateSecurityCheck {
 impl CommandTemplateSecurityCheck {
   pub fn security_check(self) -> Self {
     match self {
-      unapproved @ Self::Unapproved(_) => unapproved,
       Self::Approved(sig, cmd_tmpl) => {
         if is_crypto_available() {
           if verify(&cmd_tmpl.format_for_security_check(), &sig) {
             Self::Approved(sig, cmd_tmpl)
           } else {
+            warn!("Security check failed for CommandTemplate! Marking CommandTemplate as Unapproved:\n{cmd_tmpl:#?}");
             Self::Unapproved(cmd_tmpl)
           }
         } else {
-          warn!("Unable to use the cryptographic verification system for a CommandTemplate - discarding Signature");
+          warn!("Unable to use the cryptographic verification system! Marking CommandTemplate as Unapproved:\n{cmd_tmpl:#?}");
           Self::Unapproved(cmd_tmpl)
         }
       }
+      unapproved @ Self::Unapproved(_) => unapproved,
     }
   }
 }
