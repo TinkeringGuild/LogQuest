@@ -16,7 +16,7 @@ impl Timestamp {
 }
 
 #[derive(Clone, ts_rs::TS)]
-#[ts(type = "Timestamp")]
+#[ts(type = "string")]
 pub struct ObservableTimestamp(watch::Sender<Timestamp>, watch::Receiver<Timestamp>);
 
 impl std::ops::Add<&super::duration::Duration> for &Timestamp {
