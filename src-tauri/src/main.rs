@@ -66,15 +66,18 @@ fn main() {
   };
 }
 
-fn start(
-  StartCommand {
+fn start(start_command: StartCommand) -> Result<(), AppStartError> {
+  let overlay_dev_tools = overlay_devtools_from(&start_command);
+
+  let StartCommand {
     config_dir_override,
     logs_dir_override,
     overlay_mode,
-    overlay_dev_tools,
-  }: StartCommand,
-) -> Result<(), AppStartError> {
+    ..
+  } = start_command;
+
   print_banner();
+
   let config_dir = config::get_config_dir_with_optional_override(config_dir_override);
   let config = LogQuestConfig::load_or_create_in_dir(&config_dir, &logs_dir_override)?;
   let triggers = triggers::load_or_create_relative_to_config(&config)?; // TODO: Need to report JSON parse errors somewhere
@@ -82,6 +85,16 @@ fn start(
   let state_handle = StateHandle::new(state_tree);
   ui::launch(state_handle);
   Ok(())
+}
+
+#[cfg(debug_assertions)]
+fn overlay_devtools_from(start_command: &StartCommand) -> bool {
+  start_command.overlay_dev_tools
+}
+
+#[cfg(not(debug_assertions))]
+fn overlay_devtools_from(start_command: &StartCommand) -> bool {
+  false
 }
 
 fn print_banner() {

@@ -134,7 +134,8 @@ pub struct StartCommand {
   #[arg(long="overlay", value_enum, default_value_t=OverlayMode::Default)]
   pub overlay_mode: OverlayMode,
 
-  /// If given, this will automatically open the dev tools for the overlay window
+  /// (DEBUG BUILDS ONLY) If given, this will automatically open the dev tools for the overlay window
+  #[cfg(debug_assertions)]
   #[arg(long)]
   pub overlay_dev_tools: bool,
 }

@@ -131,9 +131,11 @@ fn create_windowed_overlay_window(app: &AppHandle) -> tauri::Window {
     .build()
     .expect("Could not create overlay window!");
 
+  #[cfg(debug_assertions)]
   if state(app).select_overlay(|o| o.auto_open_dev_tools) {
     overlay_window.open_devtools();
   }
+
   overlay_window
 }
 
