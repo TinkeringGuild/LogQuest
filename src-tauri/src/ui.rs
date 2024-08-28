@@ -114,6 +114,10 @@ fn create_default_overlay_window(app: &AppHandle) -> tauri::Window {
     .always_on_top(true)
     .focused(false)
     .skip_taskbar(true)
+    .maximizable(false)
+    .minimizable(false)
+    .resizable(false)
+    .accept_first_mouse(true)
     .build()
     .expect("Could not create overlay window!");
 
