@@ -10,6 +10,7 @@
 
   white-space: nowrap;
   text-wrap: nowrap;
+  pointer-events: none;
 }
 
 .overlay-message span {
