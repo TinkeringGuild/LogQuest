@@ -4,7 +4,6 @@ use crate::logs::active_character_detection::Character;
 use crate::triggers::TriggerRoot;
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
-use ts_rs::TS;
 
 pub struct StateTree {
   // TODO: SHOULD THESE BE Arc<RwLock<..> INSTEAD OF Mutex<..> ??
@@ -14,17 +13,17 @@ pub struct StateTree {
   pub overlay: Mutex<OverlayState>,
 }
 
-#[derive(TS)]
+#[derive(ts_rs::TS)]
 pub struct ReactorState {
   pub current_character: Option<Character>,
 }
 
-#[derive(TS, Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
 pub struct OverlayState {
   pub overlay_editable: bool,
-  #[ts(skip)]
   pub overlay_mode: OverlayMode,
   #[ts(skip)]
+  #[serde(skip)]
   pub auto_open_dev_tools: bool,
 }
 

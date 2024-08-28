@@ -19,6 +19,14 @@ body {
   opacity: 0.75;
 }
 
+.text-outline {
+  text-shadow:
+    1px 1px 0px var(--text-outline-color) /*    Right and down  */,
+    -1px -1px 0px var(--text-outline-color) /*  Left and up     */,
+    1px -1px 0px var(--text-outline-color) /*   Right and up    */,
+    -1px 1px 0px var(--text-outline-color) /*   Left and down   */;
+}
+
 .overlay.is-editable {
   background-color: white;
 }

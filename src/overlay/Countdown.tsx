@@ -70,7 +70,7 @@ const Countdown: React.FC<CountdownProps> = ({
           ...cssVars,
         }}
       ></div>
-      <p>{label}</p>
+      <p className="text-outline">{label}</p>
     </div>
   );
 };

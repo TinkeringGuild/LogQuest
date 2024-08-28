@@ -1,66 +1,27 @@
-import { listen } from '@tauri-apps/api/event';
-import { useEffect, useState } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
+import { useSelector } from 'react-redux';
 
 import {
-  initTimers,
-  $timers,
-  timerStateUpdate,
-} from '../features/timers/timersSlice';
-import {
-  OVERLAY_EDITABLE_CHANGED_EVENT_NAME,
-  OVERLAY_STATE_UPDATE_EVENT_NAME,
-} from '../generated/constants';
+  $overlayEditable,
+  $overlayMessages,
+} from '../features/overlay/overlaySlice';
+import { $timers } from '../features/timers/timersSlice';
 import { TimerLifetime } from '../generated/TimerLifetime';
-import { TimerStateUpdate } from '../generated/TimerStateUpdate';
-import { startSync } from '../ipc';
-import { println } from '../util';
 import Countdown from './Countdown';
 import DynamicContainer from './DynamicContainer';
+import OverlayMessage from './OverlayMessage';
 
 import '../base.css';
 import './OverlayWindow.css';
 
 function OverlayWindow() {
-  const [editable, setEditable] = useState(false);
-  const dispatch = useDispatch();
-
-  useEffect(() => {
-    const unlisten = listen<TimerStateUpdate>(
-      OVERLAY_STATE_UPDATE_EVENT_NAME,
-      ({ payload: update }) => {
-        println('GOT OVERLAY TIMER STATE UPDATE: ' + JSON.stringify(update));
-        dispatch(timerStateUpdate(update));
-      }
-    );
-    return () => {
-      unlisten.then((f) => f());
-    };
-  }, [dispatch]);
-
-  useEffect(() => {
-    const unlisten = listen<boolean>(
-      OVERLAY_EDITABLE_CHANGED_EVENT_NAME,
-      ({ payload: newValue }) => {
-        setEditable(newValue);
-      }
-    );
-    return () => {
-      unlisten.then((fn) => fn());
-    };
-  });
-
-  useEffect(() => {
-    startSync().then((timerLifetimes) => {
-      dispatch(initTimers(timerLifetimes));
-    });
-  }, [dispatch]);
+  const editable = useSelector($overlayEditable);
 
   const timerLifetimes: TimerLifetime[] = useSelector($timers);
+  const messages = useSelector($overlayMessages);
 
   return (
     <div className={`overlay ${editable ? 'is-editable' : 'is-static'}`}>
-      <DynamicContainer width={300} height={500} x={0} y={0}>
+      <DynamicContainer width={250} height={500} x={0} y={0}>
         {timerLifetimes.map(({ id, name, start_time, end_time, is_hidden }) => (
           <Countdown
             label={name}
@@ -69,6 +30,14 @@ function OverlayWindow() {
             isHidden={is_hidden}
             key={id}
           />
+        ))}
+      </DynamicContainer>
+      <DynamicContainer width={500} height={300} x={350} y={0}>
+        {editable && (
+          <OverlayMessage text="This shows what overlay messages look like" />
+        )}
+        {messages.map(({ id, text }) => (
+          <OverlayMessage key={id} text={text} />
         ))}
       </DynamicContainer>
     </div>

@@ -194,6 +194,8 @@ impl EventLoop {
   async fn run(mut self) {
     debug!("Initializing reactor event loop");
 
+    // crate::debug_only::generate_overlay_noise(&self);
+
     self
       .log_events
       .start()

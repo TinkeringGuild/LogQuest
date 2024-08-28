@@ -2,15 +2,20 @@ import { invoke } from '@tauri-apps/api/tauri';
 
 import { Bootstrap } from './generated/Bootstrap';
 import { LogQuestConfig } from './generated/LogQuestConfig';
-import { TriggerRoot } from './generated/TriggerRoot';
+import { OverlayState } from './generated/OverlayState';
 import { TimerLifetime } from './generated/TimerLifetime';
+import { TriggerRoot } from './generated/TriggerRoot';
 
 export async function getBootstrap(): Promise<Bootstrap> {
   return await invoke<Bootstrap>('bootstrap');
 }
 
-export async function startSync(): Promise<TimerLifetime[]> {
-  return await invoke<TimerLifetime[]>('start_sync');
+export async function getOverlayBootstrap(): Promise<OverlayState> {
+  return await invoke<OverlayState>('bootstrap_overlay');
+}
+
+export async function startTimersSync(): Promise<TimerLifetime[]> {
+  return await invoke<TimerLifetime[]>('start_timers_sync');
 }
 
 export async function setEverQuestDirectory(

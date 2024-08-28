@@ -92,9 +92,7 @@ pub fn test_trigger_group() -> TriggerGroup {
 }
 
 #[allow(unused)]
-pub fn generate_timer_noise(event_loop: &EventLoop) {
-  warn!("GENERATING TIMER NOISE");
-
+pub fn generate_overlay_noise(event_loop: &EventLoop) {
   let context = event_loop.create_event_context(
     Arc::new(MatchContext::empty("Xenk")),
     Arc::new(LogFileCursor {
@@ -103,6 +101,18 @@ pub fn generate_timer_noise(event_loop: &EventLoop) {
     }),
   );
 
+  warn!("GENERATING OVERLAY MESSAGE NOISE");
+  let context_ = context.clone();
+  spawn(async move {
+    loop {
+      tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+      let message = format!("Now: {}", Timestamp::now().to_string());
+      warn!("Sending generated overlay message: {message}");
+      context_.overlay_manager.message(message);
+    }
+  });
+
+  warn!("GENERATING TIMER NOISE");
   let trigger_id = UUID::new();
   let context_ = context.clone();
   spawn(async move {

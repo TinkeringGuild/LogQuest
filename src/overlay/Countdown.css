@@ -10,18 +10,11 @@
 }
 
 .countdown p {
-  font-family: 'Roboto', Verdana, Geneva, Tahoma, sans-serif;
+  --text-outline-color: black;
 
   line-height: var(--countdown-height);
   font-size: calc(var(--countdown-height) * 0.7);
   display: flex;
-
-  --border-color: black;
-  text-shadow:
-    1px 1px 0px var(--border-color) /*    Right and down  */,
-    -1px -1px 0px var(--border-color) /*  Left and up     */,
-    1px -1px 0px var(--border-color) /*   Right and up    */,
-    -1px 1px 0px var(--border-color) /*   Left and down   */;
 
   position: absolute;
   top: -1px;
@@ -49,7 +42,14 @@
   /* width is set in the style attr */
   width: var(--start-percent);
   height: 100%;
-  background: linear-gradient(to left, darkslateblue, skyblue, darkslateblue);
+  background: linear-gradient(
+    to left,
+    darkslateblue,
+    dodgerblue,
+    skyblue,
+    dodgerblue,
+    darkslateblue
+  );
   animation-name: shrink-width;
   animation-fill-mode: forwards;
   animation-timing-function: linear;
@@ -66,7 +66,7 @@
 
 @keyframes warning-background-color {
   0% {
-    background-color: yellow;
+    background-color: palegoldenrod;
   }
   50% {
     background-color: orange;

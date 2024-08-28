@@ -37,18 +37,24 @@ impl Bootstrap {
 pub fn handler() -> impl Fn(tauri::Invoke) {
   tauri::generate_handler![
     bootstrap,
+    bootstrap_overlay,
     get_config,
     import_gina_triggers_file,
     print_to_stderr,
     print_to_stdout,
     set_everquest_dir,
-    start_sync,
+    start_timers_sync,
   ]
 }
 
 #[tauri::command]
 async fn bootstrap(state: State<'_, StateHandle>) -> Result<Bootstrap, String> {
   Ok(Bootstrap::from_state(&state))
+}
+
+#[tauri::command]
+fn bootstrap_overlay(state: State<'_, StateHandle>) -> OverlayState {
+  state.select_overlay(|o| o.clone())
 }
 
 #[tauri::command]
@@ -68,7 +74,7 @@ fn get_config(state: State<StateHandle>) -> Result<LogQuestConfig, String> {
 }
 
 #[tauri::command]
-async fn start_sync(
+async fn start_timers_sync(
   window: Window,
   overlay_manager: State<'_, OverlayManagerState>,
 ) -> Result<Vec<TimerLifetime>, ()> {
