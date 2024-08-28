@@ -15,7 +15,7 @@ interface OverlaySliceState {
 const INITIAL_OVERLAY_STATE: OverlaySliceState = {
   backend: {
     overlay_editable: false,
-    overlay_mode: 'Default', // I don't like setting this default here
+    overlay_mode: null,
   },
   messages: [],
 };
@@ -24,7 +24,7 @@ const overlaySlice = createSlice({
   name: OVERLAY_SLICE,
   initialState: INITIAL_OVERLAY_STATE,
   reducers: {
-    initOverlay: (state, { payload }) => {
+    initOverlay: (state, { payload }: { payload: OverlayState }) => {
       state.backend = payload;
     },
     setEditable: (state, { payload: newValue }: { payload: boolean }) => {

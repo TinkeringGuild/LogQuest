@@ -21,6 +21,7 @@ pub struct ReactorState {
 #[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
 pub struct OverlayState {
   pub overlay_editable: bool,
+  #[ts(as = "Option<_>")]
   pub overlay_mode: OverlayMode,
   #[ts(skip)]
   #[serde(skip)]
