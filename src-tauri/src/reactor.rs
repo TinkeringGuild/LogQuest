@@ -150,6 +150,7 @@ pub fn start(
   let reactor_tx_ = reactor_tx.clone();
 
   spawn(async move {
+    debug!("Creating EventLoop");
     EventLoop::new(
       state,
       cursors,

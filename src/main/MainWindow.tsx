@@ -26,6 +26,7 @@ import { ProgressUpdate } from '../generated/ProgressUpdate';
 import { getBootstrap } from '../ipc';
 import LoadingIndicator from '../widgets/LoadingIndicator';
 import Layout from './Layout';
+import OverlayMode from './OverlayMode';
 import TriggerTree from './TriggerTree';
 
 import './MainWindow.css';
@@ -54,7 +55,7 @@ const MainWindow: React.FC<{}> = () => {
       case 'triggers':
         return <TriggerTree />;
       case 'overlay':
-        return <h1>Overlay</h1>;
+        return <OverlayMode />;
       case 'help':
         return <h1>Help</h1>;
       case 'about':

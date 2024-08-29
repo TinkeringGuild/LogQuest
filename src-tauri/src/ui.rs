@@ -17,6 +17,8 @@ use tracing::{debug, error, info};
 
 pub type OverlayManagerState = Arc<OverlayManager>;
 
+pub const OVERLAY_WINDOW_LABEL: &str = "overlay";
+
 pub const PROGRESS_UPDATE_EVENT_NAME: &str = "progress-update";
 pub const PROGRESS_UPDATE_FINISHED_EVENT_NAME: &str = "progress-update-finished";
 
@@ -106,7 +108,7 @@ fn setup_overlay(app: &AppHandle) {
 
 fn create_default_overlay_window(app: &AppHandle) -> tauri::Window {
   let window_uri = tauri::WindowUrl::App("overlay.html".into());
-  let overlay_window = tauri::WindowBuilder::new(app, "overlay", window_uri)
+  let overlay_window = tauri::WindowBuilder::new(app, OVERLAY_WINDOW_LABEL, window_uri)
     .title("LogQuest Overlay")
     .transparent(true)
     .decorations(false)
@@ -129,7 +131,7 @@ fn create_default_overlay_window(app: &AppHandle) -> tauri::Window {
 
 fn create_windowed_overlay_window(app: &AppHandle) -> tauri::Window {
   let window_uri = tauri::WindowUrl::App("overlay.html".into());
-  let overlay_window = tauri::WindowBuilder::new(app, "overlay", window_uri)
+  let overlay_window = tauri::WindowBuilder::new(app, OVERLAY_WINDOW_LABEL, window_uri)
     .title("LogQuest Overlay")
     .focused(false)
     .build()
@@ -155,7 +157,7 @@ fn get_overlay_window(app: &AppHandle) -> Option<Window> {
   if let OverlayMode::None = overlay_mode {
     return None;
   }
-  app.get_window("overlay")
+  app.get_window(OVERLAY_WINDOW_LABEL)
 }
 
 fn register_global_shortcut_manager(app: &AppHandle) {

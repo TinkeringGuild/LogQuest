@@ -1,4 +1,4 @@
-import { createSlice } from '@reduxjs/toolkit';
+import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
 import { MainRootState } from '../../MainStore';
 import { ProgressUpdate } from '../../generated/ProgressUpdate';
@@ -35,7 +35,7 @@ const appSlice = createSlice({
     bootstrapHasLoaded(state: AppState) {
       state.bootstrapped = true;
     },
-    navigateTo(state: AppState, { payload: mode }: { payload: MODE }) {
+    navigateTo(state: AppState, { payload: mode }: PayloadAction<MODE>) {
       state.currentMode = mode;
     },
     enterLoadingState(state: AppState) {
@@ -46,7 +46,7 @@ const appSlice = createSlice({
     },
     updateProgress(
       state: AppState,
-      { payload: update }: { payload: ProgressUpdate }
+      { payload: update }: PayloadAction<ProgressUpdate>
     ) {
       if (
         seqFromProgressUpdate(update) >

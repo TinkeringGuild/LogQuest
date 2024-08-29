@@ -1,4 +1,6 @@
+import { Action } from '@reduxjs/toolkit';
 import { invoke } from '@tauri-apps/api/tauri';
+import { clamp } from 'lodash';
 
 import { Bootstrap } from './generated/Bootstrap';
 import { LogQuestConfig } from './generated/LogQuestConfig';
@@ -14,8 +16,18 @@ export async function getOverlayBootstrap(): Promise<OverlayState> {
   return await invoke<OverlayState>('bootstrap_overlay');
 }
 
+export async function dispatchToOverlay(action: Action) {
+  return await invoke('dispatch_to_overlay', { action });
+}
+
 export async function startTimersSync(): Promise<TimerLifetime[]> {
   return await invoke<TimerLifetime[]>('start_timers_sync');
+}
+
+export function invokeSetOverlayOpacity(newValue: number) {
+  return invoke('set_overlay_opacity', {
+    opacity: clamp(newValue, 0, 100),
+  });
 }
 
 export async function setEverQuestDirectory(

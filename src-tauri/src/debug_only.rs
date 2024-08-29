@@ -292,11 +292,14 @@ pub fn generate_typescript() -> Result<(), ts_rs::ExportError> {
     &out_dir,
     constants![
       LQ_VERSION,
-      crate::ui::PROGRESS_UPDATE_EVENT_NAME,
-      crate::ui::PROGRESS_UPDATE_FINISHED_EVENT_NAME,
+      crate::commands::CROSS_DISPATCH_EVENT_NAME,
+      crate::state::overlay::OVERLAY_EDITABLE_CHANGED_EVENT_NAME,
       crate::state::overlay::OVERLAY_MESSAGE_EVENT_NAME,
       crate::state::overlay::OVERLAY_STATE_UPDATE_EVENT_NAME,
-      crate::state::overlay::OVERLAY_EDITABLE_CHANGED_EVENT_NAME
+      crate::state::state_tree::DEFAULT_OVERLAY_OPACITY,
+      crate::ui::OVERLAY_WINDOW_LABEL,
+      crate::ui::PROGRESS_UPDATE_EVENT_NAME,
+      crate::ui::PROGRESS_UPDATE_FINISHED_EVENT_NAME
     ],
   );
 

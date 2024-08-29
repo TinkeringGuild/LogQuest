@@ -1,8 +1,12 @@
 import { configureStore } from '@reduxjs/toolkit';
 
-import timersSlice, { TIMERS_SLICE } from './features/timers/timersSlice';
-import { bootstrapOverlay, initOverlayListeners } from './tauriEvents';
 import overlayReducer, { OVERLAY_SLICE } from './features/overlay/overlaySlice';
+import timersSlice, { TIMERS_SLICE } from './features/timers/timersSlice';
+import {
+  bootstrapOverlay,
+  initCrossDispatchListener,
+  initOverlayStateListeners,
+} from './tauriEventListeners';
 
 const store = configureStore({
   reducer: {
@@ -12,7 +16,8 @@ const store = configureStore({
 });
 
 bootstrapOverlay(store.dispatch);
-initOverlayListeners(store.dispatch);
+initOverlayStateListeners(store.dispatch);
+initCrossDispatchListener(store.dispatch);
 
 export default store;
 

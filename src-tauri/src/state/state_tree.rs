@@ -5,6 +5,8 @@ use crate::triggers::TriggerRoot;
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 
+pub const DEFAULT_OVERLAY_OPACITY: u8 = 75;
+
 pub struct StateTree {
   // TODO: SHOULD THESE BE Arc<RwLock<..> INSTEAD OF Mutex<..> ??
   pub config: Mutex<LogQuestConfig>,
@@ -21,8 +23,13 @@ pub struct ReactorState {
 #[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
 pub struct OverlayState {
   pub overlay_editable: bool,
+
+  /// stored as an integer representing percentage. Valid values are 0-100
+  pub overlay_opacity: u8,
+
   #[ts(as = "Option<_>")]
   pub overlay_mode: OverlayMode,
+
   #[ts(skip)]
   #[serde(skip)]
   pub auto_open_dev_tools: bool,
@@ -56,6 +63,7 @@ impl OverlayState {
   fn new(overlay_mode: OverlayMode, auto_open_dev_tools: bool) -> Self {
     Self {
       overlay_editable: false,
+      overlay_opacity: DEFAULT_OVERLAY_OPACITY,
       overlay_mode,
       auto_open_dev_tools,
     }

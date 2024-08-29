@@ -1,4 +1,4 @@
-import { Dispatch } from '@reduxjs/toolkit';
+import { Action, Dispatch } from '@reduxjs/toolkit';
 import { listen } from '@tauri-apps/api/event';
 import { uniqueId } from 'lodash';
 
@@ -10,6 +10,7 @@ import {
 } from './features/overlay/overlaySlice';
 import { initTimers, timerStateUpdate } from './features/timers/timersSlice';
 import {
+  CROSS_DISPATCH_EVENT_NAME,
   OVERLAY_EDITABLE_CHANGED_EVENT_NAME,
   OVERLAY_MESSAGE_EVENT_NAME,
   OVERLAY_STATE_UPDATE_EVENT_NAME,
@@ -21,13 +22,19 @@ import { OverlayDispatch } from './OverlayStore';
 // TODO: This should come from an overlay config setting
 const OVERLAY_MESSAGE_LIFETIME_MILLIS = 14 * 1000;
 
+export const initCrossDispatchListener = (dispatch: Dispatch) => {
+  return listen<Action>(CROSS_DISPATCH_EVENT_NAME, ({ payload: action }) => {
+    return dispatch(action);
+  });
+};
+
 export const bootstrapOverlay = (dispatch: Dispatch) => {
   getOverlayBootstrap().then((overlayBootstrap) =>
     dispatch(initOverlay(overlayBootstrap))
   );
 };
 
-export const initOverlayListeners = (dispatch: Dispatch) => {
+export const initOverlayStateListeners = (dispatch: Dispatch) => {
   initTimersSync(dispatch);
   initOverlayTimersListener(dispatch);
   initOverlayMessageListener(dispatch);

@@ -1,4 +1,4 @@
-import { createSlice } from '@reduxjs/toolkit';
+import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { TimerLifetime } from '../../generated/TimerLifetime';
 import { TimerStateUpdate } from '../../generated/TimerStateUpdate';
 import { remove } from 'lodash';
@@ -20,13 +20,13 @@ const timersSlice = createSlice({
   reducers: {
     initTimers(
       slice: TimersState,
-      { payload: timerLifetimes }: { payload: TimerLifetime[] }
+      { payload: timerLifetimes }: PayloadAction<TimerLifetime[]>
     ) {
       slice.timerLifetimes = timerLifetimes;
     },
     timerStateUpdate(
       slice: TimersState,
-      { payload: { variant, value } }: { payload: TimerStateUpdate }
+      { payload: { variant, value } }: PayloadAction<TimerStateUpdate>
     ) {
       if (variant === 'TimerAdded') {
         slice.timerLifetimes.push(value);

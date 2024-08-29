@@ -10,9 +10,11 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use tauri::{Manager, State, Window};
+use tauri::{AppHandle, Manager, State, Window};
 use tracing::{debug, error, event, info};
 use ts_rs::TS;
+
+pub const CROSS_DISPATCH_EVENT_NAME: &str = "cross-dispatch";
 
 #[derive(TS, Serialize, Deserialize)]
 pub struct Bootstrap {
@@ -38,11 +40,13 @@ pub fn handler() -> impl Fn(tauri::Invoke) {
   tauri::generate_handler![
     bootstrap,
     bootstrap_overlay,
+    dispatch_to_overlay,
     get_config,
     import_gina_triggers_file,
     print_to_stderr,
     print_to_stdout,
     set_everquest_dir,
+    set_overlay_opacity,
     start_timers_sync,
   ]
 }
@@ -71,6 +75,18 @@ fn print_to_stderr(message: String) {
 fn get_config(state: State<StateHandle>) -> Result<LogQuestConfig, String> {
   let config = state.select_config(|c| c.clone());
   Ok(config)
+}
+
+#[tauri::command]
+fn dispatch_to_overlay(action: serde_json::Value, app: AppHandle) {
+  if let Some(overlay_window) = app.get_window("overlay") {
+    let _ = overlay_window.emit(CROSS_DISPATCH_EVENT_NAME, action);
+  }
+}
+
+#[tauri::command]
+fn set_overlay_opacity(opacity: u8, state: State<StateHandle>) {
+  state.update_overlay(|o| o.overlay_opacity = opacity);
 }
 
 #[tauri::command]

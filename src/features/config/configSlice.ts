@@ -1,4 +1,4 @@
-import { createSlice } from '@reduxjs/toolkit';
+import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
 import { LogQuestConfig } from '../../generated/LogQuestConfig';
 
@@ -12,7 +12,7 @@ const configSlice = createSlice({
   name: CONFIG_SLICE,
   initialState: configInitialState,
   reducers: {
-    initConfig: (_state, { payload }) => payload,
+    initConfig: (_state, { payload }: PayloadAction<LogQuestConfig>) => payload,
   },
 });
 export default configSlice.reducer;

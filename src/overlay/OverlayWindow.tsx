@@ -3,6 +3,7 @@ import { useSelector } from 'react-redux';
 import {
   $overlayEditable,
   $overlayMessages,
+  $overlayOpacity,
 } from '../features/overlay/overlaySlice';
 import { $timers } from '../features/timers/timersSlice';
 import { TimerLifetime } from '../generated/TimerLifetime';
@@ -15,12 +16,16 @@ import './OverlayWindow.css';
 
 function OverlayWindow() {
   const editable = useSelector($overlayEditable);
+  const opacity = useSelector($overlayOpacity) / 100;
 
   const timerLifetimes: TimerLifetime[] = useSelector($timers);
   const messages = useSelector($overlayMessages);
 
   return (
-    <div className={`overlay ${editable ? 'is-editable' : 'is-static'}`}>
+    <div
+      className={`overlay ${editable ? 'is-editable' : 'is-static'}`}
+      style={{ opacity }}
+    >
       <DynamicContainer width={250} height={500} x={0} y={0}>
         {timerLifetimes.map(({ id, name, start_time, end_time, is_hidden }) => (
           <Countdown

@@ -1,4 +1,4 @@
-import { createSlice } from '@reduxjs/toolkit';
+import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
 import { TriggerRoot } from '../../generated/TriggerRoot';
 import { LQ_VERSION } from '../../generated/constants';
@@ -23,7 +23,7 @@ const triggersSlice = createSlice({
   reducers: {
     initTriggers(
       state: TriggersState,
-      { payload: root }: { payload: TriggerRoot }
+      { payload: root }: PayloadAction<TriggerRoot>
     ) {
       state.root = root;
     },
