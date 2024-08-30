@@ -37,7 +37,6 @@ const OverlayMode: React.FC<{}> = () => {
                   : `${value}%`
               }
               onChange={(_, value) => {
-                console.log('progress changed');
                 dispatch(setOverlayOpacity(100 - (value as number)));
               }}
             />

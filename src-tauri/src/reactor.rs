@@ -1,6 +1,7 @@
 use crate::{
   audio::AudioMixer,
   common::shutdown::quitter,
+  common::clipboard::ClipboardWriter,
   logs::{
     active_character_detection::{ActiveCharacterDetector, Character},
     log_event_broadcaster::{LogEventBroadcaster, NotifyError},
@@ -37,6 +38,7 @@ pub struct EventContext {
   pub match_context: Arc<MatchContext>,
   pub cursor_after: Arc<LogFileCursor>,
   pub timer_context: Option<TimerContext>,
+  pub clipboard: ClipboardWriter,
   pub tx_log_file_events: broadcast::Sender<Result<LogFileEvent, NotifyError>>,
 }
 
@@ -59,6 +61,7 @@ pub struct EventLoop {
   t2s_tx: mpsc::Sender<TTS>,
   timer_manager: Arc<TimerManager>,
   overlay_manager: Arc<OverlayManager>,
+  clipboard: ClipboardWriter,
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -179,6 +182,7 @@ impl EventLoop {
   ) -> Self {
     let t2s_tx = create_tts_engine(state.clone());
     let mixer = Arc::new(AudioMixer::new());
+    let clipboard = ClipboardWriter::new();
     Self {
       state,
       cursors,
@@ -189,11 +193,12 @@ impl EventLoop {
       mixer,
       timer_manager,
       overlay_manager,
+      clipboard,
     }
   }
 
   async fn run(mut self) {
-    debug!("Initializing reactor event loop");
+    debug!("Reactor run() event loop");
 
     // crate::debug_only::generate_overlay_noise(&self);
 
@@ -331,6 +336,7 @@ impl EventLoop {
       match_context,
       cursor_after,
       timer_context: None,
+      clipboard: self.clipboard.clone(),
       tx_log_file_events: self.log_events.sender(),
     })
   }

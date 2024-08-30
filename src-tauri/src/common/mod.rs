@@ -1,3 +1,4 @@
+pub mod clipboard;
 pub mod duration;
 pub mod progress_reporter;
 pub mod security;

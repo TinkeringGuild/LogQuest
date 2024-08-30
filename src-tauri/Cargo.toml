@@ -8,6 +8,7 @@ authors = ["Tinkering Guild"]
 edition = "2021"
 
 [dependencies]
+arboard = "3.4.0"
 async-trait = "0.1.81"
 awedio = "0.4.0"
 base64 = "0.22.1"
