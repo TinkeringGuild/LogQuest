@@ -11,7 +11,7 @@
 //! This algorithm works by detecting a unique machine ID for the system, with
 //! help from the `machine-uid` crate. If this is not available for some reason,
 //! then the `SystemCommandEffect` feature will be disabled completely. With the
-//! unique machine ID, a salted SHA512 checksum is calculated based on its
+//! unique machine ID, a salted SHA512/256 checksum is calculated based on its
 //! value, and this checksum is used as the seed for a Ed25519 private/public
 //! key-pair. When a new `CommandTemplate` is created (for use in a
 //! `SystemCommandEffect`), it is given a cryptographic signature based on the
@@ -27,17 +27,17 @@
 use base64::{engine::general_purpose::URL_SAFE, Engine as _};
 use lazy_static::lazy_static;
 use ring::{
-  digest::{digest, SHA512},
+  digest::{digest, SHA512_256},
   signature::{Ed25519KeyPair, KeyPair, UnparsedPublicKey, ED25519},
 };
 use tracing::error;
 
 lazy_static! {
-  static ref MACHINE_ID: Option<[u8; 512 / 8]> = match machine_uid::get() {
+  static ref MACHINE_ID: Option<[u8; 256 / 8]> = match machine_uid::get() {
     Ok(uid) => {
       let mut uid: Vec<u8> = uid.into_bytes();
       uid.extend_from_slice(b"LogQuest"); // salt
-      let checksum = digest(&SHA512, &uid);
+      let checksum = digest(&SHA512_256, &uid);
       Some(checksum.as_ref().try_into().unwrap()) // unwrap safe here
     }
     Err(e) => {
