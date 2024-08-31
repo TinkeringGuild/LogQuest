@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 lazy_static::lazy_static! {
-  static ref TEMPLATE_VARS: Regex = Regex::new(r"\$\{\s*([\w_]+)\s*\}").unwrap();
+  static ref TEMPLATE_VARS: Regex = Regex::new(r"\$\{\s*(\w+)\s*\}").unwrap();
 }
 
 #[derive(TS, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

@@ -11,8 +11,8 @@ lazy_static::lazy_static! {
     Regex::new(r"\{\s*(?:([Cc]|[Ss]\d*)|(?:([Nn]\d*)\s*(?:(>=|<=|=|>|<)\s*(-?\d+))?))\s*\}").unwrap();
 
   /// A MatcherWithContext::GINA can use patterns like ${1} to back-reference a capture in the Trigger's initial regex
-  static ref REGEX_REFERENCES: Regex = // TODO: THIS NEEDS TO SUPPORT ${named_value}
-      Regex::new(r"\$\{\s*(\d+)\s*\}").unwrap();
+  static ref REGEX_REFERENCES: Regex =
+      Regex::new(r"\$\{\s*(\d+|[A-Za-z_]\w*)\s*\}").unwrap();
 
   /// Named capture groups are injected into the converted Regex; this matches the generated names
   static ref GENERATED_NAMED_CAPTURE_NAME: Regex = Regex::new(r"^LQ[A-Z0-9]{8}$").unwrap();
@@ -47,10 +47,16 @@ impl RegexGINA {
     context: &MatchContext,
   ) -> Result<Self, fancy_regex::Error> {
     let processed_pattern = REGEX_REFERENCES.replace_all(pattern, |captures: &Captures| {
-      if let Some(group_number_match) = captures.get(1) {
-        let group_number: usize = group_number_match.as_str().parse().unwrap(); // unwrap is safe because the Regex validates non-negative integer
-        if let Some(group_value) = context.group(group_number) {
-          return fancy_regex::escape(group_value).into_owned();
+      if let Some(group_reference_match) = captures.get(1) {
+        let group_reference = group_reference_match.as_str();
+        if let Ok(group_number) = group_reference.parse::<usize>() {
+          if let Some(group_value) = context.group(group_number) {
+            return fancy_regex::escape(group_value).into_owned();
+          }
+        } else {
+          if let Some(group_value) = context.named_value(group_reference) {
+            return fancy_regex::escape(group_value).into_owned();
+          }
         }
       }
       String::new()
@@ -68,7 +74,7 @@ impl RegexGINA {
     // THIS CRAP BELOW IS JUST TEMPORARY. IT'S NEEDED TO IMPORT THE RIOT TRIGGERS PACKAGE. IT FIXES AN INVALID REGEX.
     // I STILL HAVEN'T DECIDED IF I WANT TO TRY TO AUTO-FIX THIS TYPE OF SYNTAX ERROR AT IMPORT-TIME.
     let pattern = if pattern == r"^Your target resisted the ([\w-'` ]+)(?<!LowerElement) spell\.$" {
-      r"^Your target resisted the ([ \w'`-]+)(?<!LowerElement) spell\.$"
+      r"^Your target resisted the ([\w'` -]+)(?<!LowerElement) spell\.$"
     } else {
       pattern
     };
@@ -194,8 +200,7 @@ impl RegexGINA {
   }
 
   fn pattern_for_string_capture(capture_name: &str) -> String {
-    // TODO: This pattern MIGHT also need to capture underscores if a good example can be found for it.
-    format!(r"(?<{capture_name}>[\w'`-](?:[ \w'`-]*[\w'`-])?)") // ensures {S} never ends in a space
+    format!(r"(?<{capture_name}>.+)") // TODO: Should this be lazy? (i.e. /.+?/)
   }
 
   fn pattern_for_character_name_capture(capture_name: &str) -> String {
@@ -464,6 +469,18 @@ mod tests {
       assert_eq!(context.group(1).unwrap(), "two");
       assert_eq!(context.group(2).unwrap(), "right");
     }
+  }
+
+  #[test]
+  fn test_compile_with_context_using_context_references() {
+    let context = create_context("^This is a (?<named>capture)", "This is a capture");
+    let re = RegexGINA::from_str_with_context(r"^Get ${named}", &context).unwrap();
+    assert!(re.check("Get capture", TOON).is_some());
+    assert!(re.check("Get something else", TOON).is_none());
+
+    let re = RegexGINA::from_str_with_context(r"^Get ${1}", &context).unwrap();
+    assert!(re.check("Get capture", TOON).is_some());
+    assert!(re.check("Get something else", TOON).is_none());
   }
 
   fn create_context(pattern: &str, text: &str) -> MatchContext {
