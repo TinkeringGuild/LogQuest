@@ -3,6 +3,10 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { TriggerRoot } from '../../generated/TriggerRoot';
 import { LQ_VERSION } from '../../generated/constants';
 import { LogQuestVersion } from '../../generated/LogQuestVersion';
+import { UUID } from '../../generated/UUID';
+import { TriggerGroup } from '../../generated/TriggerGroup';
+import { TriggerGroupDescendant } from '../../generated/TriggerGroupDescendant';
+import { Trigger } from '../../generated/Trigger';
 
 export const TRIGGERS_SLICE = 'triggers';
 
@@ -27,10 +31,44 @@ const triggersSlice = createSlice({
     ) {
       state.root = root;
     },
+
+    setTriggerEnabled(
+      state: TriggersState,
+      {
+        payload: { triggerID, enabled },
+      }: PayloadAction<{ triggerID: UUID; enabled: boolean }>
+    ) {
+      for (const group of state.root.groups) {
+        const search = $triggerInGroupWithID(group, triggerID);
+        if (search !== null) {
+          search.enabled = enabled;
+          return;
+        }
+      }
+    },
   },
 });
-export const { initTriggers } = triggersSlice.actions;
+export const { initTriggers, setTriggerEnabled } = triggersSlice.actions;
 export default triggersSlice.reducer;
+
+const $triggerInGroupWithID: (
+  group: TriggerGroup,
+  triggerID: UUID
+) => Trigger | null = (group, triggerID) => {
+  for (const tgd of group.children) {
+    if ('T' in tgd) {
+      if (tgd.T.id == triggerID) {
+        return tgd.T;
+      }
+    } else if ('TG' in tgd) {
+      const search: Trigger | null = $triggerInGroupWithID(tgd.TG, triggerID);
+      if (search !== null) {
+        return search;
+      }
+    }
+  }
+  return null;
+};
 
 export const $triggerGroups = ({
   [TRIGGERS_SLICE]: triggers,

@@ -4,10 +4,14 @@ import { CSSProperties } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 
 import openGINATriggerFileDialog from '../dialogs/importGINAFile';
-import { $triggerGroups } from '../features/triggers/triggersSlice';
+import {
+  setTriggerEnabled,
+  $triggerGroups,
+} from '../features/triggers/triggersSlice';
 import { Trigger } from '../generated/Trigger';
 import { TriggerGroup } from '../generated/TriggerGroup';
 import { TriggerGroupDescendant } from '../generated/TriggerGroupDescendant';
+import { setTriggerEnabled as ipcSetTriggerEnabled } from '../ipc';
 
 const TriggerTree: React.FC<{}> = () => {
   const dispatch = useDispatch();
@@ -28,7 +32,7 @@ const TriggerTree: React.FC<{}> = () => {
         {triggerGroups.length ? (
           <ul>
             {triggerGroups.map((group) => (
-              <ViewTriggerGroup group={group} />
+              <ViewTriggerGroup key={group.id} group={group} />
             ))}
           </ul>
         ) : (
@@ -39,31 +43,40 @@ const TriggerTree: React.FC<{}> = () => {
   );
 };
 
-const ViewTrigger: React.FC<{ trigger: Trigger }> = ({ trigger }) => (
-  <li key={trigger.id}>
-    <input type="checkbox" checked={trigger.enabled} onChange={() => {}} />{' '}
-    {trigger.name}
-  </li>
-);
+const ViewTrigger: React.FC<{ trigger: Trigger }> = ({ trigger }) => {
+  const dispatch = useDispatch();
+  return (
+    <li>
+      <input
+        type="checkbox"
+        checked={trigger.enabled}
+        onChange={({ target: { checked } }) => {
+          dispatch(
+            setTriggerEnabled({ triggerID: trigger.id, enabled: checked })
+          );
+          ipcSetTriggerEnabled(trigger.id, checked);
+        }}
+      />{' '}
+      {trigger.name}
+    </li>
+  );
+};
 
 const ViewTriggerGroup: React.FC<{ group: TriggerGroup }> = ({ group }) => {
   return (
-    <li key={group.id}>
+    <li>
       {group.name}
       {group.children.length && (
         <ul>
           {group.children.map((descendant: TriggerGroupDescendant) => {
             if ('T' in descendant) {
               return (
-                <ViewTrigger
-                  key={`tgd-${descendant.T.id}`}
-                  trigger={descendant.T}
-                />
+                <ViewTrigger key={descendant.T.id} trigger={descendant.T} />
               );
             } else if ('TG' in descendant) {
               return (
                 <ViewTriggerGroup
-                  key={`tgd-${descendant.TG.id}`}
+                  key={descendant.TG.id}
                   group={descendant.TG}
                 />
               );

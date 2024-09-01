@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::BufReader;
 use template_string::TemplateString;
-use tracing::debug;
+use tracing::{debug, error};
 use ts_rs::TS;
 
 #[derive(thiserror::Error, Debug)]
@@ -39,6 +39,16 @@ impl TriggerRoot {
       log_quest_version: LOG_QUEST_VERSION.clone(),
       groups,
     }
+  }
+
+  pub fn find_mut_trigger_by_id(&mut self, id: &UUID) -> Option<&mut Trigger> {
+    for group in self.groups.iter_mut() {
+      if let Some(trigger) = group.find_mut_trigger_by_id(id) {
+        return Some(trigger);
+      }
+    }
+    error!("Attempted to find Trigger but it did no exist! [ ID = {id} ]");
+    None
   }
 
   pub fn ingest_gina_import(&mut self, mut import: GINAImport) {
@@ -113,6 +123,24 @@ impl From<Trigger> for TriggerGroupDescendant {
 }
 
 impl TriggerGroup {
+  fn find_mut_trigger_by_id(&mut self, id: &UUID) -> Option<&mut Trigger> {
+    for descendant in self.children.iter_mut() {
+      match descendant {
+        TriggerGroupDescendant::T(trigger) => {
+          if trigger.id == *id {
+            return Some(trigger);
+          }
+        }
+        TriggerGroupDescendant::TG(group) => {
+          if let Some(trigger) = group.find_mut_trigger_by_id(id) {
+            return Some(trigger);
+          }
+        }
+      }
+    }
+    None
+  }
+
   fn security_check(self) -> Self {
     let children: Vec<TriggerGroupDescendant> = self
       .children

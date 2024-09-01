@@ -7,6 +7,7 @@ import { LogQuestConfig } from './generated/LogQuestConfig';
 import { OverlayState } from './generated/OverlayState';
 import { TimerLifetime } from './generated/TimerLifetime';
 import { TriggerRoot } from './generated/TriggerRoot';
+import { UUID } from './generated/UUID';
 
 export async function getBootstrap(): Promise<Bootstrap> {
   return await invoke<Bootstrap>('bootstrap');
@@ -22,6 +23,16 @@ export async function dispatchToOverlay(action: Action) {
 
 export async function startTimersSync(): Promise<TimerLifetime[]> {
   return await invoke<TimerLifetime[]>('start_timers_sync');
+}
+
+export async function setTriggerEnabled(
+  triggerId: UUID,
+  enabled: boolean
+): Promise<TimerLifetime[]> {
+  return await invoke('set_trigger_enabled', {
+    triggerId,
+    enabled,
+  });
 }
 
 export function invokeSetOverlayOpacity(newValue: number) {

@@ -1,12 +1,15 @@
 use crate::{
-  common::{format_integer, progress_reporter::ProgressUpdate},
+  common::{format_integer, progress_reporter::ProgressUpdate, UUID},
   gina::importer::GINAImport,
   state::{
     config::LogQuestConfig, state_handle::StateHandle, state_tree::OverlayState,
     timer_manager::TimerLifetime,
   },
   triggers::TriggerRoot,
-  ui::{OverlayManagerState, PROGRESS_UPDATE_EVENT_NAME, PROGRESS_UPDATE_FINISHED_EVENT_NAME},
+  ui::{
+    OverlayManagerState, OVERLAY_WINDOW_LABEL, PROGRESS_UPDATE_EVENT_NAME,
+    PROGRESS_UPDATE_FINISHED_EVENT_NAME,
+  },
 };
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -47,6 +50,7 @@ pub fn handler() -> impl Fn(tauri::Invoke) {
     print_to_stdout,
     set_everquest_dir,
     set_overlay_opacity,
+    set_trigger_enabled,
     start_timers_sync,
   ]
 }
@@ -79,7 +83,7 @@ fn get_config(state: State<StateHandle>) -> Result<LogQuestConfig, String> {
 
 #[tauri::command]
 fn dispatch_to_overlay(action: serde_json::Value, app: AppHandle) {
-  if let Some(overlay_window) = app.get_window("overlay") {
+  if let Some(overlay_window) = app.get_window(OVERLAY_WINDOW_LABEL) {
     let _ = overlay_window.emit(CROSS_DISPATCH_EVENT_NAME, action);
   }
 }
@@ -96,6 +100,15 @@ async fn start_timers_sync(
 ) -> Result<Vec<TimerLifetime>, ()> {
   let window_label = window.label();
   Ok(overlay_manager.start_emitter(window_label).await)
+}
+
+#[tauri::command]
+fn set_trigger_enabled(trigger_id: UUID, enabled: bool, state: State<StateHandle>) {
+  state.update_triggers(|root| {
+    if let Some(trigger) = root.find_mut_trigger_by_id(&trigger_id) {
+      trigger.enabled = enabled;
+    }
+  });
 }
 
 #[tauri::command]
