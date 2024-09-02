@@ -1,0 +1,10 @@
+.trigger-editor {
+  border-left: 3px white double;
+  padding-left: 10px;
+  background-color: black;
+  color: white;
+}
+
+.effect-name {
+  font-weight: bold;
+}

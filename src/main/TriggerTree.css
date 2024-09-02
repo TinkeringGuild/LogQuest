@@ -1,0 +1,20 @@
+.trigger-tree {
+  position: relative;
+  height: 100vh;
+}
+
+ul.view-trigger-group-sublist {
+  margin: 0;
+  padding-left: 10px;
+}
+
+li.view-trigger-list-item {
+  list-style: none;
+  margin-left: -15px;
+  padding: 0;
+}
+
+li.view-trigger-list-item-selected {
+  background-color: #eee;
+  font-weight: bold;
+}

@@ -1,0 +1,12 @@
+.trigger-browser {
+  display: flex;
+  flex-direction: row;
+}
+
+.trigger-browser .trigger-tree {
+  flex: 1;
+}
+
+.trigger-browser .trigger-editor {
+  flex: 1;
+}

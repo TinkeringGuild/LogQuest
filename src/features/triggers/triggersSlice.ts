@@ -5,13 +5,13 @@ import { LQ_VERSION } from '../../generated/constants';
 import { LogQuestVersion } from '../../generated/LogQuestVersion';
 import { UUID } from '../../generated/UUID';
 import { TriggerGroup } from '../../generated/TriggerGroup';
-import { TriggerGroupDescendant } from '../../generated/TriggerGroupDescendant';
 import { Trigger } from '../../generated/Trigger';
 
 export const TRIGGERS_SLICE = 'triggers';
 
 interface TriggersState {
   root: TriggerRoot;
+  activatedTriggerID: UUID | null;
 }
 
 const INITIAL_TRIGGERS_STATE: TriggersState = {
@@ -19,6 +19,7 @@ const INITIAL_TRIGGERS_STATE: TriggersState = {
     groups: [],
     log_quest_version: LQ_VERSION as LogQuestVersion,
   },
+  activatedTriggerID: null,
 };
 
 const triggersSlice = createSlice({
@@ -30,6 +31,17 @@ const triggersSlice = createSlice({
       { payload: root }: PayloadAction<TriggerRoot>
     ) {
       state.root = root;
+    },
+
+    activateTriggerID(
+      state: TriggersState,
+      { payload: triggerID }: PayloadAction<UUID>
+    ) {
+      if (state.activatedTriggerID === triggerID) {
+        state.activatedTriggerID = null;
+      } else {
+        state.activatedTriggerID = triggerID;
+      }
     },
 
     setTriggerEnabled(
@@ -48,7 +60,8 @@ const triggersSlice = createSlice({
     },
   },
 });
-export const { initTriggers, setTriggerEnabled } = triggersSlice.actions;
+export const { initTriggers, activateTriggerID, setTriggerEnabled } =
+  triggersSlice.actions;
 export default triggersSlice.reducer;
 
 const $triggerInGroupWithID: (
@@ -75,3 +88,30 @@ export const $triggerGroups = ({
 }: {
   [TRIGGERS_SLICE]: TriggersState;
 }) => triggers.root.groups;
+
+export const $triggerWithID = (triggerID: UUID) => {
+  return (state: { [TRIGGERS_SLICE]: TriggersState }) => {
+    const triggers = state[TRIGGERS_SLICE];
+    for (const group of triggers.root.groups) {
+      const search = $triggerInGroupWithID(group, triggerID);
+      if (search !== null) {
+        return search;
+      }
+    }
+    return null;
+  };
+};
+
+export const $currentTriggerID = ({
+  [TRIGGERS_SLICE]: { activatedTriggerID },
+}: {
+  [TRIGGERS_SLICE]: TriggersState;
+}) => activatedTriggerID;
+
+export const $currentTrigger = (state: { [TRIGGERS_SLICE]: TriggersState }) => {
+  const triggerID = state[TRIGGERS_SLICE].activatedTriggerID;
+  if (triggerID === null) {
+    return null;
+  }
+  return $triggerWithID(triggerID)(state);
+};

@@ -27,7 +27,7 @@ import { getBootstrap } from '../ipc';
 import LoadingIndicator from '../widgets/LoadingIndicator';
 import Layout from './Layout';
 import OverlayMode from './OverlayMode';
-import TriggerTree from './TriggerTree';
+import TriggerBrowser from './TriggerBrowser';
 
 import './MainWindow.css';
 
@@ -53,7 +53,7 @@ const MainWindow: React.FC<{}> = () => {
       case 'overview':
         return <h1>Overview</h1>;
       case 'triggers':
-        return <TriggerTree />;
+        return <TriggerBrowser />;
       case 'overlay':
         return <OverlayMode />;
       case 'help':

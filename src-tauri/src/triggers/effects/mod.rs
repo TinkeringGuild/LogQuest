@@ -40,6 +40,8 @@ use timer_effects::wait_until_finished::WaitUntilFinishedEffect;
 use timer_effects::wait_until_seconds_remain::WaitUntilSecondsRemainEffect;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
+#[serde(tag = "variant", content = "value")]
+#[ts(tag = "variant", content = "value")]
 pub enum Effect {
   Parallel(Vec<Effect>),
   Sequence(Vec<Effect>),

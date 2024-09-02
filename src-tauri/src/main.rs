@@ -32,7 +32,9 @@ const DEFAULT_LOG_LEVEL: &str = "debug";
 enum AppStartError {
   #[error("Error processing config")]
   ConfigError(#[from] config::ConfigLoadOrCreateError),
-  #[error("Failed processing Triggers")]
+  #[error(
+    "Could not parse the Triggers! Your Triggers file is probably for an older LogQuest version"
+  )]
   TriggerError(#[from] TriggerLoadOrCreateError),
 }
 
