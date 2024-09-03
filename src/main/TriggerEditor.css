@@ -1,8 +1,6 @@
 .trigger-editor {
-  border-left: 3px white double;
+  border-left: 10px #aaa solid;
   padding-left: 10px;
-  background-color: black;
-  color: white;
 }
 
 .effect-name {

@@ -10,4 +10,8 @@
  * creating a Timer, so these patterns should be validated at creation-time so
  * that the values stored in the Strings are guaranteed to be error-free.
  */
-export type MatcherWithContext = { "WholeLine": string } | { "PartialLine": string } | { "Pattern": string } | { "GINA": string };
+export type MatcherWithContext =
+  | { WholeLine: string }
+  | { PartialLine: string }
+  | { Pattern: string }
+  | { GINA: string };

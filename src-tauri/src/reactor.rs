@@ -1,7 +1,6 @@
 use crate::{
   audio::AudioMixer,
-  common::shutdown::quitter,
-  common::clipboard::ClipboardWriter,
+  common::{clipboard::ClipboardWriter, shutdown::quitter},
   logs::{
     active_character_detection::{ActiveCharacterDetector, Character},
     log_event_broadcaster::{LogEventBroadcaster, NotifyError},
@@ -15,7 +14,7 @@ use crate::{
     state_handle::StateHandle,
     timer_manager::{TimerContext, TimerManager},
   },
-  triggers::{effects::Effect, TriggerGroup, TriggerGroupDescendant},
+  triggers::{effects::EffectWithID, TriggerGroup, TriggerGroupDescendant},
   tts::TTS,
 };
 use futures::StreamExt as _;
@@ -46,7 +45,7 @@ pub struct EventContext {
 pub enum ReactorEvent {
   SetActiveCharacter(Option<Character>),
   ExecEffect {
-    effect: Effect,
+    effect: EffectWithID,
     event_context: Arc<EventContext>,
   },
 }
@@ -341,9 +340,9 @@ impl EventLoop {
     })
   }
 
-  async fn exec_effect(&self, effect: Effect, event_context: Arc<EventContext>) {
+  async fn exec_effect(&self, effect: EffectWithID, event_context: Arc<EventContext>) {
     spawn(async move {
-      if let Err(effect_error) = effect.ready().fire(event_context).await {
+      if let Err(effect_error) = effect.inner.ready().fire(event_context).await {
         error!("Encountered error executing Effect: {effect_error:?}");
       }
     });

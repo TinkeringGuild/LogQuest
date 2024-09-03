@@ -20,14 +20,6 @@ const Layout: React.FC<{ children: ReactNode }> = ({ children }) => {
 
   return (
     <div id="layout" style={styleLayout}>
-      <header style={styleHeader}>
-        <img
-          width="202"
-          height="44"
-          src="/LogQuest header white.png"
-          alt="LogQuest"
-        />
-      </header>
       <div id="central" style={styleCentral}>
         <NavSidebar />
         <div id="main-flex-container" style={styleMainFlexContainer}>

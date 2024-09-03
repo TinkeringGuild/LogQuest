@@ -30,6 +30,7 @@ import OverlayMode from './OverlayMode';
 import TriggerBrowser from './TriggerBrowser';
 
 import './MainWindow.css';
+import OverviewMode from './OverviewMode';
 
 const MainWindow: React.FC<{}> = () => {
   const dispatch = useDispatch();
@@ -51,7 +52,7 @@ const MainWindow: React.FC<{}> = () => {
     }
     switch (currentMode) {
       case 'overview':
-        return <h1>Overview</h1>;
+        return <OverviewMode />;
       case 'triggers':
         return <TriggerBrowser />;
       case 'overlay':

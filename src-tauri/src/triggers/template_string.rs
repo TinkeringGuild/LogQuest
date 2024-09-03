@@ -1,26 +1,41 @@
 use crate::matchers::MatchContext;
 use fancy_regex::Regex;
 use serde::{Deserialize, Serialize};
-use ts_rs::TS;
 
 lazy_static::lazy_static! {
   static ref TEMPLATE_VARS: Regex = Regex::new(r"\$\{\s*(\w+)\s*\}").unwrap();
 }
 
-#[derive(TS, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct TemplateString {
-  tmpl: String,
-  param_names: Vec<String>,
+#[derive(Debug, Clone, PartialEq, Eq, ts_rs::TS)]
+pub struct TemplateString(String);
+
+impl Serialize for TemplateString {
+  fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+  where
+    S: serde::Serializer,
+  {
+    serializer.serialize_str(&self.0)
+  }
+}
+
+impl<'de> Deserialize<'de> for TemplateString {
+  fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+  where
+    D: serde::Deserializer<'de>,
+  {
+    let tmpl: String = Deserialize::deserialize(deserializer)?;
+    Ok(Self(tmpl))
+  }
 }
 
 impl TemplateString {
-  pub fn template(&self) -> &str {
-    &self.tmpl
+  pub fn tmpl(&self) -> &str {
+    &self.0
   }
 
   pub fn render(&self, context: &MatchContext) -> String {
     TEMPLATE_VARS
-      .replace_all(&self.tmpl, |caps: &fancy_regex::Captures| {
+      .replace_all(&self.0, |caps: &fancy_regex::Captures| {
         let var_name = caps
           .get(1)
           .expect("TEMPLATE_VARS should always capture a group 1 in replace_all")
@@ -48,17 +63,7 @@ impl TemplateString {
 
 impl From<&str> for TemplateString {
   fn from(tmpl: &str) -> Self {
-    let param_names: Vec<String> = TEMPLATE_VARS
-      .captures_iter(tmpl)
-      // fancy_regex wraps Captures in a Result; TODO: how should this error case be handled?
-      .filter_map(|c| c.ok())
-      .filter_map(|captures| captures.get(1))
-      .map(|mtch| mtch.as_str().to_owned())
-      .collect();
-    TemplateString {
-      tmpl: tmpl.to_owned(),
-      param_names,
-    }
+    TemplateString(tmpl.to_owned())
   }
 }
 

@@ -14,6 +14,7 @@ use super::command_template::{CommandTemplate, CommandTemplateSecurityCheck};
 use super::timers::{Stopwatch, Timer, TimerEffect};
 use super::TemplateString;
 use crate::audio::PlayAudioFileError;
+use crate::common::UUID;
 use crate::state::timer_manager::TimerCommand;
 use crate::{common::duration::Duration, reactor::EventContext};
 use async_trait::async_trait;
@@ -38,6 +39,26 @@ use timer_effects::restart::RestartTimerEffect;
 use timer_effects::wait_until_filter_matches::WaitUntilFilterMatchesTimerEffect;
 use timer_effects::wait_until_finished::WaitUntilFinishedEffect;
 use timer_effects::wait_until_seconds_remain::WaitUntilSecondsRemainEffect;
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
+pub struct EffectWithID {
+  pub id: UUID,
+  pub inner: Effect,
+}
+
+impl EffectWithID {
+  pub fn new(inner: Effect) -> Self {
+    let id = UUID::new();
+    Self { id, inner }
+  }
+
+  pub fn security_check(self) -> Self {
+    Self {
+      id: self.id,
+      inner: self.inner.security_check(),
+    }
+  }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
 #[serde(tag = "variant", content = "value")]

@@ -7,7 +7,7 @@ use crate::common::progress_reporter::ProgressReporter;
 use crate::common::timestamp::Timestamp;
 use crate::common::{maybe_blank, random_id, UUID};
 use crate::matchers;
-use crate::triggers::effects::Effect;
+use crate::triggers::effects::{Effect, EffectWithID};
 use crate::triggers::template_string::TemplateString;
 use crate::triggers::timers::{Stopwatch, Timer, TimerEffect, TimerStartPolicy, TimerTag};
 use crate::triggers::{Trigger, TriggerGroup, TriggerGroupDescendant};
@@ -223,7 +223,7 @@ impl GINATrigger {
                 }
               },
               effects: {
-                let mut effects: Vec<Effect> = Vec::new();
+                let mut effects: Vec<EffectWithID> = Vec::new();
 
                 // Early Enders with WaitUntilFilterMatches + ClearTimer
                 if let Some(terminator) = self.early_enders_to_terminator()? {
@@ -247,7 +247,7 @@ impl GINATrigger {
                         seq.push(singularized);
                       }
                     }
-                    effects.push(Effect::Sequence(seq));
+                    effects.push(EffectWithID::new(Effect::Sequence(seq)));
                   }
                 }
 
@@ -255,10 +255,10 @@ impl GINATrigger {
                 if let (Some(true), Some(ended)) = (self.use_timer_ended, &self.timer_ended_trigger)
                 {
                   if let Some(singularized) = singularize_effects(ended.to_lq(), Effect::Parallel) {
-                    effects.push(Effect::Sequence(vec![
+                    effects.push(EffectWithID::new(Effect::Sequence(vec![
                       TimerEffect::WaitUntilFinished.into(),
                       singularized,
-                    ]));
+                    ])));
                   }
                 }
 
@@ -271,14 +271,15 @@ impl GINATrigger {
         };
 
         vec![display_text, copy_text, tts, play_sound_file, timer]
-          .iter()
-          .filter_map(|e| e.to_owned())
+          .into_iter()
+          .filter_map(|e| e)
+          .map(EffectWithID::new)
           .collect()
       },
     })
   }
 
-  fn early_enders_to_terminator(&self) -> Result<Option<Effect>, GINAConversionError> {
+  fn early_enders_to_terminator(&self) -> Result<Option<EffectWithID>, GINAConversionError> {
     if self.timer_early_enders.is_empty() {
       return Ok(None);
     }
@@ -293,7 +294,7 @@ impl GINATrigger {
       TimerEffect::ClearTimer.into(),
     ]);
 
-    Ok(Some(terminator))
+    Ok(Some(EffectWithID::new(terminator)))
   }
 }
 

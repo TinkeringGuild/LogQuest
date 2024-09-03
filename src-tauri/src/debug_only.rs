@@ -19,14 +19,17 @@ use crate::{
   reactor::EventLoop,
   state::timer_manager::{TimerCommand, TimerStateUpdate},
   triggers::{
-    effects::Effect,
+    effects::{Effect, EffectWithID},
     timers::{Timer, TimerStartPolicy},
     Trigger, TriggerGroup, TriggerGroupDescendant,
   },
 };
-use std::path::{Path, PathBuf};
 use std::{ffi::OsString, fs::File};
 use std::{fs, sync::Arc};
+use std::{
+  path::{Path, PathBuf},
+  process::Command,
+};
 use tauri::async_runtime::spawn;
 use tokio_stream::StreamExt as _;
 use tracing::{info, warn};
@@ -70,10 +73,10 @@ pub fn test_trigger_group() -> TriggerGroup {
     ]
     .into(),
     effects: vec![
-      Effect::Speak {
+      EffectWithID::new(Effect::Speak {
         tmpl: "Hail, ${C}!".into(),
         interrupt: false,
-      },
+      }),
       // TriggerEffect::PlayAudioFile(Some(
       //   "/home/j/Downloads/sound effects/hail/hail-exclaim-callum.ogg".into(),
       // )),
@@ -279,7 +282,7 @@ pub fn convert_gina(path: &PathBuf, format: cli::ConvertGinaFormat, out: Option<
 
 pub fn generate_typescript() -> Result<(), ts_rs::ExportError> {
   let out_dir = generated_typescript_dir();
-  delete_files_in_dir_with_extension(&out_dir, "ts");
+  delete_files(&files_in_dir_with_extension(&out_dir, "ts"));
 
   Bootstrap::export_all_to(&out_dir)?;
   TimerStateUpdate::export_all_to(&out_dir)?;
@@ -302,6 +305,10 @@ pub fn generate_typescript() -> Result<(), ts_rs::ExportError> {
       crate::ui::PROGRESS_UPDATE_FINISHED_EVENT_NAME
     ],
   );
+
+  for ts_file in files_in_dir_with_extension(&out_dir, "ts").iter() {
+    prettyify_typescript_file(ts_file);
+  }
 
   info!("Exported TypeScript files to {}", out_dir.display());
   Ok(())
@@ -346,7 +353,23 @@ fn generate_typescript_constants_file(out_dir: &Path, constants: Vec<(String, St
   );
 }
 
-fn delete_files_in_dir_with_extension(dir: &Path, extension: &str) {
+fn prettyify_typescript_file(path: &Path) {
+  match Command::new("prettier").arg("--write").arg(path).status() {
+    Ok(exit_status) => {
+      if !exit_status.success() {
+        fatal_error(format!(
+          "`prettier` command failed with status code: {:?}",
+          exit_status.code()
+        ));
+      }
+    }
+    Err(e) => {
+      fatal_error(format!("Could not execute `prettier` command on TypeScript file. Is `prettier` installed? [ ERROR = {e:?} ]"));
+    }
+  }
+}
+
+fn files_in_dir_with_extension(dir: &Path, extension: &str) -> Vec<PathBuf> {
   let extension: OsString = extension.into();
   dir
     .read_dir()
@@ -357,8 +380,12 @@ fn delete_files_in_dir_with_extension(dir: &Path, extension: &str) {
         .map(|entry| entry.path())
         .take_if(|path| path.extension() == Some(&extension))
     })
-    .for_each(|f| {
-      fatal_if_err(fs::remove_file(&f));
-      info!("DELETED: {}", f.display());
-    });
+    .collect()
+}
+
+fn delete_files(files: &Vec<PathBuf>) {
+  for file in files.iter() {
+    fatal_if_err(fs::remove_file(file));
+    info!("DELETED: {}", file.display());
+  }
 }

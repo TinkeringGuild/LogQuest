@@ -1,4 +1,4 @@
-use super::{effects::Effect, template_string::TemplateString};
+use super::{effects::EffectWithID, template_string::TemplateString};
 use crate::{
   common::{duration::Duration, UUID},
   matchers::FilterWithContext,
@@ -16,7 +16,7 @@ pub struct Timer {
   /// When finished, the timer starts over until terminated
   pub repeats: bool,
 
-  pub effects: Vec<Effect>,
+  pub effects: Vec<EffectWithID>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, ts_rs::TS)]
@@ -50,7 +50,7 @@ pub enum TimerStartPolicy {
 pub struct Stopwatch {
   pub name: TemplateString,
   pub tags: Vec<TimerTag>,
-  pub effects: Vec<Effect>,
+  pub effects: Vec<EffectWithID>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]

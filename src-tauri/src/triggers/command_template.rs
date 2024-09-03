@@ -42,14 +42,14 @@ impl CommandTemplate {
     let formatted_params = self
       .params
       .iter()
-      .map(|p| p.template())
+      .map(|p| p.tmpl())
       .collect::<Vec<&str>>()
       .join("\n");
 
     let formatted_input = self
       .write_to_stdin
       .as_ref()
-      .map_or_else(|| String::new(), |tmpl| format!("\n\n{}", tmpl.template()));
+      .map_or_else(|| String::new(), |tmpl| format!("\n\n{}", tmpl.tmpl()));
 
     format!("{}\n\n{formatted_params}{formatted_input}", self.command)
   }

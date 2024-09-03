@@ -9,7 +9,7 @@ use crate::{
   matchers,
   state::config::{LogQuestConfig, TriggersSaveError},
 };
-use effects::Effect;
+use effects::EffectWithID;
 use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::BufReader;
@@ -105,7 +105,7 @@ pub struct Trigger {
   pub comment: Option<String>,
   pub enabled: bool,
   pub filter: matchers::Filter,
-  pub effects: Vec<Effect>,
+  pub effects: Vec<EffectWithID>,
   pub created_at: Timestamp,
   pub updated_at: Timestamp, // tags: Vec<Tag>
 }
@@ -162,7 +162,7 @@ impl TriggerGroupDescendant {
 
 impl Trigger {
   fn security_check(self) -> Self {
-    let effects: Vec<Effect> = self
+    let effects: Vec<EffectWithID> = self
       .effects
       .into_iter()
       .map(|e| e.security_check())
@@ -203,7 +203,7 @@ pub fn default_triggers() -> TriggerRoot {
 
 #[cfg(test)]
 mod test {
-  use super::{Effect, Trigger, TriggerGroup};
+  use super::{effects::Effect, EffectWithID, Trigger, TriggerGroup};
   use crate::{
     common::{timestamp::Timestamp, UUID},
     matchers::Matcher,
@@ -229,13 +229,13 @@ mod test {
       created_at: now.clone(),
       updated_at: now.clone(),
       filter: vec![Matcher::gina("^{S1} hits {S2}").unwrap()].into(),
-      effects: vec![Effect::Sequence(vec![
+      effects: vec![EffectWithID::new(Effect::Sequence(vec![
         Effect::Speak {
           tmpl: "This is only a test.".into(),
           interrupt: false,
         },
         Effect::PlayAudioFile(Some("/dev/null".into())),
-      ])],
+      ]))],
     };
     TriggerGroup {
       id: UUID::new(),
