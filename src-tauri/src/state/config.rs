@@ -83,8 +83,13 @@ impl LogQuestConfig {
   ) -> Result<LogQuestConfig, ConfigLoadOrCreateError> {
     let config_path = config_dir.join(&CONFIG_FILE_NAME);
     let config = if config_path.exists() {
+      info!("Loading configuration from {}", config_dir.display());
       LogQuestConfig::load_from_file_path(&config_path, logs_dir_override)?
     } else {
+      info!(
+        "No config found. Creating fresh config in {}",
+        config_dir.display()
+      );
       let config = LogQuestConfig::new_with_config_file_path(&config_path);
       config.save_config()?;
       config
