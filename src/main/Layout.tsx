@@ -105,19 +105,6 @@ const styleLayout: CSSProperties = {
   height: '100vh',
 };
 
-const styleHeader: CSSProperties = {
-  flex: 0,
-  backgroundColor: 'black',
-  color: 'white',
-  fontFamily: 'Jacquard_12, Roboto, "Helvetica Neue", Helvetica',
-  letterSpacing: -2,
-  fontSize: '25px',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  padding: '10px 0',
-};
-
 const styleCentral: CSSProperties = {
   display: 'flex',
   flex: 1,
