@@ -1,8 +1,7 @@
 use fancy_regex::Regex;
 use serde::{Deserialize, Serialize, Serializer};
-use ts_rs::TS;
 
-#[derive(TS, Debug, Clone)]
+#[derive(Debug, Clone, ts_rs::TS)]
 pub struct SerializableRegex {
   pub pattern: String,
   #[ts(skip)]

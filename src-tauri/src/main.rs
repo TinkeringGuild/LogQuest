@@ -1,5 +1,6 @@
 // The next line prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 #[cfg(debug_assertions)]
 mod debug_only;
 
@@ -30,11 +31,9 @@ const DEFAULT_LOG_LEVEL: &str = "debug";
 
 #[derive(thiserror::Error, Debug)]
 enum AppStartError {
-  #[error("Error processing config")]
+  #[error(transparent)]
   ConfigError(#[from] config::ConfigLoadOrCreateError),
-  #[error(
-    "Could not parse the Triggers! Your Triggers file is probably for an older LogQuest version"
-  )]
+  #[error(transparent)]
   TriggerError(#[from] TriggerLoadOrCreateError),
 }
 
@@ -62,9 +61,6 @@ fn main() {
 
     #[cfg(debug_assertions)]
     CLICommand::Tail { file } => fatal_if_err(debug_only::tail(&file)),
-
-    #[cfg(debug_assertions)]
-    CLICommand::ConvertGINA { file, format, out } => debug_only::convert_gina(&file, format, out),
   };
 }
 

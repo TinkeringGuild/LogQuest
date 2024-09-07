@@ -64,8 +64,8 @@ impl EffectWithID {
 #[serde(tag = "variant", content = "value")]
 #[ts(tag = "variant", content = "value")]
 pub enum Effect {
-  Parallel(Vec<Effect>),
-  Sequence(Vec<Effect>),
+  Parallel(Vec<EffectWithID>),
+  Sequence(Vec<EffectWithID>),
   /// This uses an Option<String> because importing from GINA does not include
   /// a reference to the sound file, but the TriggerEffect should be preserved when
   /// importing to allow the user to select a file during/after import.
@@ -139,11 +139,11 @@ impl Effect {
     match self {
       Self::DoNothing => Box::new(DoNothingEffect),
       Self::Parallel(effects) => {
-        let effects = effects.into_iter().map(|e| e.ready()).collect();
+        let effects = effects.into_iter().map(|e| e.inner.ready()).collect();
         Box::new(EffectParallel(effects))
       }
       Self::Sequence(effects) => {
-        let effects = effects.into_iter().map(|e| e.ready()).collect();
+        let effects = effects.into_iter().map(|e| e.inner.ready()).collect();
         Box::new(EffectSequence(effects))
       }
       Self::StartTimer(timer) => Box::new(StartTimerEffect(timer)),

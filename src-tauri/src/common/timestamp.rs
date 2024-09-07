@@ -89,7 +89,7 @@ impl ObservableTimestamp {
   }
 
   pub fn set(&self, new_timestamp: Timestamp) {
-    let _ = self.0.send(new_timestamp);
+    _ = self.0.send(new_timestamp);
   }
 
   pub fn changed(

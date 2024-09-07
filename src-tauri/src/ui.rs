@@ -17,6 +17,7 @@ use tracing::{debug, error, info};
 
 pub type OverlayManagerState = Arc<OverlayManager>;
 
+pub const MAIN_WINDOW_LABEL: &str = "main";
 pub const OVERLAY_WINDOW_LABEL: &str = "overlay";
 
 pub const PROGRESS_UPDATE_EVENT_NAME: &str = "progress-update";
@@ -91,6 +92,21 @@ fn reactor(
 fn setup(app: &AppHandle) {
   register_global_shortcut_manager(app);
   setup_overlay(app);
+  #[cfg(debug_assertions)]
+  {
+    if let Some(main) = app.get_window(MAIN_WINDOW_LABEL) {
+      // inject the script to integrate with react-devtools
+      if let Err(e) = main.eval(r#"
+        (() => {
+          const injection = document.createElement("script");
+          injection.src = "http://localhost:8097";
+          document.head.appendChild(injection);
+        })();
+      "#) {
+        error!("Could not inject react-devtools integration script! Error: {e:?}");
+      }
+    }
+  }
 }
 
 fn setup_overlay(app: &AppHandle) {
@@ -189,7 +205,7 @@ fn set_overlay_editable(app: &AppHandle, new_value: bool) {
       error!("Failed to focus overlay window: {e:?}");
     }
   }
-  let _ = app.emit_all(OVERLAY_EDITABLE_CHANGED_EVENT_NAME, new_value);
+  _ = app.emit_all(OVERLAY_EDITABLE_CHANGED_EVENT_NAME, new_value);
   info!(
     "Overlay editing {}",
     ternary(new_value, "ENABLED", "DISABLED")

@@ -248,7 +248,7 @@ async fn event_loop(
           let snapshot: Vec<TimerLifetime> = timer_lifetimes.values().map(|(t, _)| t.clone()).collect();
           let subscription = tx_state_update.subscribe();
           let setter = Arc::into_inner(setter).unwrap(); // unwrap is safe here
-          let _ = setter.send((snapshot, Arc::new(subscription)));
+          _ = setter.send((snapshot, Arc::new(subscription)));
         }
         Some(TimerCommand::Begin(timer_lifetime)) => {
           let TimerLifetime {
@@ -282,7 +282,7 @@ async fn event_loop(
           let tx_reaper = spawn_timer_reaper(id.clone(), timer.duration.clone(), tx_command.clone());
           timer_lifetimes.insert(id.clone(), (timer_lifetime.clone(), tx_reaper));
 
-          let _ = tx_state_update.send(TimerStateUpdate::TimerAdded(timer_lifetime.clone()));
+          _ = tx_state_update.send(TimerStateUpdate::TimerAdded(timer_lifetime.clone()));
 
           let context = context.with_timer_context(TimerContext {
             timer_id: id.clone(),
@@ -293,7 +293,7 @@ async fn event_loop(
           });
 
           for effect in timer_lifetime.timer.effects.iter() {
-            let _ = context.reactor_tx.send(ReactorEvent::ExecEffect {
+            _ = context.reactor_tx.send(ReactorEvent::ExecEffect {
               effect: effect.clone(),
               event_context: context.clone()
             }).await;
@@ -308,8 +308,8 @@ async fn event_loop(
             let new_end_timestamp = &new_start_timestamp + &timer_lifetime.timer.duration;
             timer_lifetime.end_time.set(new_end_timestamp.clone());
 
-            let _ = reaper_sender.send(ResetTimerEvent).await;
-            let _ = tx_state_update.send(TimerStateUpdate::TimerRestarted {
+            _ = reaper_sender.send(ResetTimerEvent).await;
+            _ = tx_state_update.send(TimerStateUpdate::TimerRestarted {
               id: timer_id,
               start_time: new_start_timestamp,
               end_time: new_end_timestamp,
@@ -320,7 +320,7 @@ async fn event_loop(
           if let Some((timer_lifetime, _reaper_sender)) = timer_lifetimes.get_mut(&timer_id) {
             if timer_lifetime.is_hidden != is_hidden {
               timer_lifetime.is_hidden = is_hidden;
-              let _ = tx_state_update.send(TimerStateUpdate::TimerHiddenUpdated(timer_lifetime.id.clone(), is_hidden));
+              _ = tx_state_update.send(TimerStateUpdate::TimerHiddenUpdated(timer_lifetime.id.clone(), is_hidden));
             }
           }
         }
@@ -353,7 +353,7 @@ fn spawn_timer_reaper(
           break;
         }
         () = tokio::time::sleep_until(end_instant) => { // Instant implements Copy
-          let _ = tx_timer_event.send(TimerCommand::Terminate(timer_id)).await;
+          _ = tx_timer_event.send(TimerCommand::Terminate(timer_id)).await;
           break;
         }
         event = rx_reaper_event.recv() => {
@@ -390,8 +390,9 @@ fn kill_timers<'a, I>(
   for timer_id in timer_ids {
     if let Some((timer_lifetime, _reaper_sender)) = timer_lifetimes.remove(timer_id) {
       timer_lifetime.terminate();
-      let _ = tx_state_update.send(TimerStateUpdate::TimerKilled(timer_lifetime.id));
+      _ = tx_state_update.send(TimerStateUpdate::TimerKilled(timer_lifetime.id));
     } else {
+      //
       error!("Tried killing Timer[{timer_id}] but it wasn't found!");
     }
   }

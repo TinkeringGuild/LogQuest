@@ -1,12 +1,11 @@
 //! This Duration type is needed for custom serialization of time-related integers
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use ts_rs::TS;
 
 /// Wrapper around an integer representing milliseconds.
 /// This is mainly useful for serialization of Durations.
 /// Since this is a backed by a u32, the longest possible
 /// duration would be 49.71 days, which is fine for LogQuest.
-#[derive(TS, Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, ts_rs::TS)]
 pub struct Duration(pub u32);
 
 impl Duration {

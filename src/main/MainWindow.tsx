@@ -27,10 +27,10 @@ import { getBootstrap } from '../ipc';
 import LoadingIndicator from '../widgets/LoadingIndicator';
 import Layout from './Layout';
 import OverlayMode from './OverlayMode';
+import OverviewMode from './OverviewMode';
 import TriggerBrowser from './TriggerBrowser';
 
 import './MainWindow.css';
-import OverviewMode from './OverviewMode';
 
 const MainWindow: React.FC<{}> = () => {
   const dispatch = useDispatch();

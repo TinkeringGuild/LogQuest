@@ -1,6 +1,6 @@
 use crate::{
   audio::AudioMixer,
-  common::{clipboard::ClipboardWriter, shutdown::quitter},
+  common::{clipboard::ClipboardWriter, shutdown::quitter, UUID},
   logs::{
     active_character_detection::{ActiveCharacterDetector, Character},
     log_event_broadcaster::{LogEventBroadcaster, NotifyError},
@@ -14,11 +14,11 @@ use crate::{
     state_handle::StateHandle,
     timer_manager::{TimerContext, TimerManager},
   },
-  triggers::{effects::EffectWithID, TriggerGroup, TriggerGroupDescendant},
+  triggers::{effects::EffectWithID, Trigger},
   tts::TTS,
 };
 use futures::StreamExt as _;
-use std::collections::LinkedList;
+use std::collections::HashSet;
 use std::sync::Arc;
 use tauri::async_runtime::spawn;
 use tokio::sync::{broadcast, mpsc};
@@ -61,6 +61,7 @@ pub struct EventLoop {
   timer_manager: Arc<TimerManager>,
   overlay_manager: Arc<OverlayManager>,
   clipboard: ClipboardWriter,
+  active_trigger_tags: HashSet<UUID>,
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -89,12 +90,12 @@ pub fn start_when_config_is_ready(
       match start_if_ready(&state_handle, timer_manager.clone(), &overlay_manager) {
         Ok(Some(stop_reactor)) => {
           info!("The EverQuest directory has been set properly. Reactor starting...");
-          let _ = resolver.send(Ok(stop_reactor));
+          _ = resolver.send(Ok(stop_reactor));
           break;
         }
         Err(e) => {
           error!("Waited until config was ready to start reactor, but encountered an error when starting it");
-          let _ = resolver.send(Err(e));
+          _ = resolver.send(Err(e));
           break;
         }
         Ok(None) => {}
@@ -140,10 +141,10 @@ pub fn start(
   let active_detector = ActiveCharacterDetector::start(log_events.subscribe());
   let (reactor_tx, reactor_rx) = mpsc::channel::<ReactorEvent>(REACTOR_EVENT_QUEUE_DEPTH);
 
-  let trigger_count = state.select_triggers(|root| root.trigger_count());
+  let trigger_count = state.select_triggers(|index| index.trigger_count());
   debug!("Starting reactor with {trigger_count} triggers");
 
-  let _ = spawn(react_to_active_character_change(
+  _ = spawn(react_to_active_character_change(
     state.clone(),
     active_detector,
     reactor_tx.clone(),
@@ -182,6 +183,7 @@ impl EventLoop {
     let t2s_tx = create_tts_engine(state.clone());
     let mixer = Arc::new(AudioMixer::new());
     let clipboard = ClipboardWriter::new();
+    let active_trigger_tags = HashSet::new();
     Self {
       state,
       cursors,
@@ -193,6 +195,7 @@ impl EventLoop {
       timer_manager,
       overlay_manager,
       clipboard,
+      active_trigger_tags,
     }
   }
 
@@ -267,44 +270,30 @@ impl EventLoop {
         }
       }
     }
-    let _ = self.log_events.stop();
+    _ = self.log_events.stop();
     debug!("Event Loop finished");
   }
 
   async fn react_to_line(&self, line: Line, cursor_after: LogFileCursor) {
     self.state.with_reactor(|reactor_state| {
-      self.state.with_triggers(|root| {
-        let mut next_groups: LinkedList<&TriggerGroup> = LinkedList::from_iter(root.iter());
-
+      self.state.select_triggers(|index| {
         let Some(character) = &reactor_state.current_character else {
           warn!("Cannot process line! No current character detected!");
           return;
         };
-
         let cursor_after = Arc::new(cursor_after);
-
-        while let Some(dequeued_tg) = next_groups.pop_front() {
-          for tgd in dequeued_tg.children.iter() {
-            match tgd {
-              TriggerGroupDescendant::T(trigger) => {
-                if !trigger.enabled {
-                  continue;
-                }
-                if let Some(match_context) = trigger.filter.check(&line.content, &character.name) {
-                  let match_context = Arc::new(match_context);
-                  for effect in trigger.effects.iter() {
-                    debug!("TRIGGER EFFECT: {effect:?}");
-                    self.send(ReactorEvent::ExecEffect {
-                      effect: effect.clone(),
-                      event_context: self
-                        .create_event_context(match_context.clone(), cursor_after.clone()),
-                    });
-                  }
-                }
-              }
-              TriggerGroupDescendant::TG(tg) => {
-                next_groups.push_back(tg);
-              }
+        let active_triggers: Vec<&Trigger> =
+          index.get_distinct_triggers_tagged_by_any_of(self.active_trigger_tags.iter());
+        for trigger in active_triggers.into_iter() {
+          if let Some(match_context) = trigger.filter.check(&line.content, &character.name) {
+            let match_context = Arc::new(match_context);
+            for effect in trigger.effects.iter() {
+              debug!("TRIGGER EFFECT: {effect:?}");
+              self.send(ReactorEvent::ExecEffect {
+                effect: effect.clone(),
+                event_context: self
+                  .create_event_context(match_context.clone(), cursor_after.clone()),
+              });
             }
           }
         }
@@ -397,7 +386,7 @@ fn create_tts_engine(state: StateHandle) -> mpsc::Sender<TTS> {
   let tx_ = tx.clone();
   spawn(async move {
     quitter().await;
-    let _ = tx_.send(TTS::Quit).await;
+    _ = tx_.send(TTS::Quit).await;
   });
 
   tx

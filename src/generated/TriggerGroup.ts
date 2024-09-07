@@ -5,6 +5,7 @@ import type { UUID } from './UUID';
 
 export type TriggerGroup = {
   id: UUID;
+  parent_id: UUID | null;
   name: string;
   comment: string | null;
   children: Array<TriggerGroupDescendant>;

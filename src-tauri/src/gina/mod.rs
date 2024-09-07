@@ -54,6 +54,7 @@ struct GINATrigger {
   name: Option<String>,
   trigger_text: Option<String>,
   comments: Option<String>,
+  category: Option<String>,
   enable_regex: Option<bool>,
   use_text: Option<bool>,
   display_text: Option<String>,
@@ -82,9 +83,6 @@ struct GINATrigger {
 
   /// This is ignored during import
   use_fast_check: Option<bool>,
-
-  // TODO: IMPLEMENT THIS WITH TAGS
-  category: Option<String>,
 }
 
 impl GINATrigger {

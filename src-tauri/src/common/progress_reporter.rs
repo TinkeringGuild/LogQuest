@@ -50,7 +50,7 @@ impl ProgressReporter {
       text: message.as_ref().to_owned(),
       seq: self.increment_seq_num(),
     };
-    let _ = self.tx.send(update);
+    _ = self.tx.send(update);
   }
 
   fn increment_seq_num(&self) -> usize {

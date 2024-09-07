@@ -2,13 +2,13 @@ import React from 'react';
 import { useSelector } from 'react-redux';
 
 import TriggerTree from './TriggerTree';
-import { $currentTrigger } from '../features/triggers/triggersSlice';
+import { $selectedTrigger } from '../features/triggers/triggersSlice';
 import TriggerEditor from './TriggerEditor';
 
 import './TriggerBrowser.css';
 
 const TriggerBrowser: React.FC<{}> = () => {
-  const currentTrigger = useSelector($currentTrigger);
+  const currentTrigger = useSelector($selectedTrigger);
   return (
     <div className="trigger-browser">
       <TriggerTree />

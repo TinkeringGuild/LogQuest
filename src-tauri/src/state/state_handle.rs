@@ -1,6 +1,7 @@
-use super::config::LogQuestConfig;
+use super::config::{LogQuestConfig, TriggersSaveError};
 use super::state_tree::{OverlayState, ReactorState, StateTree};
-use crate::triggers::TriggerRoot;
+use crate::common::shutdown::critical_path;
+use crate::triggers::trigger_index::{DataDelta, DataMutationError, TriggerIndex};
 use std::sync::{Arc, Mutex};
 use tokio::sync::Notify;
 use tracing::{error, info};
@@ -45,12 +46,12 @@ impl StateHandle {
     self.with_branch(&self.tree.reactor, reader);
   }
 
-  pub fn with_triggers<F>(&self, reader: F)
-  where
-    F: FnOnce(&TriggerRoot),
-  {
-    self.with_branch(&self.tree.triggers, reader);
-  }
+  // pub fn with_triggers<F>(&self, reader: F)
+  // where
+  //   F: FnOnce(&TriggerIndex),
+  // {
+  //   self.with_branch(&self.tree.triggers, reader);
+  // }
 
   pub fn select_config<F, T>(&self, selector: F) -> T
   where
@@ -68,7 +69,7 @@ impl StateHandle {
 
   pub fn select_triggers<F, T>(&self, selector: F) -> T
   where
-    F: FnOnce(&TriggerRoot) -> T,
+    F: FnOnce(&TriggerIndex) -> T,
   {
     self.select_branch(&self.tree.triggers, selector)
   }
@@ -80,16 +81,60 @@ impl StateHandle {
     self.update_branch(&self.tree.reactor, func);
   }
 
-  pub fn update_triggers<F>(&self, func: F)
+  pub fn mutate_index<F>(&self, func: F) -> Result<Vec<DataDelta>, TriggersSaveError>
   where
-    F: for<'a> FnOnce(&'a mut TriggerRoot),
+    F: FnOnce(&mut TriggerIndex) -> Result<Vec<DataDelta>, DataMutationError>,
+  {
+    self.update_branch_and_select(&self.tree.triggers, |index| {
+      self.select_config(|config| {
+        critical_path(|| {
+          let deltas = func(index)?;
+          for delta in deltas.iter() {
+            match delta {
+              DataDelta::TriggerUpdated(trigger) => config.save_trigger(&trigger)?,
+              DataDelta::TriggerTagCreated(trigger_tag) => {
+                config.save_trigger_tag(trigger_tag)?;
+              }
+              DataDelta::TriggerTagDeleted(trigger_tag_id) => {
+                config.delete_trigger_tag_file(trigger_tag_id)?;
+              }
+              DataDelta::TriggerTagged { trigger_tag_id, .. }
+              | DataDelta::TriggerUntagged { trigger_tag_id, .. } => {
+                if let Some(trigger_tag) = index.trigger_tags.get(trigger_tag_id) {
+                  config.save_trigger_tag(trigger_tag)?;
+                }
+              }
+              DataDelta::TriggerGroupCreated(group) => {
+                config.save_trigger_group(group)?;
+              }
+              DataDelta::TriggerGroupChildrenChanged {
+                trigger_group_id, ..
+              } => {
+                if let Some(group) = index.groups.get(trigger_group_id) {
+                  config.save_trigger_group(group)?;
+                }
+              }
+              DataDelta::TopLevelChanged(top_level) => {
+                config.save_top_level(top_level)?;
+              }
+            }
+          }
+          Ok(deltas)
+        })
+      })
+    })
+  }
+
+  pub fn bulk_update_triggers<F>(&self, func: F)
+  where
+    F: for<'a> FnOnce(&'a mut TriggerIndex),
   {
     // Does not release the lock on the triggers until the JSON serialization
     // has been fully flushed to disk.
-    self.update_branch(&self.tree.triggers, |root| {
-      func(root); // mutates root
+    self.update_branch(&self.tree.triggers, |index| {
+      func(index); // mutates index
       self.with_config(|config| {
-        if let Err(e) = config.save_triggers(root) {
+        if let Err(e) = config.save_trigger_index(index) {
           error!("COULD NOT SAVE TRIGGERS TO DISK! [ ERROR: {e:?} ]");
         }
       });

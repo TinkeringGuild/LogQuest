@@ -66,7 +66,7 @@ impl LogFileCursorCache {
       self.cursors.remove(path);
       return;
     };
-    let _ = self
+    _ = self
       .cursors
       .insert(path.to_owned(), LogFileCursorCacheEntry::CachedSize(size));
   }

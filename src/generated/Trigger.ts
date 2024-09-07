@@ -6,6 +6,7 @@ import type { UUID } from './UUID';
 
 export type Trigger = {
   id: UUID;
+  parent_id: UUID | null;
   name: string;
   comment: string | null;
   enabled: boolean;

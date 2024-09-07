@@ -3,7 +3,6 @@ use crate::matchers::MatchContext;
 use fancy_regex::{Captures, Regex};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::{HashMap, LinkedList};
-use ts_rs::TS;
 
 lazy_static::lazy_static! {
   /// For extracting out GINA variable placeholders from a GINA regex (e.g. {S}, {N>100}, {C}, {S2})
@@ -21,7 +20,7 @@ lazy_static::lazy_static! {
 type ConditionsList = LinkedList<Box<dyn Fn(&Captures) -> bool + Send + Sync + 'static>>;
 struct Conditions(ConditionsList);
 
-#[derive(TS, Debug)]
+#[derive(Debug, ts_rs::TS)]
 pub struct RegexGINA {
   raw: String,
   #[ts(skip)]

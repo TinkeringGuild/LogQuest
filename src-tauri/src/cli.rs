@@ -91,33 +91,6 @@ pub enum CLICommand {
   /// (DEBUG BUILDS ONLY) Specify a file path to watch filesystem create/modify/delete events
   #[cfg(debug_assertions)]
   Tail { file: PathBuf },
-
-  /// (DEBUG BUILDS ONLY) Utiliy for inspecting or converting a GINA .xml or .gtp file
-  #[cfg(debug_assertions)]
-  ConvertGINA {
-    /// The path to the GINA .gtp or .xml file
-    file: PathBuf,
-
-    /// Specify the format of the output
-    #[arg(
-      value_enum, long, short,
-      default_value_t=ConvertGinaFormat::JSON
-    )]
-    format: ConvertGinaFormat,
-
-    /// Specify a file to write the output into
-    #[arg(long)]
-    out: Option<PathBuf>,
-  },
-}
-
-#[cfg(debug_assertions)]
-#[derive(clap::ValueEnum, Debug, Clone)]
-pub enum ConvertGinaFormat {
-  JSON,
-  Internal,
-  GinaInternal,
-  GinaJSON,
 }
 
 #[derive(Parser, Debug, Clone)]

@@ -3,10 +3,12 @@ import { invoke } from '@tauri-apps/api/tauri';
 import { clamp } from 'lodash';
 
 import { Bootstrap } from './generated/Bootstrap';
+import { DataDelta } from './generated/DataDelta';
 import { LogQuestConfig } from './generated/LogQuestConfig';
+import { Mutation } from './generated/Mutation';
 import { OverlayState } from './generated/OverlayState';
 import { TimerLifetime } from './generated/TimerLifetime';
-import { TriggerRoot } from './generated/TriggerRoot';
+import { TriggerIndex } from './generated/TriggerIndex';
 import { UUID } from './generated/UUID';
 
 export async function getBootstrap(): Promise<Bootstrap> {
@@ -25,13 +27,31 @@ export async function startTimersSync(): Promise<TimerLifetime[]> {
   return await invoke<TimerLifetime[]>('start_timers_sync');
 }
 
-export async function setTriggerEnabled(
-  triggerId: UUID,
-  enabled: boolean
-): Promise<TimerLifetime[]> {
-  return await invoke('set_trigger_enabled', {
-    triggerId,
-    enabled,
+export async function createTriggerTag(name: string): Promise<DataDelta[]> {
+  return mutate([{ variant: 'CreateTriggerTag', value: name }]);
+}
+
+export async function addTriggerToTag(
+  trigger_id: UUID,
+  trigger_tag_id: UUID
+): Promise<DataDelta[]> {
+  return mutate([
+    { variant: 'TagTrigger', value: { trigger_id, trigger_tag_id } },
+  ]);
+}
+
+export async function removeTriggerFromTag(
+  trigger_id: UUID,
+  trigger_tag_id: UUID
+): Promise<DataDelta[]> {
+  return mutate([
+    { variant: 'UntagTrigger', value: { trigger_id, trigger_tag_id } },
+  ]);
+}
+
+export async function mutate(mutations: Mutation[]): Promise<DataDelta[]> {
+  return await invoke('mutate', {
+    mutations,
   });
 }
 
@@ -49,8 +69,8 @@ export async function setEverQuestDirectory(
 
 export async function importGinaTriggersFile(
   filePath: string
-): Promise<TriggerRoot> {
-  return await invoke<TriggerRoot>('import_gina_triggers_file', {
+): Promise<TriggerIndex> {
+  return await invoke<TriggerIndex>('import_gina_triggers_file', {
     path: filePath,
   });
 }

@@ -6,9 +6,8 @@ use tauri::async_runtime::spawn;
 use tokio::select;
 use tokio::sync::{broadcast, oneshot, watch};
 use tracing::{debug, error, info, warn};
-use ts_rs::TS;
 
-#[derive(TS, Debug, Clone)]
+#[derive(Debug, Clone, ts_rs::TS)]
 pub struct Character {
   pub name: String,
   #[allow(unused)]
@@ -51,7 +50,7 @@ impl ActiveCharacterDetector {
 
   pub fn stop(self) {
     debug!("Sending stop signal");
-    let _ = self.stopper.send(());
+    _ = self.stopper.send(());
   }
 }
 

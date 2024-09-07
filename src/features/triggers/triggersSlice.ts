@@ -1,26 +1,28 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
-import { TriggerRoot } from '../../generated/TriggerRoot';
-import { LQ_VERSION } from '../../generated/constants';
-import { LogQuestVersion } from '../../generated/LogQuestVersion';
-import { UUID } from '../../generated/UUID';
-import { TriggerGroup } from '../../generated/TriggerGroup';
-import { Trigger } from '../../generated/Trigger';
+import { DataDelta } from '../../generated/DataDelta';
 import { Effect } from '../../generated/Effect';
+import { TriggerIndex } from '../../generated/TriggerIndex';
+import { UUID } from '../../generated/UUID';
+import * as deltas from './deltas';
 
 export const TRIGGERS_SLICE = 'triggers';
 
 interface TriggersState {
-  root: TriggerRoot;
-  activatedTriggerID: UUID | null;
+  index: TriggerIndex;
+  selectedTriggerID: UUID | null;
+  activeTriggerTagID: UUID | null;
 }
 
 const INITIAL_TRIGGERS_STATE: TriggersState = {
-  root: {
-    groups: [],
-    log_quest_version: LQ_VERSION as LogQuestVersion,
+  index: {
+    triggers: {},
+    groups: {},
+    top_level: [],
+    trigger_tags: {},
   },
-  activatedTriggerID: null,
+  selectedTriggerID: null,
+  activeTriggerTagID: null,
 };
 
 const triggersSlice = createSlice({
@@ -29,35 +31,51 @@ const triggersSlice = createSlice({
   reducers: {
     initTriggers(
       state: TriggersState,
-      { payload: root }: PayloadAction<TriggerRoot>
+      { payload: index }: PayloadAction<TriggerIndex>
     ) {
-      state.root = root;
+      state.index = index;
     },
 
-    activateTriggerID(
+    selectTriggerID(
       state: TriggersState,
       { payload: triggerID }: PayloadAction<UUID>
     ) {
-      if (state.activatedTriggerID === triggerID) {
-        state.activatedTriggerID = null;
+      if (state.selectedTriggerID === triggerID) {
+        state.selectedTriggerID = null;
       } else {
-        state.activatedTriggerID = triggerID;
+        state.selectedTriggerID = triggerID;
       }
     },
 
-    setTriggerEnabled(
+    activateTriggerTagID(
       state: TriggersState,
-      {
-        payload: { triggerID, enabled },
-      }: PayloadAction<{ triggerID: UUID; enabled: boolean }>
+      { payload: triggerTagID }: PayloadAction<UUID>
     ) {
-      for (const group of state.root.groups) {
-        const search = $triggerInGroupWithID(group, triggerID);
-        if (search !== null) {
-          search.enabled = enabled;
-          return;
+      state.activeTriggerTagID = triggerTagID;
+    },
+
+    applyDeltas(state: TriggersState, { payload }: PayloadAction<DataDelta[]>) {
+      payload.forEach(({ variant, value }) => {
+        if (variant === 'TriggerUpdated') {
+          deltas[variant](state.index, value);
+        } else if (variant === 'TriggerGroupCreated') {
+          deltas[variant](state.index, value);
+        } else if (variant === 'TriggerGroupChildrenChanged') {
+          deltas[variant](state.index, value);
+        } else if (variant === 'TopLevelChanged') {
+          deltas[variant](state.index, value);
+        } else if (variant === 'TriggerTagged') {
+          deltas[variant](state.index, value);
+        } else if (variant === 'TriggerUntagged') {
+          deltas[variant](state.index, value);
+        } else if (variant === 'TriggerTagCreated') {
+          deltas[variant](state.index, value);
+        } else if (variant === 'TriggerTagDeleted') {
+          deltas[variant](state.index, value);
+        } else {
+          throw new Error('UNIMPLEMENTED DELTA TYPE: ' + variant);
         }
-      }
+      });
     },
 
     updateTriggerEffect(
@@ -69,7 +87,7 @@ const triggersSlice = createSlice({
       }>
     ) {
       const { triggerID, effectID, mutation } = action.payload;
-      const trigger = $triggerWithID(triggerID)({
+      const trigger = $trigger(triggerID)({
         [TRIGGERS_SLICE]: state,
       });
       if (trigger) {
@@ -83,60 +101,71 @@ const triggersSlice = createSlice({
 });
 export const {
   initTriggers,
-  activateTriggerID,
-  setTriggerEnabled,
+  selectTriggerID,
+  activateTriggerTagID,
+  applyDeltas,
   updateTriggerEffect,
 } = triggersSlice.actions;
 export default triggersSlice.reducer;
 
-const $triggerInGroupWithID: (
-  group: TriggerGroup,
-  triggerID: UUID
-) => Trigger | null = (group, triggerID) => {
-  for (const tgd of group.children) {
-    if ('T' in tgd) {
-      if (tgd.T.id == triggerID) {
-        return tgd.T;
-      }
-    } else if ('TG' in tgd) {
-      const search: Trigger | null = $triggerInGroupWithID(tgd.TG, triggerID);
-      if (search !== null) {
-        return search;
-      }
-    }
-  }
-  return null;
+export const $topLevel = ({
+  [TRIGGERS_SLICE]: {
+    index: { top_level },
+  },
+}: {
+  [TRIGGERS_SLICE]: TriggersState;
+}) => top_level;
+
+export const $trigger = (triggerID: UUID) => {
+  return (state: { [TRIGGERS_SLICE]: TriggersState }) => {
+    const triggers = state[TRIGGERS_SLICE];
+    return triggers.index.triggers[triggerID];
+  };
+};
+
+export const $triggerGroup = (groupID: UUID) => {
+  return (state: { [TRIGGERS_SLICE]: TriggersState }) => {
+    const triggers = state[TRIGGERS_SLICE];
+    return triggers.index.groups[groupID];
+  };
 };
 
 export const $triggerGroups = ({
   [TRIGGERS_SLICE]: triggers,
 }: {
   [TRIGGERS_SLICE]: TriggersState;
-}) => triggers.root.groups;
+}) => triggers.index.groups;
 
-export const $triggerWithID = (triggerID: UUID) => {
-  return (state: { [TRIGGERS_SLICE]: TriggersState }) => {
-    const triggers = state[TRIGGERS_SLICE];
-    for (const group of triggers.root.groups) {
-      const search = $triggerInGroupWithID(group, triggerID);
-      if (search !== null) {
-        return search;
-      }
-    }
-    return null;
-  };
-};
-
-export const $currentTriggerID = ({
-  [TRIGGERS_SLICE]: { activatedTriggerID },
+export const $triggerTags = ({
+  [TRIGGERS_SLICE]: triggers,
 }: {
   [TRIGGERS_SLICE]: TriggersState;
-}) => activatedTriggerID;
+}) => triggers.index.trigger_tags;
 
-export const $currentTrigger = (state: { [TRIGGERS_SLICE]: TriggersState }) => {
-  const triggerID = state[TRIGGERS_SLICE].activatedTriggerID;
-  if (triggerID === null) {
-    return null;
-  }
-  return $triggerWithID(triggerID)(state);
+export const $selectedTriggerID = ({
+  [TRIGGERS_SLICE]: { selectedTriggerID },
+}: {
+  [TRIGGERS_SLICE]: TriggersState;
+}) => selectedTriggerID;
+
+export const $selectedTrigger = (state: {
+  [TRIGGERS_SLICE]: TriggersState;
+}) => {
+  const triggerID = state[TRIGGERS_SLICE].selectedTriggerID;
+  return triggerID ? state[TRIGGERS_SLICE].index.triggers[triggerID] : null;
 };
+
+export const $activeTriggerTagID = ({
+  [TRIGGERS_SLICE]: { activeTriggerTagID },
+}: {
+  [TRIGGERS_SLICE]: TriggersState;
+}) => activeTriggerTagID;
+
+export const $activeTriggerTag = ({
+  [TRIGGERS_SLICE]: triggers,
+}: {
+  [TRIGGERS_SLICE]: TriggersState;
+}) =>
+  triggers.activeTriggerTagID
+    ? triggers.index.trigger_tags[triggers.activeTriggerTagID]
+    : null;

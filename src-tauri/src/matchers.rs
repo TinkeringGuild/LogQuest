@@ -4,12 +4,11 @@ use fancy_regex::{Captures, Regex};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tracing::error;
-use ts_rs::TS;
 
-#[derive(TS, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
 pub struct Filter(Vec<Matcher>);
 
-#[derive(TS, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
 pub struct FilterWithContext(Vec<MatcherWithContext>);
 
 #[derive(Debug, Clone)]
@@ -19,7 +18,7 @@ pub struct MatchContext {
   pub character_name: String,
 }
 
-#[derive(TS, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
 pub enum Matcher {
   WholeLine(String),
   PartialLine(String),
@@ -35,7 +34,7 @@ pub enum Matcher {
 /// this is that any parse error for a Regex String would only appear later when
 /// creating a Timer, so these patterns should be validated at creation-time so
 /// that the values stored in the Strings are guaranteed to be error-free.
-#[derive(TS, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
 pub enum MatcherWithContext {
   WholeLine(String),
   PartialLine(String),

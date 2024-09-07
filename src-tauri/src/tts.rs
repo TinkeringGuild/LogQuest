@@ -60,7 +60,7 @@ fn thread_loop(mut t2s: Tts, _state_handle: StateHandle, mut rx: mpsc::Receiver<
       return;
     };
     let next_sender = Arc::into_inner(next_sender).unwrap();
-    let _ = next_sender.send(());
+    _ = next_sender.send(());
   };
 
   if let Err(e) = t2s.on_utterance_end(Some(Box::new(utterance_end_callback))) {
@@ -86,7 +86,7 @@ fn thread_loop(mut t2s: Tts, _state_handle: StateHandle, mut rx: mpsc::Receiver<
         if let Err(e) = t2s.speak(text.clone(), interrupt) {
           error!(r#"Text-to-Speech engine FAILED to speak: "{text}" [ ERROR: {e:?} ]"#);
           let tx_done = Arc::into_inner(queue.pop_back().unwrap()).unwrap();
-          let _ = tx_done.send(());
+          _ = tx_done.send(());
         }
       }
       Some(TTS::SetVoice(voice_id)) => {

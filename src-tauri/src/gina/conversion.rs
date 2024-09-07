@@ -10,8 +10,20 @@ use crate::matchers;
 use crate::triggers::effects::{Effect, EffectWithID};
 use crate::triggers::template_string::TemplateString;
 use crate::triggers::timers::{Stopwatch, Timer, TimerEffect, TimerStartPolicy, TimerTag};
-use crate::triggers::{Trigger, TriggerGroup, TriggerGroupDescendant};
+use crate::triggers::trigger_index::{
+  DataMutationError, Mutation, TriggerGroupDescendant, TriggerIndex, TriggerTag,
+};
+use crate::triggers::{Trigger, TriggerGroup};
+use std::collections::{HashMap, HashSet, VecDeque};
 use tracing::error;
+
+#[derive(thiserror::Error, Debug)]
+pub enum GINAImportError {
+  #[error(transparent)]
+  MutationError(#[from] DataMutationError),
+  #[error(transparent)]
+  ConversionError(#[from] GINAConversionError),
+}
 
 #[derive(thiserror::Error, Debug)]
 pub enum GINAConversionError {
@@ -28,51 +40,96 @@ pub enum GINAConversionError {
 }
 
 impl GINATriggers {
-  pub fn to_lq(
-    &self,
+  pub fn convert_import(
+    self,
+    index: &mut TriggerIndex,
     import_time: &Timestamp,
     progress: &ProgressReporter,
-  ) -> Result<Vec<TriggerGroup>, GINAConversionError> {
-    let mut trigger_groups = Vec::with_capacity(self.trigger_groups.len());
-    for tg in self.trigger_groups.iter() {
-      trigger_groups.push(tg.to_lq(&import_time, progress)?);
+  ) -> Result<(), GINAImportError> {
+    let category_tags: HashMap<String, UUID> = self
+      .get_distinct_categories()
+      .into_iter()
+      .map(|category| {
+        let TriggerTag { id, .. } = index.create_trigger_tag(&category);
+        (category.clone(), id)
+      })
+      .collect();
+
+    for gina_trigger_group in self.trigger_groups.into_iter() {
+      gina_trigger_group.convert_import(index, None, &category_tags, &import_time, progress)?;
     }
-    Ok(trigger_groups)
+    Ok(())
+  }
+
+  fn get_distinct_categories(&self) -> HashSet<String> {
+    let mut categories = HashSet::new();
+    let mut queue: VecDeque<&GINATriggerGroup> = self.trigger_groups.iter().collect();
+    while let Some(gina_group) = queue.pop_front() {
+      queue.extend(gina_group.trigger_groups.iter());
+      for trigger in gina_group.triggers.iter() {
+        if let Some(category) = &trigger.category {
+          categories.insert(category.clone());
+        }
+      }
+    }
+    categories
   }
 }
 
 impl GINATriggerGroup {
-  fn to_lq(
-    &self,
+  fn convert_import(
+    self,
+    index: &mut TriggerIndex,
+    parent_id: Option<UUID>,
+    category_tags: &HashMap<String, UUID>,
     import_time: &Timestamp,
     progress: &ProgressReporter,
-  ) -> Result<TriggerGroup, GINAConversionError> {
+  ) -> Result<UUID, GINAImportError> {
     progress.update(format!(
       "Converting Trigger Group\n{}",
       maybe_blank(&self.name)
     ));
+
+    let this_id = UUID::new();
+
     // Assume enable_by_default is a shallow-enable, affecting only immediate descendants
     let enable_children = self.enable_by_default.unwrap_or(false);
 
     let mut children: Vec<TriggerGroupDescendant> =
-      Vec::with_capacity(self.trigger_groups.len() + self.triggers.len());
+      Vec::with_capacity(self.triggers.len() + self.trigger_groups.len());
 
-    // Assume TriggerGroups should be first in descendants list
-    for tg in self.trigger_groups.iter() {
-      children.push(TriggerGroupDescendant::TG(
-        tg.to_lq(import_time, &progress)?,
-      ));
-    }
-    for t in self.triggers.iter() {
-      let mut trigger = t.to_lq(import_time, progress)?;
-      if enable_children {
-        trigger.enabled = true;
-      }
-      children.push(TriggerGroupDescendant::T(trigger));
+    // Assume TriggerGroups should be first in descendants list. The order is CURRENTLY lost in the GINA importer.
+    for gina_group in self.trigger_groups.into_iter() {
+      let group_id = gina_group.convert_import(
+        index,
+        Some(this_id.clone()),
+        category_tags,
+        import_time,
+        progress,
+      )?;
+      children.push(TriggerGroupDescendant::G(group_id));
     }
 
-    Ok(TriggerGroup {
-      id: UUID::new(),
+    for gina_trigger in self.triggers.into_iter() {
+      let trigger_id = gina_trigger.convert_import(
+        index,
+        this_id.clone(),
+        category_tags,
+        import_time,
+        progress,
+      )?;
+
+      // // TODO!! I NEED TO AUTO-TAG THE TRIGGERS TO ENABLE THEM
+      // if enable_children {
+      //   trigger.enabled = true;
+      // }
+
+      children.push(TriggerGroupDescendant::T(trigger_id));
+    }
+
+    let this = TriggerGroup {
+      id: this_id.clone(),
+      parent_id,
       name: self
         .name
         .clone()
@@ -81,202 +138,220 @@ impl GINATriggerGroup {
       created_at: import_time.to_owned(),
       updated_at: import_time.to_owned(),
       children,
-    })
+    };
+
+    index.import_trigger_group(this);
+
+    Ok(this_id)
   }
 }
 
 impl GINATrigger {
   /// Converts this GINATrigger to a LogQuest Trigger
-  fn to_lq(
-    &self,
+  fn convert_import(
+    self,
+    index: &mut TriggerIndex,
+    parent_id: UUID, // not an Option<UUID> because we assume all Triggers belong to a group
+    category_tags: &HashMap<String, UUID>,
     import_time: &Timestamp,
     progress: &ProgressReporter,
-  ) -> Result<Trigger, GINAConversionError> {
+  ) -> Result<UUID, GINAImportError> {
     let trigger_id = UUID::new();
     let trigger_name = self.name.clone().unwrap_or_else(|| untitled("Trigger"));
     progress.update(format!("Converting Trigger\n{trigger_name}"));
-    Ok(Trigger {
+
+    let updated_at = match self.modified {
+      Some(naive_datetime) => naive_datetime.into(),
+      None => import_time.to_owned(),
+    };
+
+    let filter = match (self.trigger_text.as_deref(), self.enable_regex) {
+      (Some(""), _) => {
+        return Err(GINAConversionError::TriggerPatternError(trigger_name.to_owned()).into())
+      }
+      (Some(text), Some(true)) => {
+        vec![matchers::Matcher::gina(text).map_err(GINAConversionError::from)?].into()
+      }
+      (Some(text), Some(false)) | (Some(text), None) => {
+        vec![matchers::Matcher::WholeLine(text.to_owned())].into()
+      }
+      _ => return Err(GINAConversionError::TriggerPatternError(trigger_name.to_owned()).into()),
+    };
+
+    let effects = {
+      let timer_name: TemplateString = self
+        .timer_name
+        .clone()
+        .unwrap_or_else(|| untitled("Timer"))
+        .into();
+
+      let display_text: Option<Effect> = {
+        match (&self.use_text, self.display_text.as_deref()) {
+          (Some(true), Some("")) => None,
+          (Some(true), Some(text)) => Some(Effect::OverlayMessage(text.into())),
+          _ => None,
+        }
+      };
+
+      let copy_text: Option<Effect> = {
+        match (&self.copy_to_clipboard, self.clipboard_text.as_deref()) {
+          (Some(true), Some("")) => None,
+          (Some(true), Some(text)) => Some(Effect::CopyToClipboard(text.into())),
+          _ => None,
+        }
+      };
+
+      let tts = match (
+        &self.use_text_to_voice,
+        self.text_to_voice_text.as_deref(),
+        &self.interrupt_speech,
+      ) {
+        (_, Some(""), _) => None,
+        (Some(true), Some(text), interrupt) => Some(Effect::Speak {
+          tmpl: text.into(),
+          interrupt: interrupt.unwrap_or(false),
+        }),
+        _ => None,
+      };
+
+      let play_sound_file: Option<Effect> = match self.play_media_file {
+        Some(true) => Some(Effect::PlayAudioFile(None)), // the XML does not include the sound file's filepath
+        _ => None,
+      };
+
+      let timer: Option<Effect> = match self.timer_type {
+        None | Some(GINATimerType::NoTimer) => None,
+
+        Some(GINATimerType::Stopwatch) => {
+          let stopwatch = Stopwatch {
+            name: timer_name.into(),
+            tags: vec![/* TODO! */],
+            effects: {
+              if let Some(terminator) = self.early_enders_to_terminator()? {
+                vec![terminator]
+              } else {
+                vec![]
+              }
+            },
+          };
+          Some(Effect::StartStopwatch(stopwatch))
+        }
+
+        // TODO: ARE THERE ANY OTHER DIFFERENCES WITH REPEATING TIMERS?
+        Some(GINATimerType::Timer | GINATimerType::RepeatingTimer) => {
+          let timer = Timer {
+            trigger_id: trigger_id.clone(),
+            name_tmpl: timer_name.clone(),
+            tags: vec![/* TODO! */],
+            repeats: self.timer_type == Some(GINATimerType::RepeatingTimer),
+            duration: match (self.timer_millisecond_duration, self.timer_duration) {
+              // Weirdly, GINA's XML has two redundant elements for duration. Prefer millis first
+              (Some(millis), _) => Duration::from_millis(millis),
+              (None, Some(secs)) => Duration::from_secs(secs),
+              _ => return Err(GINAConversionError::TimerDurationError(timer_name).into()),
+            },
+            start_policy: match (
+              &self.timer_start_behavior,
+              &self.restart_based_on_timer_name,
+            ) {
+              (None, _) => TimerStartPolicy::AlwaysStartNewTimer,
+              (Some(GINATimerStartBehavior::IgnoreIfRunning), _) => {
+                TimerStartPolicy::DoNothingIfTimerRunning
+              }
+              (Some(GINATimerStartBehavior::StartNewTimer), Some(true)) => {
+                TimerStartPolicy::StartAndReplacesAnyTimerOfTriggerWithNameTemplateMatching(
+                  timer_name.clone(),
+                )
+              }
+              (Some(GINATimerStartBehavior::StartNewTimer), Some(false) | None) => {
+                TimerStartPolicy::AlwaysStartNewTimer
+              }
+              (Some(GINATimerStartBehavior::RestartTimer), Some(true)) => {
+                error!("Encountered unexpected TimerStartBehavior=RestartTimer with RestartBasedOnTimerName=True");
+                return Err(GINAConversionError::TimerStartPolicyError(timer_name.clone()).into());
+              }
+              (Some(GINATimerStartBehavior::RestartTimer), _) => {
+                TimerStartPolicy::StartAndReplacesAllTimersOfTrigger
+              }
+            },
+            effects: {
+              let mut effects: Vec<EffectWithID> = Vec::new();
+
+              // Early Enders with WaitUntilFilterMatches + ClearTimer
+              if let Some(terminator) = self.early_enders_to_terminator()? {
+                effects.push(terminator);
+              }
+
+              // Timer Ending with WaitUntilSecondsRemain and Parallel effects
+              if let Some(secs) = self.timer_ending_time {
+                if secs > 0 {
+                  let mut seq = vec![
+                    EffectWithID::new(TimerEffect::WaitUntilSecondsRemain(secs).into()),
+                    EffectWithID::new(TimerEffect::AddTag(TimerTag::ending()).into()),
+                  ];
+
+                  if let (Some(true), Some(ending)) =
+                    (self.use_timer_ending, &self.timer_ending_trigger)
+                  {
+                    if let Some(singularized) =
+                      singularize_effects(ending.to_lq(), Effect::Parallel)
+                    {
+                      seq.push(singularized);
+                    }
+                  }
+                  effects.push(EffectWithID::new(Effect::Sequence(seq)));
+                }
+              }
+
+              // Timer Ended with WaitUntilFinished and Parallel effects
+              if let (Some(true), Some(ended)) = (self.use_timer_ended, &self.timer_ended_trigger) {
+                if let Some(singularized) = singularize_effects(ended.to_lq(), Effect::Parallel) {
+                  effects.push(EffectWithID::new(Effect::Sequence(vec![
+                    EffectWithID::new(TimerEffect::WaitUntilFinished.into()),
+                    singularized,
+                  ])));
+                }
+              }
+
+              effects
+            },
+          };
+
+          Some(Effect::StartTimer(timer))
+        }
+      };
+
+      vec![display_text, copy_text, tts, play_sound_file, timer]
+        .into_iter()
+        .filter_map(|e| e)
+        .map(EffectWithID::new)
+        .collect()
+    };
+
+    let this = Trigger {
       id: trigger_id.clone(),
-      name: trigger_name.clone(),
-      comment: self.comments.clone(),
+      parent_id: Some(parent_id),
+      name: trigger_name,
+      comment: self.comments,
       enabled: true,
       created_at: import_time.to_owned(),
-      updated_at: match self.modified {
-        Some(naive_datetime) => naive_datetime.into(),
-        None => import_time.to_owned(),
-      },
-      filter: match (self.trigger_text.as_deref(), self.enable_regex) {
-        (Some(""), _) => {
-          return Err(GINAConversionError::TriggerPatternError(
-            trigger_name.to_owned(),
-          ))
-        }
-        (Some(text), Some(true)) => vec![matchers::Matcher::gina(text)?].into(),
-        (Some(text), Some(false)) | (Some(text), None) => {
-          vec![matchers::Matcher::WholeLine(text.to_owned())].into()
-        }
-        _ => {
-          return Err(GINAConversionError::TriggerPatternError(
-            trigger_name.to_owned(),
-          ))
-        }
-      },
-      effects: {
-        let timer_name: TemplateString = self
-          .timer_name
-          .clone()
-          .unwrap_or_else(|| untitled("Timer"))
-          .into();
+      updated_at,
+      filter,
+      effects,
+    };
 
-        let display_text: Option<Effect> = {
-          match (&self.use_text, self.display_text.as_deref()) {
-            (Some(true), Some("")) => None,
-            (Some(true), Some(text)) => Some(Effect::OverlayMessage(text.into())),
-            _ => None,
-          }
-        };
+    index.import_trigger(this);
 
-        let copy_text: Option<Effect> = {
-          match (&self.copy_to_clipboard, self.clipboard_text.as_deref()) {
-            (Some(true), Some("")) => None,
-            (Some(true), Some(text)) => Some(Effect::CopyToClipboard(text.into())),
-            _ => None,
-          }
-        };
+    if let Some(category) = self.category {
+      if let Some(tag_id) = category_tags.get(&category) {
+        index.mutate(Mutation::TagTrigger {
+          trigger_id: trigger_id.clone(),
+          trigger_tag_id: tag_id.clone(),
+        })?;
+      }
+    }
 
-        let tts = match (
-          &self.use_text_to_voice,
-          self.text_to_voice_text.as_deref(),
-          &self.interrupt_speech,
-        ) {
-          (_, Some(""), _) => None,
-          (Some(true), Some(text), interrupt) => Some(Effect::Speak {
-            tmpl: text.into(),
-            interrupt: interrupt.unwrap_or(false),
-          }),
-          _ => None,
-        };
-
-        let play_sound_file: Option<Effect> = match self.play_media_file {
-          Some(true) => Some(Effect::PlayAudioFile(None)), // the XML does not include the sound file's filepath
-          _ => None,
-        };
-
-        let timer: Option<Effect> = match self.timer_type {
-          None | Some(GINATimerType::NoTimer) => None,
-
-          Some(GINATimerType::Stopwatch) => {
-            let stopwatch = Stopwatch {
-              name: timer_name.into(),
-              // TODO! THIS SHOULD USE CATEGORIES
-              tags: vec![],
-              effects: {
-                if let Some(terminator) = self.early_enders_to_terminator()? {
-                  vec![terminator]
-                } else {
-                  vec![]
-                }
-              },
-            };
-            Some(Effect::StartStopwatch(stopwatch))
-          }
-
-          // TODO: ARE THERE ANY OTHER DIFFERENCES WITH REPEATING TIMERS?
-          Some(GINATimerType::Timer | GINATimerType::RepeatingTimer) => {
-            let timer = Timer {
-              trigger_id: trigger_id.clone(),
-              name_tmpl: timer_name.clone(),
-              tags: vec![/*
-                TODO
-              */],
-              repeats: self.timer_type == Some(GINATimerType::RepeatingTimer),
-              duration: match (self.timer_millisecond_duration, self.timer_duration) {
-                // Weirdly, GINA's XML has two redundant elements for duration. Prefer millis first
-                (Some(millis), _) => Duration::from_millis(millis),
-                (None, Some(secs)) => Duration::from_secs(secs),
-                _ => return Err(GINAConversionError::TimerDurationError(timer_name)),
-              },
-              start_policy: match (
-                &self.timer_start_behavior,
-                &self.restart_based_on_timer_name,
-              ) {
-                (None, _) => TimerStartPolicy::AlwaysStartNewTimer,
-                (Some(GINATimerStartBehavior::IgnoreIfRunning), _) => {
-                  TimerStartPolicy::DoNothingIfTimerRunning
-                }
-                (Some(GINATimerStartBehavior::StartNewTimer), Some(true)) => {
-                  TimerStartPolicy::StartAndReplacesAnyTimerOfTriggerWithNameTemplateMatching(
-                    timer_name.clone(),
-                  )
-                }
-                (Some(GINATimerStartBehavior::StartNewTimer), Some(false) | None) => {
-                  TimerStartPolicy::AlwaysStartNewTimer
-                }
-                (Some(GINATimerStartBehavior::RestartTimer), Some(true)) => {
-                  error!("Encountered unexpected TimerStartBehavior=RestartTimer with RestartBasedOnTimerName=True");
-                  return Err(GINAConversionError::TimerStartPolicyError(
-                    timer_name.clone(),
-                  ));
-                }
-                (Some(GINATimerStartBehavior::RestartTimer), _) => {
-                  TimerStartPolicy::StartAndReplacesAllTimersOfTrigger
-                }
-              },
-              effects: {
-                let mut effects: Vec<EffectWithID> = Vec::new();
-
-                // Early Enders with WaitUntilFilterMatches + ClearTimer
-                if let Some(terminator) = self.early_enders_to_terminator()? {
-                  effects.push(terminator);
-                }
-
-                // Timer Ending with WaitUntilSecondsRemain and Parallel effects
-                if let Some(secs) = self.timer_ending_time {
-                  if secs > 0 {
-                    let mut seq = vec![
-                      TimerEffect::WaitUntilSecondsRemain(secs).into(),
-                      TimerEffect::AddTag(TimerTag::ending()).into(),
-                    ];
-
-                    if let (Some(true), Some(ending)) =
-                      (self.use_timer_ending, &self.timer_ending_trigger)
-                    {
-                      if let Some(singularized) =
-                        singularize_effects(ending.to_lq(), Effect::Parallel)
-                      {
-                        seq.push(singularized);
-                      }
-                    }
-                    effects.push(EffectWithID::new(Effect::Sequence(seq)));
-                  }
-                }
-
-                // Timer Ended with WaitUntilFinished and Parallel effects
-                if let (Some(true), Some(ended)) = (self.use_timer_ended, &self.timer_ended_trigger)
-                {
-                  if let Some(singularized) = singularize_effects(ended.to_lq(), Effect::Parallel) {
-                    effects.push(EffectWithID::new(Effect::Sequence(vec![
-                      TimerEffect::WaitUntilFinished.into(),
-                      singularized,
-                    ])));
-                  }
-                }
-
-                effects
-              },
-            };
-
-            Some(Effect::StartTimer(timer))
-          }
-        };
-
-        vec![display_text, copy_text, tts, play_sound_file, timer]
-          .into_iter()
-          .filter_map(|e| e)
-          .map(EffectWithID::new)
-          .collect()
-      },
-    })
+    Ok(trigger_id)
   }
 
   fn early_enders_to_terminator(&self) -> Result<Option<EffectWithID>, GINAConversionError> {
@@ -290,8 +365,8 @@ impl GINATrigger {
     let enders_filter: matchers::FilterWithContext = enders_filter_matchers.into();
 
     let terminator = Effect::Sequence(vec![
-      TimerEffect::WaitUntilFilterMatches(enders_filter, None).into(),
-      TimerEffect::ClearTimer.into(),
+      EffectWithID::new(TimerEffect::WaitUntilFilterMatches(enders_filter, None).into()),
+      EffectWithID::new(TimerEffect::ClearTimer.into()),
     ]);
 
     Ok(Some(EffectWithID::new(terminator)))
@@ -344,14 +419,17 @@ impl GINAEarlyEnder {
 /// This simplifies the logic when dealing with a vector of Effects which
 /// need to be wrapped in a TimerEffect::{Parallel,Sequence} iff there is
 /// more than one element in the vector.
-fn singularize_effects<E, F>(mut effects: Vec<E>, variant: F) -> Option<E>
+fn singularize_effects<F>(mut effects: Vec<Effect>, variant: F) -> Option<EffectWithID>
 where
-  F: FnOnce(Vec<E>) -> E,
+  F: FnOnce(Vec<EffectWithID>) -> Effect,
 {
   match effects.as_slice() {
     [] => None,
-    [_single] => Some(effects.remove(0)),
-    _many => Some(variant(effects)),
+    [_single] => Some(EffectWithID::new(effects.remove(0))),
+    _many => {
+      let effects = effects.into_iter().map(EffectWithID::new).collect();
+      Some(EffectWithID::new(variant(effects)))
+    }
   }
 }
 

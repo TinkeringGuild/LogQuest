@@ -1,27 +1,28 @@
 //! This file contains only code that is available in debug builds of LogQuest.
 #![cfg(debug_assertions)]
 use crate::{
-  cli,
   commands::Bootstrap,
   common::{
-    self, fatal_error, fatal_if_err,
-    progress_reporter::{ProgressReporter, ProgressUpdate},
-    timestamp::Timestamp,
+    self, fatal_error, fatal_if_err, progress_reporter::ProgressUpdate, timestamp::Timestamp,
     LogQuestVersion, LOG_QUEST_VERSION, UUID,
   },
-  gina::xml::load_gina_triggers_from_file_path,
   logs::{
+    active_character_detection::Character,
     log_event_broadcaster::{LogEventBroadcaster, NotifyError},
     log_file_cursor::LogFileCursor,
     log_line_stream::LogLineStream,
   },
   matchers::{self, MatchContext},
   reactor::EventLoop,
-  state::timer_manager::{TimerCommand, TimerStateUpdate},
+  state::{
+    state_tree::ReactorState,
+    timer_manager::{TimerCommand, TimerStateUpdate},
+  },
   triggers::{
     effects::{Effect, EffectWithID},
     timers::{Timer, TimerStartPolicy},
-    Trigger, TriggerGroup, TriggerGroupDescendant,
+    trigger_index::{DataDelta, DataMutationError, Mutation, TriggerGroupDescendant, TriggerIndex},
+    Trigger, TriggerGroup,
   },
 };
 use std::{ffi::OsString, fs::File};
@@ -33,7 +34,6 @@ use std::{
 use tauri::async_runtime::spawn;
 use tokio_stream::StreamExt as _;
 use tracing::{info, warn};
-use ts_rs::TS;
 
 /// This macro is used to generate a `constants.ts` file from Rust constants. It takes a list of
 /// paths/identifiers, automatically JSON-serializes their values, and returns a vector of tuples
@@ -55,13 +55,115 @@ macro_rules! constants {
 
 const CONSTANTS_TYPESCRIPT_FILENAME: &str = "constants.ts";
 
-pub fn test_trigger_group() -> TriggerGroup {
+pub fn generate_typescript() -> Result<(), ts_rs::ExportError> {
+  use ts_rs::TS as _;
+  let out_dir = generated_typescript_dir();
+  delete_files(&files_in_dir_with_extension(&out_dir, "ts"));
+
+  Bootstrap::export_all_to(&out_dir)?;
+  TimerStateUpdate::export_all_to(&out_dir)?;
+  ProgressUpdate::export_all_to(&out_dir)?;
+  Mutation::export_all_to(&out_dir)?;
+  DataDelta::export_all_to(&out_dir)?;
+  DataMutationError::export_all_to(&out_dir)?;
+  ReactorState::export_all_to(&out_dir)?;
+  Character::export_all_to(&out_dir)?;
+  LogQuestVersion::export_all_to(&out_dir)?;
+
+  #[allow(non_snake_case)]
+  let LQ_VERSION: LogQuestVersion = LOG_QUEST_VERSION.clone();
+
+  generate_typescript_constants_file(
+    &out_dir,
+    constants![
+      LQ_VERSION,
+      crate::commands::CROSS_DISPATCH_EVENT_NAME,
+      crate::state::overlay::OVERLAY_EDITABLE_CHANGED_EVENT_NAME,
+      crate::state::overlay::OVERLAY_MESSAGE_EVENT_NAME,
+      crate::state::overlay::OVERLAY_STATE_UPDATE_EVENT_NAME,
+      crate::state::state_tree::DEFAULT_OVERLAY_OPACITY,
+      crate::ui::OVERLAY_WINDOW_LABEL,
+      crate::ui::PROGRESS_UPDATE_EVENT_NAME,
+      crate::ui::PROGRESS_UPDATE_FINISHED_EVENT_NAME
+    ],
+  );
+
+  for ts_file in files_in_dir_with_extension(&out_dir, "ts").iter() {
+    prettyify_typescript_file(ts_file);
+  }
+
+  info!("Exported TypeScript files to {}", out_dir.display());
+  Ok(())
+}
+
+fn generated_typescript_dir() -> PathBuf {
+  let ts_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+    .join("../src/generated/")
+    .canonicalize()
+    .expect("Could not canonicalize path to the generated TypeScript dir!");
+
+  if !ts_dir.is_dir() {
+    fatal_error("The src/generated/ dir does not exist!");
+  }
+  ts_dir
+}
+
+fn generate_typescript_constants_file(out_dir: &Path, constants: Vec<(String, String, String)>) {
+  use std::io::Write as _;
+
+  let file_path = out_dir.join(CONSTANTS_TYPESCRIPT_FILENAME);
+  let mut constants_file = fatal_if_err(File::create(&file_path));
+
+  fatal_if_err(writeln!(
+    &mut constants_file,
+    "// GENERATED FILE - DO NOT EDIT\n"
+  ));
+
+  for (const_path, const_name, const_value) in constants.iter() {
+    fatal_if_err(writeln!(&mut constants_file, "/// From `{const_path}`"));
+    fatal_if_err(writeln!(
+      &mut constants_file,
+      "export const {const_name} = {const_value};\n"
+    ));
+  }
+
+  fatal_if_err(constants_file.flush());
+
+  info!(
+    "Generated TypeScript constants file: {}",
+    file_path.display()
+  );
+}
+
+fn prettyify_typescript_file(path: &Path) {
+  match Command::new("prettier").arg("--write").arg(path).status() {
+    Ok(exit_status) => {
+      if !exit_status.success() {
+        fatal_error(format!(
+          "`prettier` command failed with status code: {:?}",
+          exit_status.code()
+        ));
+      }
+    }
+    Err(e) => {
+      fatal_error(format!("Could not execute `prettier` command on TypeScript file. Is `prettier` installed? [ ERROR = {e:?} ]"));
+    }
+  }
+}
+
+pub fn test_trigger_index() -> TriggerIndex {
   fn re(s: &str) -> matchers::Matcher {
     matchers::Matcher::GINA(s.try_into().unwrap())
   }
 
+  let mut index = TriggerIndex::new();
+
+  let group_id = UUID::new();
+  let trigger_id = UUID::new();
+
   let trigger = Trigger {
-    id: UUID::new(),
+    id: trigger_id.clone(),
+    parent_id: Some(group_id.clone()),
     name: "Tells / Hail".to_owned(),
     comment: None,
     created_at: Timestamp::now(),
@@ -84,14 +186,20 @@ pub fn test_trigger_group() -> TriggerGroup {
     ],
   };
 
-  TriggerGroup {
-    id: UUID::new(),
+  let group = TriggerGroup {
+    id: group_id,
+    parent_id: None,
     name: "Test".to_owned(),
-    children: vec![TriggerGroupDescendant::T(trigger)],
+    children: vec![TriggerGroupDescendant::T(trigger_id)],
     comment: None,
     created_at: Timestamp::now(),
     updated_at: Timestamp::now(),
-  }
+  };
+
+  index.import_trigger_group(group);
+  index.import_trigger(trigger);
+
+  index
 }
 
 #[allow(unused)]
@@ -205,11 +313,11 @@ pub fn generate_overlay_noise(event_loop: &EventLoop) {
       // let timer_manager_ = timer_manager.clone();
       // spawn(async move {
       //   loop {
-      //     let _ = timer_manager_
+      //     _ = timer_manager_
       //       .send(TimerCommand::SetHidden(id_.clone(), true))
       //       .await;
       //     tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-      //     let _ = timer_manager_
+      //     _ = timer_manager_
       //       .send(TimerCommand::SetHidden(id_.clone(), false))
       //       .await;
       //     tokio::time::sleep(std::time::Duration::from_secs(1)).await;
@@ -219,7 +327,7 @@ pub fn generate_overlay_noise(event_loop: &EventLoop) {
       let mut interval = tokio::time::interval(std::time::Duration::from_secs(3));
       loop {
         interval.tick().await;
-        let _ = timer_manager.send(TimerCommand::Restart(id.clone())).await;
+        _ = timer_manager.send(TimerCommand::Restart(id.clone())).await;
       }
     }
   });
@@ -243,130 +351,6 @@ pub fn tail(log_file_path: &std::path::Path) -> Result<(), NotifyError> {
     }
   });
   Ok(())
-}
-
-/// This function is designed to be called from the CLI so it exits on error
-pub fn convert_gina(path: &PathBuf, format: cli::ConvertGinaFormat, out: Option<PathBuf>) {
-  let mut writer: Box<dyn std::io::Write> = if let Some(out_path) = out {
-    Box::new(fatal_if_err(fs::File::create(out_path)))
-  } else {
-    Box::new(std::io::stdout())
-  };
-
-  let (progress, _) = ProgressReporter::new();
-  let from_gina = fatal_if_err(load_gina_triggers_from_file_path(path, &progress));
-
-  match format {
-    cli::ConvertGinaFormat::GinaInternal => {
-      fatal_if_err(writeln!(writer, "{from_gina:#?}"));
-    }
-    cli::ConvertGinaFormat::GinaJSON => {
-      let pretty_json = fatal_if_err(serde_json::to_string_pretty(&from_gina));
-      fatal_if_err(writeln!(writer, "{pretty_json}"));
-    }
-    _ => {}
-  }
-
-  let root_trigger_group = fatal_if_err(from_gina.to_lq(&Timestamp::now(), &progress));
-  match format {
-    cli::ConvertGinaFormat::Internal => {
-      fatal_if_err(writeln!(writer, "{root_trigger_group:#?}"));
-    }
-    cli::ConvertGinaFormat::JSON => {
-      let pretty_json = fatal_if_err(serde_json::to_string_pretty(&root_trigger_group));
-      fatal_if_err(writeln!(writer, "{pretty_json}"));
-    }
-    _ => unreachable!(/* all four cases are handled by the two match expressions */),
-  }
-}
-
-pub fn generate_typescript() -> Result<(), ts_rs::ExportError> {
-  let out_dir = generated_typescript_dir();
-  delete_files(&files_in_dir_with_extension(&out_dir, "ts"));
-
-  Bootstrap::export_all_to(&out_dir)?;
-  TimerStateUpdate::export_all_to(&out_dir)?;
-  ProgressUpdate::export_all_to(&out_dir)?;
-
-  #[allow(non_snake_case)]
-  let LQ_VERSION: LogQuestVersion = LOG_QUEST_VERSION.clone();
-
-  generate_typescript_constants_file(
-    &out_dir,
-    constants![
-      LQ_VERSION,
-      crate::commands::CROSS_DISPATCH_EVENT_NAME,
-      crate::state::overlay::OVERLAY_EDITABLE_CHANGED_EVENT_NAME,
-      crate::state::overlay::OVERLAY_MESSAGE_EVENT_NAME,
-      crate::state::overlay::OVERLAY_STATE_UPDATE_EVENT_NAME,
-      crate::state::state_tree::DEFAULT_OVERLAY_OPACITY,
-      crate::ui::OVERLAY_WINDOW_LABEL,
-      crate::ui::PROGRESS_UPDATE_EVENT_NAME,
-      crate::ui::PROGRESS_UPDATE_FINISHED_EVENT_NAME
-    ],
-  );
-
-  for ts_file in files_in_dir_with_extension(&out_dir, "ts").iter() {
-    prettyify_typescript_file(ts_file);
-  }
-
-  info!("Exported TypeScript files to {}", out_dir.display());
-  Ok(())
-}
-
-fn generated_typescript_dir() -> PathBuf {
-  let ts_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-    .join("../src/generated/")
-    .canonicalize()
-    .expect("Could not canonicalize path to the generated TypeScript dir!");
-
-  if !ts_dir.is_dir() {
-    fatal_error("The src/generated/ dir does not exist!");
-  }
-  ts_dir
-}
-
-fn generate_typescript_constants_file(out_dir: &Path, constants: Vec<(String, String, String)>) {
-  use std::io::Write as _;
-
-  let file_path = out_dir.join(CONSTANTS_TYPESCRIPT_FILENAME);
-  let mut constants_file = fatal_if_err(File::create(&file_path));
-
-  fatal_if_err(writeln!(
-    &mut constants_file,
-    "// GENERATED FILE - DO NOT EDIT\n"
-  ));
-
-  for (const_path, const_name, const_value) in constants.iter() {
-    fatal_if_err(writeln!(&mut constants_file, "/// From `{const_path}`"));
-    fatal_if_err(writeln!(
-      &mut constants_file,
-      "export const {const_name} = {const_value};\n"
-    ));
-  }
-
-  fatal_if_err(constants_file.flush());
-
-  info!(
-    "Generated TypeScript constants file: {}",
-    file_path.display()
-  );
-}
-
-fn prettyify_typescript_file(path: &Path) {
-  match Command::new("prettier").arg("--write").arg(path).status() {
-    Ok(exit_status) => {
-      if !exit_status.success() {
-        fatal_error(format!(
-          "`prettier` command failed with status code: {:?}",
-          exit_status.code()
-        ));
-      }
-    }
-    Err(e) => {
-      fatal_error(format!("Could not execute `prettier` command on TypeScript file. Is `prettier` installed? [ ERROR = {e:?} ]"));
-    }
-  }
 }
 
 fn files_in_dir_with_extension(dir: &Path, extension: &str) -> Vec<PathBuf> {

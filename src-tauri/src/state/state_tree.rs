@@ -1,17 +1,17 @@
 use super::config::LogQuestConfig;
 use super::overlay::OverlayMode;
 use crate::logs::active_character_detection::Character;
-use crate::triggers::TriggerRoot;
+use crate::triggers::trigger_index::TriggerIndex;
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 
 pub const DEFAULT_OVERLAY_OPACITY: u8 = 75;
 
 pub struct StateTree {
-  // TODO: SHOULD THESE BE Arc<RwLock<..> INSTEAD OF Mutex<..> ??
+  // TODO: SHOULD THESE BE Arc<AsyncRwLock<..> INSTEAD OF Mutex<..> ??
   pub config: Mutex<LogQuestConfig>,
   pub reactor: Mutex<ReactorState>,
-  pub triggers: Mutex<TriggerRoot>,
+  pub triggers: Mutex<TriggerIndex>,
   pub overlay: Mutex<OverlayState>,
 }
 
@@ -38,13 +38,13 @@ pub struct OverlayState {
 impl StateTree {
   pub fn new(
     app_config: LogQuestConfig,
-    trigger_root: TriggerRoot,
+    trigger_index: TriggerIndex,
     overlay_mode: OverlayMode,
     overlay_dev_tools: bool,
   ) -> StateTree {
     Self {
       config: Mutex::new(app_config),
-      triggers: Mutex::new(trigger_root),
+      triggers: Mutex::new(trigger_index),
       reactor: Mutex::new(ReactorState::new()),
       overlay: Mutex::new(OverlayState::new(overlay_mode, overlay_dev_tools)),
     }

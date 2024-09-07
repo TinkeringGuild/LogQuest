@@ -1,26 +1,59 @@
+import AddBoxOutlinedIcon from '@mui/icons-material/AddBoxOutlined';
 import DownloadingIcon from '@mui/icons-material/Downloading';
+import {
+  FormControl,
+  InputLabel,
+  MenuItem,
+  Select,
+  SelectChangeEvent,
+  Switch,
+  TextField,
+} from '@mui/material';
 import Button from '@mui/material/Button';
-import { CSSProperties } from 'react';
+import { clone, sortBy, values } from 'lodash';
+import React, { CSSProperties, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 
 import openGINATriggerFileDialog from '../dialogs/importGINAFile';
 import {
-  setTriggerEnabled,
-  $triggerGroups,
-  activateTriggerID,
-  $currentTriggerID,
+  $activeTriggerTag,
+  $activeTriggerTagID,
+  $selectedTriggerID,
+  $topLevel,
+  $trigger,
+  $triggerGroup,
+  $triggerTags,
+  activateTriggerTagID,
+  applyDeltas,
+  selectTriggerID,
 } from '../features/triggers/triggersSlice';
-import { Trigger } from '../generated/Trigger';
-import { TriggerGroup } from '../generated/TriggerGroup';
 import { TriggerGroupDescendant } from '../generated/TriggerGroupDescendant';
-import { setTriggerEnabled as ipcSetTriggerEnabled } from '../ipc';
-import { Switch } from '@mui/material';
+import { UUID } from '../generated/UUID';
+import {
+  addTriggerToTag,
+  createTriggerTag,
+  removeTriggerFromTag,
+} from '../ipc';
 
 import './TriggerTree.css';
 
 const TriggerTree: React.FC<{}> = () => {
   const dispatch = useDispatch();
-  const triggerGroups: TriggerGroup[] = useSelector($triggerGroups);
+  const top: TriggerGroupDescendant[] = useSelector($topLevel);
+  const activeTriggerTag = useSelector($activeTriggerTag);
+
+  const activeTriggers: Set<string> | null =
+    activeTriggerTag && new Set(activeTriggerTag.triggers);
+
+  // TODO: I should use a BTreeSet on the backend and serialize the tags as an Array
+  const triggerTags = sortBy(
+    clone(useSelector($triggerTags)),
+    (tag) => tag.name
+  );
+
+  const currentTriggerTagChanged = (event: SelectChangeEvent) => {
+    dispatch(activateTriggerTagID(event.target.value));
+  };
 
   return (
     <div className="trigger-tree">
@@ -35,12 +68,47 @@ const TriggerTree: React.FC<{}> = () => {
             Import GINA Export
           </Button>
         </p>
+
         <div>
-          {triggerGroups.length ? (
+          {!!triggerTags.length && (
+            <>
+              <FormControl sx={{ minWidth: 175 }} size="small">
+                <InputLabel>Trigger Tags</InputLabel>
+                <Select
+                  size="small"
+                  label="Trigger Tags"
+                  onChange={currentTriggerTagChanged}
+                  value={activeTriggerTag?.id}
+                >
+                  {triggerTags.map((tag) => (
+                    <MenuItem key={tag.id} value={tag.id}>
+                      {tag.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>{' '}
+            </>
+          )}
+          <TagCreationButton />
+        </div>
+        <div>
+          {top.length ? (
             <ul>
-              {triggerGroups.map((group) => (
-                <ViewTriggerGroup key={group.id} group={group} />
-              ))}
+              {top.map((tgd) =>
+                tgd.variant === 'T' ? (
+                  <ViewTrigger
+                    key={tgd.value}
+                    triggerID={tgd.value}
+                    activeTriggers={activeTriggers}
+                  />
+                ) : (
+                  <ViewTriggerGroup
+                    key={tgd.value}
+                    groupID={tgd.value}
+                    activeTriggers={activeTriggers}
+                  />
+                )
+              )}
             </ul>
           ) : (
             <p>You have not created any triggers yet.</p>
@@ -51,53 +119,159 @@ const TriggerTree: React.FC<{}> = () => {
   );
 };
 
-const ViewTrigger: React.FC<{ trigger: Trigger; selected: boolean }> = ({
-  trigger,
-  selected,
-}) => {
+const TagCreationButton: React.FC<{}> = () => {
   const dispatch = useDispatch();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const triggerTags = useSelector($triggerTags);
+  const [open, setOpen] = useState(false);
+  const [waiting, setWaiting] = useState(false);
+  const [nameLength, setNameLength] = useState(0);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  if (!open) {
+    return (
+      <Button
+        variant="outlined"
+        onClick={() => setOpen(true)}
+        startIcon={<AddBoxOutlinedIcon />}
+      >
+        New Tag
+      </Button>
+    );
+  }
+
+  const saveClicked = () => {
+    if (inputRef.current) {
+      setWaiting(true);
+      const name = inputRef.current.value.trim();
+      createTriggerTag(name).then((deltas) => {
+        dispatch(applyDeltas(deltas));
+        setOpen(false);
+        setWaiting(false);
+        setNameLength(0);
+        const creation = deltas.find(
+          (delta) => delta.variant === 'TriggerTagCreated'
+        );
+        if (creation) {
+          dispatch(activateTriggerTagID(creation.value.id));
+        }
+      });
+    }
+  };
+
+  const nameChanged = () => {
+    if (inputRef.current) {
+      const name = inputRef.current.value.trim();
+      setNameLength(name.length);
+      if (values(triggerTags).find((tag) => tag.name === name)) {
+        setErrorMessage('A tag with this name already exists');
+      } else {
+        setErrorMessage(null);
+      }
+    }
+  };
+
+  return (
+    <div>
+      <TextField
+        label="Name"
+        autoFocus={true}
+        helperText={
+          errorMessage
+            ? errorMessage
+            : 'Specify the name of the new Trigger Tag'
+        }
+        error={!!errorMessage}
+        disabled={waiting}
+        inputRef={inputRef}
+        onChange={nameChanged}
+        size="small"
+      />{' '}
+      <Button
+        disabled={waiting || nameLength === 0 || !!errorMessage}
+        onClick={saveClicked}
+        variant="contained"
+      >
+        Save
+      </Button>{' '}
+      <Button
+        disabled={waiting}
+        onClick={() => setOpen(false)}
+        variant="outlined"
+      >
+        Cancel
+      </Button>
+    </div>
+  );
+};
+
+const ViewTrigger: React.FC<{
+  triggerID: UUID;
+  activeTriggers: Set<string> | null;
+}> = ({ triggerID, activeTriggers }) => {
+  const dispatch = useDispatch();
+  const trigger = useSelector($trigger(triggerID));
+  const selectedTriggerID = useSelector($selectedTriggerID);
+  const activeTriggerTagID = useSelector($activeTriggerTagID);
+
+  const selected = selectedTriggerID === triggerID;
+  const enabled = !!activeTriggers && activeTriggers.has(triggerID);
+
   return (
     <li
       className={`view-trigger-list-item ${selected ? 'view-trigger-list-item-selected' : ''}`}
     >
-      <Switch
-        size="small"
-        checked={trigger.enabled}
-        onChange={({ target: { checked } }) => {
-          dispatch(
-            setTriggerEnabled({ triggerID: trigger.id, enabled: checked })
-          );
-          ipcSetTriggerEnabled(trigger.id, checked);
-        }}
-      />{' '}
-      <span onClick={() => dispatch(activateTriggerID(trigger.id))}>
+      {!!activeTriggerTagID && (
+        <>
+          <Switch
+            size="small"
+            checked={enabled}
+            onChange={({ target: { checked } }) => {
+              if (checked) {
+                addTriggerToTag(triggerID, activeTriggerTagID).then((deltas) =>
+                  dispatch(applyDeltas(deltas))
+                );
+              } else {
+                removeTriggerFromTag(triggerID, activeTriggerTagID).then(
+                  (deltas) => dispatch(applyDeltas(deltas))
+                );
+              }
+            }}
+          />{' '}
+        </>
+      )}
+      <span onClick={() => dispatch(selectTriggerID(trigger.id))}>
         {trigger.name}
       </span>
     </li>
   );
 };
+const ViewTriggerGroup: React.FC<{
+  groupID: UUID;
+  activeTriggers: Set<string> | null;
+}> = ({ groupID, activeTriggers }) => {
+  const group = useSelector($triggerGroup(groupID));
 
-const ViewTriggerGroup: React.FC<{ group: TriggerGroup }> = ({ group }) => {
-  const currentTriggerID = useSelector($currentTriggerID);
   return (
     <li>
       {group.name}
       {group.children.length && (
         <ul className="view-trigger-group-sublist">
-          {group.children.map((descendant: TriggerGroupDescendant) => {
-            if ('T' in descendant) {
+          {group.children.map(({ variant, value: id }) => {
+            if (variant === 'T') {
               return (
                 <ViewTrigger
-                  key={descendant.T.id}
-                  trigger={descendant.T}
-                  selected={descendant.T.id === currentTriggerID}
+                  key={id}
+                  triggerID={id}
+                  activeTriggers={activeTriggers}
                 />
               );
-            } else if ('TG' in descendant) {
+            } else if (variant === 'G') {
               return (
                 <ViewTriggerGroup
-                  key={descendant.TG.id}
-                  group={descendant.TG}
+                  key={id}
+                  groupID={id}
+                  activeTriggers={activeTriggers}
                 />
               );
             }

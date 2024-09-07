@@ -33,7 +33,7 @@ impl ReadyEffect for SpeakEffect {
     }
 
     if !self.non_blocking {
-      let _ = rx_done.await;
+      _ = rx_done.await;
     }
 
     Ok(())

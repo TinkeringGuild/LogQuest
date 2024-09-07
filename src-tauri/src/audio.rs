@@ -42,7 +42,7 @@ impl AudioMixer {
     let tx_ = tx.clone();
     spawn(async move {
       quitter().await;
-      let _ = tx_.send(AudioMixerEvent::Terminate).await;
+      _ = tx_.send(AudioMixerEvent::Terminate).await;
     });
 
     Self {
@@ -68,7 +68,7 @@ impl AudioMixer {
       }
     });
 
-    let _ = rx_complete.await;
+    _ = rx_complete.await;
     Ok(())
   }
 }
@@ -102,8 +102,8 @@ fn mixer_loop(mut rx: mpsc::Receiver<AudioMixerEvent>) {
         manager.play(Box::new(sound));
 
         spawn(async move {
-          let _ = rx_complete.await;
-          let _ = tx_complete.send(());
+          _ = rx_complete.await;
+          _ = tx_complete.send(());
         });
       }
     }

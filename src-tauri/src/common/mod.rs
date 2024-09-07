@@ -13,7 +13,6 @@ use std::{
   hash::{Hash, Hasher},
   path::{Path, PathBuf},
 };
-use ts_rs::TS;
 
 lazy_static! {
   #[derive(Serialize)]
@@ -31,15 +30,22 @@ lazy_static! {
 
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
 pub struct LogQuestVersion(pub usize, pub usize, pub usize); // (major, minor, tiny)
 
-#[derive(TS, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+/// Equal to 36
+pub const UUID_LEN: usize = "00000000-0000-0000-0000-000000000000".len();
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
 pub struct UUID(String);
 
 impl UUID {
-  pub fn new() -> UUID {
-    UUID(::uuid::Uuid::new_v4().to_string())
+  pub fn new() -> Self {
+    Self(::uuid::Uuid::new_v4().to_string())
+  }
+
+  pub fn from_str_unchecked(value: &str) -> Self {
+    Self(value.to_owned())
   }
 }
 
@@ -52,6 +58,12 @@ impl std::fmt::Display for UUID {
 impl Hash for UUID {
   fn hash<H: Hasher>(&self, state: &mut H) {
     self.0.hash(state)
+  }
+}
+
+impl AsRef<str> for UUID {
+  fn as_ref(&self) -> &str {
+    &self.0
   }
 }
 

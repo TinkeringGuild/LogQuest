@@ -1,30 +1,16 @@
 use super::{
   conversion::GINAConversionError,
   xml::{load_gina_triggers_from_file_path, GINAParseError},
-  GINATriggers,
 };
 use crate::{
   common::{
     progress_reporter::{ProgressReporter, ProgressUpdate},
     timestamp::Timestamp,
   },
-  triggers::TriggerGroup,
+  state::state_handle::StateHandle,
 };
-use serde::{Deserialize, Serialize};
-use std::thread;
-use std::{
-  path::{Path, PathBuf},
-  sync::Arc,
-};
+use std::{path::Path, sync::Arc};
 use tokio::sync::{oneshot, watch};
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct GINAImport {
-  file_path: PathBuf,
-  import_time: Timestamp,
-  from_gina: GINATriggers,
-  pub converted: Vec<TriggerGroup>,
-}
 
 #[derive(thiserror::Error, Debug)]
 pub enum GINAImportError {
@@ -34,48 +20,52 @@ pub enum GINAImportError {
   ParseError(#[from] GINAParseError),
 }
 
-// TODO: This should aggregate all tags and create an index
-impl GINAImport {
-  pub fn load(
-    file_path: &Path,
-  ) -> (
-    Arc<ProgressReporter>,
-    watch::Receiver<ProgressUpdate>,
-    oneshot::Receiver<Result<Self, GINAImportError>>,
-  ) {
-    let (progress_reporter, rx_progess_update) = ProgressReporter::new();
-    let progress_reporter = Arc::new(progress_reporter);
+pub fn import_from_gina_export_file(
+  file_path: &Path,
+  state: StateHandle,
+) -> (
+  Arc<ProgressReporter>,
+  watch::Receiver<ProgressUpdate>,
+  oneshot::Receiver<Result<(), GINAImportError>>,
+) {
+  let (progress_reporter, rx_progess_update) = ProgressReporter::new();
+  let progress_reporter = Arc::new(progress_reporter);
 
-    let (tx_result, rx_result) = oneshot::channel::<Result<Self, GINAImportError>>();
+  let (tx_result, rx_result) = oneshot::channel::<Result<(), GINAImportError>>();
 
-    let file_path = file_path.to_owned();
-    let progress_reporter_ = progress_reporter.clone();
-    thread::spawn(move || {
-      let imported = import(file_path, &progress_reporter_);
-      progress_reporter_.update("LogQuest conversion complete!\nReloading data");
-      let _ = tx_result.send(imported);
-    });
+  let file_path = file_path.to_owned();
+  let progress_reporter_ = progress_reporter.clone();
 
-    (progress_reporter, rx_progess_update, rx_result)
-  }
-}
+  std::thread::Builder::new()
+    .name("LogQuest GINA Import".into())
+    .spawn(move || {
+      state.bulk_update_triggers(|index| {
+        let import_time: Timestamp = Timestamp::now();
+        progress_reporter_.update("Parsing GINA XML");
+        let from_gina = match load_gina_triggers_from_file_path(&file_path, &progress_reporter_) {
+          Ok(value) => value,
+          Err(e) => {
+            _ = tx_result.send(Err(e.into()));
+            return;
+          }
+        };
 
-fn import(
-  file_path: PathBuf,
-  progress: &Arc<ProgressReporter>,
-) -> Result<GINAImport, GINAImportError> {
-  let import_time: Timestamp = Timestamp::now();
-  progress.update("Parsing GINA XML");
-  let from_gina = load_gina_triggers_from_file_path(&file_path, progress)?;
+        progress_reporter_.update("Converting XML to LogQuest format");
 
-  progress.update("Converting XML to LogQuest format");
-  let converted = from_gina.to_lq(&import_time, progress)?;
+        if let Err(gina_import_error) =
+          from_gina.convert_import(index, &import_time, &progress_reporter_)
+        {
+          progress_reporter_.update(format!(
+            "LogQuest conversion failed!\nError: {}",
+            gina_import_error.to_string()
+          ));
+        } else {
+          progress_reporter_.update("LogQuest conversion complete!\nReloading data");
+        }
+        _ = tx_result.send(Ok(()));
+      });
+    })
+    .expect("Could not spawn a thread to import a GINA file!"); // panic-worthy
 
-  let import = GINAImport {
-    file_path: file_path.to_owned(),
-    import_time,
-    from_gina,
-    converted,
-  };
-  Ok(import)
+  (progress_reporter, rx_progess_update, rx_result)
 }

@@ -80,18 +80,18 @@ fn new_notify_event_handler(
             .filter(|p| is_valid_log_file_name(p))
             .map(|p| LogFileEvent::Created(path_string(p)))
             .for_each(|e| {
-              let _ = sender.send(Ok(e));
+              _ = sender.send(Ok(e));
             });
         }
         EventKind::Modify(ModifyKind::Data(_) | ModifyKind::Any) => {
-          debug!("Filesystem Modify event");
+          // debug!("Filesystem Modify event");
           event
             .paths
             .iter()
             .filter(|p| is_valid_log_file_name(p))
             .map(|p| LogFileEvent::Updated(path_string(p)))
             .for_each(|e| {
-              let _ = sender.send(Ok(e));
+              _ = sender.send(Ok(e));
             });
         }
         EventKind::Remove(RemoveKind::File) => {
@@ -102,14 +102,14 @@ fn new_notify_event_handler(
             .filter(|p| is_valid_log_file_name(p))
             .map(|p| LogFileEvent::Deleted(path_string(p)))
             .for_each(|e| {
-              let _ = sender.send(Ok(e));
+              _ = sender.send(Ok(e));
             });
         }
         _ => {}
       },
       Err(error) => {
         error!("Notify error! {error:#?}");
-        let _ = sender.send(Err(error.into()));
+        _ = sender.send(Err(error.into()));
       }
     }
   }

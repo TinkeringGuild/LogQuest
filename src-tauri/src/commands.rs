@@ -1,11 +1,11 @@
 use crate::{
-  common::{format_integer, progress_reporter::ProgressUpdate, UUID},
-  gina::importer::GINAImport,
+  common::{format_integer, progress_reporter::ProgressUpdate},
+  gina::importer::import_from_gina_export_file,
   state::{
     config::LogQuestConfig, state_handle::StateHandle, state_tree::OverlayState,
     timer_manager::TimerLifetime,
   },
-  triggers::TriggerRoot,
+  triggers::trigger_index::{DataDelta, Mutation, TriggerIndex},
   ui::{
     OverlayManagerState, OVERLAY_WINDOW_LABEL, PROGRESS_UPDATE_EVENT_NAME,
     PROGRESS_UPDATE_FINISHED_EVENT_NAME,
@@ -14,16 +14,15 @@ use crate::{
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tauri::{AppHandle, Manager, State, Window};
-use tracing::{debug, error, event, info};
-use ts_rs::TS;
+use tracing::{debug, error, event, info, warn};
 
 pub const CROSS_DISPATCH_EVENT_NAME: &str = "cross-dispatch";
 
-#[derive(TS, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, ts_rs::TS)]
 pub struct Bootstrap {
   config: LogQuestConfig,
   overlay: OverlayState,
-  triggers: TriggerRoot,
+  triggers: TriggerIndex,
 }
 
 impl Bootstrap {
@@ -46,11 +45,11 @@ pub fn handler() -> impl Fn(tauri::Invoke) {
     dispatch_to_overlay,
     get_config,
     import_gina_triggers_file,
+    mutate,
     print_to_stderr,
     print_to_stdout,
     set_everquest_dir,
     set_overlay_opacity,
-    set_trigger_enabled,
     start_timers_sync,
   ]
 }
@@ -84,7 +83,7 @@ fn get_config(state: State<StateHandle>) -> Result<LogQuestConfig, String> {
 #[tauri::command]
 fn dispatch_to_overlay(action: serde_json::Value, app: AppHandle) {
   if let Some(overlay_window) = app.get_window(OVERLAY_WINDOW_LABEL) {
-    let _ = overlay_window.emit(CROSS_DISPATCH_EVENT_NAME, action);
+    _ = overlay_window.emit(CROSS_DISPATCH_EVENT_NAME, action);
   }
 }
 
@@ -103,12 +102,17 @@ async fn start_timers_sync(
 }
 
 #[tauri::command]
-fn set_trigger_enabled(trigger_id: UUID, enabled: bool, state: State<StateHandle>) {
-  state.update_triggers(|root| {
-    if let Some(trigger) = root.find_mut_trigger_by_id(&trigger_id) {
-      trigger.enabled = enabled;
-    }
-  });
+fn mutate(mutations: Vec<Mutation>, state: State<StateHandle>) -> Result<Vec<DataDelta>, String> {
+  state
+    .mutate_index(|index| {
+      mutations
+        .into_iter()
+        .try_fold(Vec::new(), |mut memo, mutation| {
+          memo.append(&mut index.mutate(mutation)?);
+          Ok(memo)
+        })
+    })
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -116,9 +120,10 @@ async fn import_gina_triggers_file(
   window: Window,
   state: State<'_, StateHandle>,
   path: String,
-) -> Result<TriggerRoot, String> {
+) -> Result<TriggerIndex, String> {
   let path: PathBuf = path.into();
-  let (progress_reporter, watch_progress_updates, rx_gina_import) = GINAImport::load(&path);
+  let (progress_reporter, watch_progress_updates, rx_gina_import) =
+    import_from_gina_export_file(&path, (*state).clone());
 
   let count_before = state.select_triggers(|root| root.trigger_count());
 
@@ -134,7 +139,7 @@ async fn import_gina_triggers_file(
         } else {
           PROGRESS_UPDATE_EVENT_NAME
         };
-        let _ = window.emit(event_name, current);
+        _ = window.emit(event_name, current);
       }
     } else {
       error!("Could not send updates to unknown window: {window_label}");
@@ -144,26 +149,22 @@ async fn import_gina_triggers_file(
 
   progress_reporter.update("Starting import...");
 
-  let gina_import = match rx_gina_import.await {
-    Ok(Ok(import)) => import,
+  match rx_gina_import.await {
+    Ok(Ok(())) => {}
     Ok(Err(import_error)) => return Err(import_error.to_string()),
     Err(_recv_error) => return Err("Import crashed!".to_owned()),
   };
 
-  progress_reporter.update("Adding everything to the Trigger Tree");
-  state.update_triggers(move |trigger_root| trigger_root.ingest_gina_import(gina_import));
+  let index_copy = state.select_triggers(|index| index.clone());
 
-  let (count_imported, trigger_root) =
-    state.select_triggers(|root| (root.trigger_count() - count_before, root.clone()));
-
-  let count_imported = format_integer(count_imported);
+  let count_imported = format_integer(index_copy.trigger_count() - count_before);
   progress_reporter.finished(format!("Added {} Triggers", count_imported));
   info!(
     "Imported {count_imported} new triggers from GINA file: {}",
     path.display()
   );
 
-  Ok(trigger_root)
+  Ok(index_copy)
 }
 
 #[tauri::command]

@@ -57,14 +57,14 @@ impl OverlayManager {
       .lock()
       .expect("OverlayManager emitters mutex poisoned");
     if let Some(replaced_stopper) = emitters.insert(window_label.to_owned(), tx_stop) {
-      let _ = replaced_stopper.send(());
+      _ = replaced_stopper.send(());
     }
 
     timer_lifetimes
   }
 
   pub fn message(&self, message: String) {
-    let _ = self.app.emit_all(OVERLAY_MESSAGE_EVENT_NAME, message);
+    _ = self.app.emit_all(OVERLAY_MESSAGE_EVENT_NAME, message);
   }
 }
 

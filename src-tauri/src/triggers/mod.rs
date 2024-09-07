@@ -2,89 +2,35 @@ pub mod command_template;
 pub mod effects;
 pub mod template_string;
 pub mod timers;
+pub mod trigger_index;
 
 use crate::{
-  common::{timestamp::Timestamp, LogQuestVersion, LOG_QUEST_VERSION, UUID},
-  gina::importer::GINAImport,
+  common::{timestamp::Timestamp, UUID},
   matchers,
-  state::config::{LogQuestConfig, TriggersSaveError},
+  state::config::{LogQuestConfig, TriggerLoadError, TriggersSaveError},
 };
-use effects::EffectWithID;
+use effects::{Effect, EffectWithID};
 use serde::{Deserialize, Serialize};
-use std::fs::File;
-use std::io::BufReader;
+use std::collections::VecDeque;
 use template_string::TemplateString;
-use tracing::{debug, error};
-use ts_rs::TS;
+use trigger_index::{TriggerGroupDescendant, TriggerIndex};
 
 #[derive(thiserror::Error, Debug)]
 pub enum TriggerLoadOrCreateError {
-  #[error("Encountered IO error loading the Triggers")]
-  IOError(#[from] std::io::Error),
-  #[error("Encountered error deserializing the Triggers file")]
-  DeserializationError(#[from] serde_json::Error),
-  #[error("Failed to save the Triggers JSON file")]
+  // #[error(transparent)]
+  // IOError(#[from] std::io::Error),
+  // #[error(transparent)]
+  // DeserializationError(#[from] serde_json::Error),
+  #[error(transparent)]
   SaveError(#[from] TriggersSaveError),
+  #[error(transparent)]
+  LoadError(#[from] TriggerLoadError),
 }
 
-#[derive(TS, Clone, Serialize, Deserialize)]
-pub struct TriggerRoot {
-  log_quest_version: LogQuestVersion,
-  groups: Vec<TriggerGroup>,
-}
-
-impl TriggerRoot {
-  pub fn new(groups: Vec<TriggerGroup>) -> Self {
-    Self {
-      log_quest_version: LOG_QUEST_VERSION.clone(),
-      groups,
-    }
-  }
-
-  pub fn find_mut_trigger_by_id(&mut self, id: &UUID) -> Option<&mut Trigger> {
-    for group in self.groups.iter_mut() {
-      if let Some(trigger) = group.find_mut_trigger_by_id(id) {
-        return Some(trigger);
-      }
-    }
-    error!("Attempted to find Trigger but it did no exist! [ ID = {id} ]");
-    None
-  }
-
-  pub fn ingest_gina_import(&mut self, mut import: GINAImport) {
-    self.groups.append(&mut import.converted)
-  }
-
-  pub fn iter(&self) -> std::slice::Iter<TriggerGroup> {
-    self.groups.iter()
-  }
-
-  pub fn trigger_count(&self) -> usize {
-    fn descend_descendants(descendants: &Vec<TriggerGroupDescendant>) -> usize {
-      descendants.iter().fold(0, |sum, tgd| match tgd {
-        TriggerGroupDescendant::T(_) => sum + 1,
-        TriggerGroupDescendant::TG(tg) => sum + descend_descendants(&tg.children),
-      })
-    }
-    self
-      .groups
-      .iter()
-      .fold(0, |sum, tg| sum + descend_descendants(&tg.children))
-  }
-
-  pub fn security_check(self) -> Self {
-    let groups = self
-      .groups
-      .into_iter()
-      .map(|g| g.security_check())
-      .collect();
-    Self { groups, ..self }
-  }
-}
-
-#[derive(TS, Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, ts_rs::TS)]
 pub struct TriggerGroup {
   pub id: UUID,
+  pub parent_id: Option<UUID>,
   pub name: String,
   pub comment: Option<String>,
   pub children: Vec<TriggerGroupDescendant>,
@@ -92,15 +38,10 @@ pub struct TriggerGroup {
   pub updated_at: Timestamp,
 }
 
-#[derive(TS, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum TriggerGroupDescendant {
-  T(Trigger),
-  TG(TriggerGroup),
-}
-
-#[derive(TS, Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
 pub struct Trigger {
   pub id: UUID,
+  pub parent_id: Option<UUID>,
   pub name: String,
   pub comment: Option<String>,
   pub enabled: bool,
@@ -108,56 +49,6 @@ pub struct Trigger {
   pub effects: Vec<EffectWithID>,
   pub created_at: Timestamp,
   pub updated_at: Timestamp, // tags: Vec<Tag>
-}
-
-impl From<TriggerGroup> for TriggerGroupDescendant {
-  fn from(value: TriggerGroup) -> Self {
-    TriggerGroupDescendant::TG(value)
-  }
-}
-
-impl From<Trigger> for TriggerGroupDescendant {
-  fn from(value: Trigger) -> Self {
-    TriggerGroupDescendant::T(value)
-  }
-}
-
-impl TriggerGroup {
-  fn find_mut_trigger_by_id(&mut self, id: &UUID) -> Option<&mut Trigger> {
-    for descendant in self.children.iter_mut() {
-      match descendant {
-        TriggerGroupDescendant::T(trigger) => {
-          if trigger.id == *id {
-            return Some(trigger);
-          }
-        }
-        TriggerGroupDescendant::TG(group) => {
-          if let Some(trigger) = group.find_mut_trigger_by_id(id) {
-            return Some(trigger);
-          }
-        }
-      }
-    }
-    None
-  }
-
-  fn security_check(self) -> Self {
-    let children: Vec<TriggerGroupDescendant> = self
-      .children
-      .into_iter()
-      .map(|tgd| tgd.security_check())
-      .collect();
-    Self { children, ..self }
-  }
-}
-
-impl TriggerGroupDescendant {
-  fn security_check(self) -> Self {
-    match self {
-      Self::T(trigger) => Self::T(trigger.security_check()),
-      Self::TG(group) => Self::TG(group.security_check()),
-    }
-  }
 }
 
 impl Trigger {
@@ -169,41 +60,87 @@ impl Trigger {
       .collect();
     Self { effects, ..self }
   }
+
+  fn get_mut_effect(&mut self, effect_id: &UUID) -> Option<&mut EffectWithID> {
+    let mut queue: VecDeque<&mut Vec<EffectWithID>> = [&mut self.effects].into();
+    while let Some(effects) = queue.pop_front() {
+      for effect in effects.iter_mut() {
+        if effect.id == *effect_id {
+          return Some(effect);
+        }
+        match &mut effect.inner {
+          Effect::Sequence(effects) | Effect::Parallel(effects) => {
+            queue.push_back(effects);
+          }
+          Effect::StartTimer(timer) => {
+            queue.push_back(&mut timer.effects);
+          }
+          Effect::StartStopwatch(stopwatch) => {
+            queue.push_back(&mut stopwatch.effects);
+          }
+          _ => {}
+        }
+      }
+    }
+    None
+  }
+
+  fn updated_now(&mut self) {
+    self.updated_at = Timestamp::now();
+  }
 }
 
 pub fn load_or_create_relative_to_config(
   config: &LogQuestConfig,
-) -> Result<TriggerRoot, TriggerLoadOrCreateError> {
-  let triggers_file_path = config.triggers_file_path();
-  if triggers_file_path.is_file() {
-    debug!(
-      "Triggers file exists. Loading {}",
-      triggers_file_path.display()
-    );
-    let reader = BufReader::new(File::open(triggers_file_path)?);
-    let root: TriggerRoot = serde_json::from_reader(reader)?;
-    let root = root.security_check();
-    Ok(root)
+) -> Result<TriggerIndex, TriggerLoadOrCreateError> {
+  if let Some(top_level) = config.load_top_level_file()? {
+    let triggers = config
+      .load_all_triggers()?
+      .into_iter()
+      .map(|t| (t.id.clone(), t))
+      .collect();
+
+    let groups = config
+      .load_all_trigger_groups()?
+      .into_iter()
+      .map(|g| (g.id.clone(), g))
+      .collect();
+
+    let trigger_tags = config
+      .load_all_trigger_tags()?
+      .into_iter()
+      .map(|tag| (tag.id.clone(), tag))
+      .collect();
+
+    let index = TriggerIndex {
+      triggers,
+      groups,
+      trigger_tags,
+      top_level,
+    };
+    Ok(index.security_check())
   } else {
-    let root = default_triggers().security_check();
-    config.save_triggers(&root)?;
-    Ok(root)
+    let index = default_triggers().security_check();
+    config.save_trigger_index(&index)?;
+    Ok(index)
   }
 }
 
 #[cfg(not(debug_assertions))]
-pub fn default_triggers() -> TriggerRoot {
-  TriggerRoot::new(vec![])
+pub fn default_triggers() -> TriggerIndex {
+  TriggerIndex::new()
 }
 
 #[cfg(debug_assertions)]
-pub fn default_triggers() -> TriggerRoot {
-  TriggerRoot::new(vec![crate::debug_only::test_trigger_group()])
+pub fn default_triggers() -> TriggerIndex {
+  crate::debug_only::test_trigger_index()
 }
 
 #[cfg(test)]
 mod test {
-  use super::{effects::Effect, EffectWithID, Trigger, TriggerGroup};
+  use super::{
+    effects::Effect, trigger_index::TriggerGroupDescendant, EffectWithID, Trigger, TriggerGroup,
+  };
   use crate::{
     common::{timestamp::Timestamp, UUID},
     matchers::Matcher,
@@ -211,18 +148,32 @@ mod test {
 
   #[test]
   fn test_serde() {
-    let tg_before = simple_sample();
-    let raw_json =
-      serde_json::to_string_pretty(&tg_before).expect("Could not convert TriggerGroup to JSON");
-    let tg_after: TriggerGroup =
-      serde_json::from_str(&raw_json).expect("Could not parse TriggerGroup JSON!");
-    assert_eq!(tg_before, tg_after);
+    let (trigger_before, group_before) = simple_sample();
+
+    {
+      let raw_json = serde_json::to_string_pretty(&trigger_before)
+        .expect("Could not convert TriggerGroup to JSON");
+      let trigger_after: Trigger =
+        serde_json::from_str(&raw_json).expect("Could not parse TriggerGroup JSON!");
+      assert_eq!(trigger_before, trigger_after);
+    }
+
+    {
+      let raw_json = serde_json::to_string_pretty(&group_before)
+        .expect("Could not convert TriggerGroup to JSON");
+      let group_after: TriggerGroup =
+        serde_json::from_str(&raw_json).expect("Could not parse TriggerGroup JSON!");
+      assert_eq!(group_before, group_after);
+    }
   }
 
-  fn simple_sample() -> TriggerGroup {
+  fn simple_sample() -> (Trigger, TriggerGroup) {
     let now = Timestamp::now();
+    let trigger_id = UUID::new();
+    let group_id = UUID::new();
     let trigger = Trigger {
-      id: UUID::new(),
+      id: trigger_id.clone(),
+      parent_id: Some(group_id.clone()),
       name: "Simple Sample Trigger 1".into(),
       enabled: true,
       comment: None,
@@ -230,20 +181,23 @@ mod test {
       updated_at: now.clone(),
       filter: vec![Matcher::gina("^{S1} hits {S2}").unwrap()].into(),
       effects: vec![EffectWithID::new(Effect::Sequence(vec![
-        Effect::Speak {
+        EffectWithID::new(Effect::Speak {
           tmpl: "This is only a test.".into(),
           interrupt: false,
-        },
-        Effect::PlayAudioFile(Some("/dev/null".into())),
+        }),
+        EffectWithID::new(Effect::PlayAudioFile(Some("/dev/null".into()))),
       ]))],
     };
-    TriggerGroup {
-      id: UUID::new(),
+    let group = TriggerGroup {
+      id: group_id,
+      parent_id: None,
       name: "Simple Sample Trigger Group".into(),
       comment: Some("I am a comment".into()),
       created_at: now.clone(),
       updated_at: now,
-      children: vec![trigger.into()],
-    }
+      children: vec![TriggerGroupDescendant::T(trigger_id)],
+    };
+
+    (trigger, group)
   }
 }
