@@ -1,15 +1,4 @@
-import {
-  AudioFileOutlined,
-  HourglassTopOutlined,
-  InsertCommentOutlined,
-  PlayCircleOutline,
-  VolumeUpOutlined,
-} from '@mui/icons-material';
-import Button from '@mui/material/Button';
-import Card from '@mui/material/Card';
-import CardContent from '@mui/material/CardContent';
-import CardHeader from '@mui/material/CardHeader';
-import TextField from '@mui/material/TextField';
+import { QuestionMarkOutlined } from '@mui/icons-material';
 import { useSelector } from 'react-redux';
 
 import {
@@ -17,17 +6,21 @@ import {
   EditorSelector,
   EditorState,
   EffectVariantCopyToClipboard,
+  EffectVariantOverlayMessage,
+  EffectVariantPlayAudioFile,
   EffectVariantSpeak,
 } from '../../features/triggers/editorSlice';
 import { Effect } from '../../generated/Effect';
 import { EffectWithID } from '../../generated/EffectWithID';
 import { UUID } from '../../generated/UUID';
 import EditCopyToClipboardEffect from './EditCopyToClipboardEffect';
+import EditOverlayMessageEffect from './EditOverlayMessageEffect';
+import EditPlayAudioFileEffect from './EditPlayAudioFileEffect';
 import EditScopedTimerEffect from './EditScopedTimerEffect';
 import EditSequenceEffect from './EditSequenceEffect';
 import EditSpeakEffect from './EditSpeakEffect';
 import EditStartTimerEffect from './EditStartTimerEffect';
-import { EffectHeader, EffectTitle } from './widgets/EffectHeader';
+import EffectWithOptions from './EffectWithOptions';
 
 type EffectVariantScopedTimer = Extract<
   Effect,
@@ -37,6 +30,17 @@ type EffectVariantScopedTimer = Extract<
 type EffectVariantSequence = Extract<Effect, { variant: 'Sequence' }>;
 
 type EffectVariantStartTimer = Extract<Effect, { variant: 'StartTimer' }>;
+
+// Functions that begin with '$$' indicate a selector that operates on slice-state
+// rather than store-wide state.
+function $$innerAs<T extends Effect>(
+  effectSelector: EditorSelector<EffectWithID>
+): (slice: EditorState) => T {
+  return (slice) => {
+    const effect: EffectWithID = effectSelector(slice);
+    return effect.inner as T;
+  };
+}
 
 const EditEffect: React.FC<{
   triggerID: UUID;
@@ -49,20 +53,14 @@ const EditEffect: React.FC<{
     case 'CopyToClipboard':
       return (
         <EditCopyToClipboardEffect
-          selector={(slice) => {
-            const effect: EffectWithID = effectSelector(slice);
-            return effect.inner as EffectVariantCopyToClipboard;
-          }}
+          selector={$$innerAs<EffectVariantCopyToClipboard>(effectSelector)}
           onDelete={onDelete}
         />
       );
     case 'Speak':
       return (
         <EditSpeakEffect
-          selector={(slice) => {
-            const effect: EffectWithID = effectSelector(slice);
-            return effect.inner as EffectVariantSpeak;
-          }}
+          selector={$$innerAs<EffectVariantSpeak>(effectSelector)}
           onDelete={onDelete}
         />
       );
@@ -71,9 +69,9 @@ const EditEffect: React.FC<{
         <EditSequenceEffect
           triggerID={triggerID}
           seqSelector={(slice: EditorState) => {
-            const effect: EffectWithID = effectSelector(slice);
-            const scopedTimerEffect = effect.inner as EffectVariantSequence;
-            return scopedTimerEffect.value;
+            const sequenceEffect =
+              $$innerAs<EffectVariantSequence>(effectSelector)(slice);
+            return sequenceEffect.value;
           }}
           onDelete={onDelete}
         />
@@ -82,9 +80,9 @@ const EditEffect: React.FC<{
       return (
         <EditStartTimerEffect
           timerSelector={(slice: EditorState) => {
-            const effect: EffectWithID = effectSelector(slice);
-            const scopedTimerEffect = effect.inner as EffectVariantStartTimer;
-            return scopedTimerEffect.value;
+            const startTimerEffect =
+              $$innerAs<EffectVariantStartTimer>(effectSelector)(slice);
+            return startTimerEffect.value;
           }}
           onDelete={onDelete}
         />
@@ -94,8 +92,8 @@ const EditEffect: React.FC<{
         <EditScopedTimerEffect
           triggerID={triggerID}
           timerSelector={(slice: EditorState) => {
-            const effect: EffectWithID = effectSelector(slice);
-            const scopedTimerEffect = effect.inner as EffectVariantScopedTimer;
+            const scopedTimerEffect =
+              $$innerAs<EffectVariantScopedTimer>(effectSelector)(slice);
             return scopedTimerEffect.value;
           }}
           onDelete={onDelete}
@@ -103,60 +101,18 @@ const EditEffect: React.FC<{
       );
     case 'OverlayMessage':
       return (
-        <Card elevation={10}>
-          <CardHeader
-            title={
-              <EffectHeader onDelete={onDelete}>
-                <EffectTitle
-                  title="Show Overlay Message"
-                  help="Shows a message on the Overlay."
-                  icon={<InsertCommentOutlined />}
-                />
-              </EffectHeader>
-            }
-          />
-          <CardContent>
-            <TextField
-              label="Overlay Message (Template)"
-              fullWidth
-              value={effect.inner.value}
-            />
-          </CardContent>
-        </Card>
+        <EditOverlayMessageEffect
+          selector={$$innerAs<EffectVariantOverlayMessage>(effectSelector)}
+          onDelete={onDelete}
+        />
       );
 
     case 'PlayAudioFile':
       return (
-        <Card elevation={10}>
-          <CardHeader
-            title={
-              <EffectHeader onDelete={onDelete}>
-                <EffectTitle
-                  title="Play Audio File"
-                  help="Plays an sound file located in your LogQuest configuration directory"
-                  icon={<VolumeUpOutlined />}
-                />
-              </EffectHeader>
-            }
-          />
-          <CardContent>
-            <p>
-              {effect.inner.value ? (
-                <code>{effect.inner.value}</code>
-              ) : (
-                'No audio file selected'
-              )}
-            </p>
-            <Button variant="contained" startIcon={<AudioFileOutlined />}>
-              Select file
-            </Button>{' '}
-            {!effect.inner.value && (
-              <Button variant="outlined" startIcon={<PlayCircleOutline />}>
-                Test playback
-              </Button>
-            )}
-          </CardContent>
-        </Card>
+        <EditPlayAudioFileEffect
+          selector={$$innerAs<EffectVariantPlayAudioFile>(effectSelector)}
+          onDelete={onDelete}
+        />
       );
     case 'Pause':
     case 'Parallel':
@@ -166,20 +122,15 @@ const EditEffect: React.FC<{
     case 'StartStopwatch':
     default:
       return (
-        <Card elevation={10}>
-          <CardHeader
-            title={
-              <EffectHeader onDelete={onDelete}>
-                <EffectTitle
-                  title={effect.inner.variant}
-                  help="TODO"
-                  icon={<HourglassTopOutlined />}
-                />
-              </EffectHeader>
-            }
-          ></CardHeader>
-          <CardContent>{effect.inner.variant}</CardContent>
-        </Card>
+        <EffectWithOptions
+          title={effect.inner.variant}
+          help="TODO"
+          icon={<QuestionMarkOutlined />}
+          onDelete={onDelete}
+        >
+          <h3>TODO!</h3>
+          <pre>{JSON.stringify(effect.inner, null, 2)}</pre>
+        </EffectWithOptions>
       );
   }
 };

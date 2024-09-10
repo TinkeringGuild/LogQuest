@@ -7,6 +7,7 @@ import InputLabel from '@mui/material/InputLabel';
 import OutlinedInput from '@mui/material/OutlinedInput';
 import Stack from '@mui/material/Stack';
 import { useDispatch, useSelector } from 'react-redux';
+import { uniqueId } from 'lodash';
 
 import {
   appendNewMatcher,
@@ -69,7 +70,11 @@ function EditFilter<T extends Filter | FilterWithContext>({
     <Stack spacing={2}>
       {filter.map((matcher, index) => (
         <MatcherInputField
-          key={index}
+          key={
+            uniqueId(
+              'matcher'
+            ) /* matchers have no ID, so this forces a full re-render on each matcher add/removal */
+          }
           defaultValue={matcher.value}
           variant="GINA"
           onDelete={() => dispatch(deleteFilterMatcher({ index, selector }))}

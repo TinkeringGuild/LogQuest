@@ -42,6 +42,16 @@ export type EffectVariantCopyToClipboard = Extract<
 
 export type EffectVariantSpeak = Extract<Effect, { variant: 'Speak' }>;
 
+export type EffectVariantOverlayMessage = Extract<
+  Effect,
+  { variant: 'OverlayMessage' }
+>;
+
+export type EffectVariantPlayAudioFile = Extract<
+  Effect,
+  { variant: 'PlayAudioFile' }
+>;
+
 const INITIAL_EDITOR_STATE = {
   draft: null,
 } satisfies EditorState;
@@ -173,6 +183,19 @@ const editorSlice = createSlice({
       const effect = selector(slice);
       effect.value = { tmpl, interrupt };
     },
+
+    setOverlayMessageTemplate(
+      slice: EditorState,
+      {
+        payload: { tmpl, selector },
+      }: PayloadAction<{
+        tmpl: string;
+        selector: EditorSelector<EffectVariantOverlayMessage>;
+      }>
+    ) {
+      const effect = selector(slice);
+      effect.value = tmpl;
+    },
   },
 });
 
@@ -183,6 +206,7 @@ export const {
   editTriggerDraft,
   setCopyToClipboardTemplate,
   setMatcherValue,
+  setOverlayMessageTemplate,
   setSpeakTemplate,
   setTimerField,
   setTriggerComment,
