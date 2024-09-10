@@ -52,6 +52,8 @@ export type EffectVariantPlayAudioFile = Extract<
   { variant: 'PlayAudioFile' }
 >;
 
+export type EffectVariantPause = Extract<Effect, { variant: 'Pause' }>;
+
 const INITIAL_EDITOR_STATE = {
   draft: null,
 } satisfies EditorState;
@@ -153,8 +155,8 @@ const editorSlice = createSlice({
         duration: Duration;
       }>
     ) {
-      const timerEffect = selector(slice);
-      timerEffect.value[1] = duration;
+      const waitUntilFilterMatches = selector(slice);
+      waitUntilFilterMatches.value[1] = duration;
     },
 
     setCopyToClipboardTemplate(
@@ -166,8 +168,8 @@ const editorSlice = createSlice({
         selector: EditorSelector<EffectVariantCopyToClipboard>;
       }>
     ) {
-      const effect = selector(slice);
-      effect.value = tmpl;
+      const copyToClipboard = selector(slice);
+      copyToClipboard.value = tmpl;
     },
 
     setSpeakTemplate(
@@ -180,8 +182,8 @@ const editorSlice = createSlice({
         selector: EditorSelector<EffectVariantSpeak>;
       }>
     ) {
-      const effect = selector(slice);
-      effect.value = { tmpl, interrupt };
+      const speak = selector(slice);
+      speak.value = { tmpl, interrupt };
     },
 
     setOverlayMessageTemplate(
@@ -193,8 +195,21 @@ const editorSlice = createSlice({
         selector: EditorSelector<EffectVariantOverlayMessage>;
       }>
     ) {
-      const effect = selector(slice);
-      effect.value = tmpl;
+      const overlayMessage = selector(slice);
+      overlayMessage.value = tmpl;
+    },
+
+    setPauseDuration(
+      slice: EditorState,
+      {
+        payload: { millis, selector },
+      }: PayloadAction<{
+        millis: number;
+        selector: EditorSelector<EffectVariantPause>;
+      }>
+    ) {
+      const pause = selector(slice);
+      pause.value = millis;
     },
   },
 });
@@ -207,6 +222,7 @@ export const {
   setCopyToClipboardTemplate,
   setMatcherValue,
   setOverlayMessageTemplate,
+  setPauseDuration,
   setSpeakTemplate,
   setTimerField,
   setTriggerComment,

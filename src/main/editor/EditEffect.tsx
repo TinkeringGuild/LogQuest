@@ -7,6 +7,7 @@ import {
   EditorState,
   EffectVariantCopyToClipboard,
   EffectVariantOverlayMessage,
+  EffectVariantPause,
   EffectVariantPlayAudioFile,
   EffectVariantSpeak,
 } from '../../features/triggers/editorSlice';
@@ -15,6 +16,7 @@ import { EffectWithID } from '../../generated/EffectWithID';
 import { UUID } from '../../generated/UUID';
 import EditCopyToClipboardEffect from './EditCopyToClipboardEffect';
 import EditOverlayMessageEffect from './EditOverlayMessageEffect';
+import EditPauseEffect from './EditPauseEffect';
 import EditPlayAudioFileEffect from './EditPlayAudioFileEffect';
 import EditScopedTimerEffect from './EditScopedTimerEffect';
 import EditSequenceEffect from './EditSequenceEffect';
@@ -115,6 +117,12 @@ const EditEffect: React.FC<{
         />
       );
     case 'Pause':
+      return (
+        <EditPauseEffect
+          selector={$$innerAs<EffectVariantPause>(effectSelector)}
+          onDelete={onDelete}
+        />
+      );
     case 'Parallel':
     case 'DoNothing':
     case 'RunSystemCommand':
