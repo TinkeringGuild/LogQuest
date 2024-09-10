@@ -19,6 +19,8 @@ pub struct MatchContext {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
+#[serde(tag = "variant", content = "value")]
+#[ts(tag = "variant", content = "value")]
 pub enum Matcher {
   WholeLine(String),
   PartialLine(String),
@@ -35,6 +37,8 @@ pub enum Matcher {
 /// creating a Timer, so these patterns should be validated at creation-time so
 /// that the values stored in the Strings are guaranteed to be error-free.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
+#[serde(tag = "variant", content = "value")]
+#[ts(tag = "variant", content = "value")]
 pub enum MatcherWithContext {
   WholeLine(String),
   PartialLine(String),

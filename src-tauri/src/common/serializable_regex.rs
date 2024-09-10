@@ -2,6 +2,7 @@ use fancy_regex::Regex;
 use serde::{Deserialize, Serialize, Serializer};
 
 #[derive(Debug, Clone, ts_rs::TS)]
+#[ts(type = "string")]
 pub struct SerializableRegex {
   pub pattern: String,
   #[ts(skip)]

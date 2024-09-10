@@ -18,6 +18,9 @@ export const OVERLAY_STATE_UPDATE_EVENT_NAME = 'timer-state-update';
 /// From `crate::state::state_tree::DEFAULT_OVERLAY_OPACITY`
 export const DEFAULT_OVERLAY_OPACITY = 75;
 
+/// From `crate::ui::MAIN_WINDOW_LABEL`
+export const MAIN_WINDOW_LABEL = 'main';
+
 /// From `crate::ui::OVERLAY_WINDOW_LABEL`
 export const OVERLAY_WINDOW_LABEL = 'overlay';
 

@@ -445,14 +445,21 @@ fn default_logs_dir_from_eq_dir(eq_path: &str) -> Result<PathBuf, EverQuestDirec
   Ok(logs_dir)
 }
 
-fn ensure_dir_exists(path: PathBuf) -> PathBuf {
-  if path.is_file() {
+fn ensure_dir_exists<P>(path: P) -> P
+where
+  P: AsRef<Path>,
+{
+  let path_ref = path.as_ref();
+  if path_ref.is_file() {
     fatal_error(format!(
       "Could not create directory {}. It already exists as a file!",
-      path.display()
+      path_ref.display()
     ));
-  } else if !path.is_dir() {
-    fs::create_dir_all(&path).expect(&format!("Could not create directory: {}", path.display()));
+  } else if !path_ref.is_dir() {
+    fs::create_dir_all(&path_ref).expect(&format!(
+      "Could not create directory: {}",
+      path_ref.display()
+    ));
   }
   path
 }

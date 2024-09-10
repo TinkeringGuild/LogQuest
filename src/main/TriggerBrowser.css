@@ -5,8 +5,8 @@
 
 .trigger-browser .trigger-tree {
   flex: 1;
-}
-
-.trigger-browser .trigger-editor {
-  flex: 1;
+  display: flex;
+  justify-content: stretch;
+  overflow: hidden;
+  height: 100vh;
 }

@@ -11,7 +11,7 @@
  * that the values stored in the Strings are guaranteed to be error-free.
  */
 export type MatcherWithContext =
-  | { WholeLine: string }
-  | { PartialLine: string }
-  | { Pattern: string }
-  | { GINA: string };
+  | { variant: 'WholeLine'; value: string }
+  | { variant: 'PartialLine'; value: string }
+  | { variant: 'Pattern'; value: string }
+  | { variant: 'GINA'; value: string };

@@ -21,6 +21,7 @@ type ConditionsList = LinkedList<Box<dyn Fn(&Captures) -> bool + Send + Sync + '
 struct Conditions(ConditionsList);
 
 #[derive(Debug, ts_rs::TS)]
+#[ts(type = "string")]
 pub struct RegexGINA {
   raw: String,
   #[ts(skip)]

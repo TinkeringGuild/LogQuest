@@ -4,16 +4,18 @@ import type { FilterWithContext } from './FilterWithContext';
 import type { TimerTag } from './TimerTag';
 
 export type TimerEffect =
-  | 'ClearTimer'
-  | 'HideTimer'
-  | 'RestartTimer'
-  | 'UnhideTimer'
-  | { WaitUntilFilterMatches: [FilterWithContext, Duration | null] }
-  | 'WaitUntilFinished'
-  | { WaitUntilSecondsRemain: number }
-  | { AddTag: TimerTag }
-  | { RemoveTag: TimerTag }
-  | { WaitUntilTagged: TimerTag }
-  | 'IncrementCounter'
-  | 'DecrementCounter'
-  | 'ResetCounter';
+  | { variant: 'ClearTimer' }
+  | { variant: 'HideTimer' }
+  | { variant: 'RestartTimer' }
+  | { variant: 'UnhideTimer' }
+  | {
+      variant: 'WaitUntilFilterMatches';
+      value: [FilterWithContext, Duration | null];
+    }
+  | { variant: 'WaitUntilFinished' }
+  | { variant: 'WaitUntilSecondsRemain'; value: number }
+  | { variant: 'AddTag'; value: TimerTag }
+  | { variant: 'RemoveTag'; value: TimerTag }
+  | { variant: 'IncrementCounter' }
+  | { variant: 'DecrementCounter' }
+  | { variant: 'ResetCounter' };

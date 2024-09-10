@@ -18,6 +18,10 @@ body {
   cursor: default;
 }
 
+.MuiButtonBase-root * {
+  cursor: pointer;
+}
+
 @font-face {
   font-family: 'Jacquard_12';
   src: url('/fonts/Jacquard_12/Jacquard12-Regular.woff2') format('woff2');

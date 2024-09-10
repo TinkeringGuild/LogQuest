@@ -187,8 +187,7 @@ impl Effect {
         | TimerEffect::DecrementCounter
         | TimerEffect::ResetCounter
         | TimerEffect::AddTag(_)
-        | TimerEffect::RemoveTag(_)
-        | TimerEffect::WaitUntilTagged(_) => {
+        | TimerEffect::RemoveTag(_) => {
           error!("UNIMPLEMENTED TIMER EFFECT: {timer_effect:?}");
           Box::new(DoNothingEffect)
         }

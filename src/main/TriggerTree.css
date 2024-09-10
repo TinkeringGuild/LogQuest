@@ -1,20 +1,27 @@
-.trigger-tree {
-  position: relative;
-  height: 100vh;
+.view-trigger-group-name {
+  font-weight: bold;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 ul.view-trigger-group-sublist {
-  margin: 0;
-  padding-left: 10px;
+  margin: 0 0 0 15px;
+  padding: 0;
 }
 
 li.view-trigger-list-item {
   list-style: none;
-  margin-left: -15px;
   padding: 0;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 li.view-trigger-list-item-selected {
   background-color: #eee;
   font-weight: bold;
+}
+
+.toggle-trigger-tag-inclusion-switch {
 }

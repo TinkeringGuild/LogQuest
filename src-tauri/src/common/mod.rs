@@ -117,9 +117,6 @@ where
 pub enum AbsolutePathResolutionError {
   #[error("Could not determine the system home directory")]
   UnknownHomeDir,
-
-  #[error(transparent)]
-  CouldNotCanonicalize(#[from] std::io::Error),
 }
 
 pub fn absolute_path_handling_tilde<P>(path: P) -> Result<PathBuf, AbsolutePathResolutionError>
@@ -139,7 +136,9 @@ where
     path.to_owned()
   };
 
-  path.canonicalize().map_err(|e| e.into())
+  // Attempt to canonicalize, but if it fails then the directory probably
+  // doesn't exist yet.
+  path.canonicalize().or_else(|_| Ok(path))
 }
 
 /// formats numbers with thousands separators. e.g. 12345 = "12,345" and 12 = "12"

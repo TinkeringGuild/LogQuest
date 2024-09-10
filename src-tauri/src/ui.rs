@@ -17,6 +17,7 @@ use tracing::{debug, error, info};
 
 pub type OverlayManagerState = Arc<OverlayManager>;
 
+#[cfg_attr(not(debug_assertions), allow(unused))]
 pub const MAIN_WINDOW_LABEL: &str = "main";
 pub const OVERLAY_WINDOW_LABEL: &str = "overlay";
 

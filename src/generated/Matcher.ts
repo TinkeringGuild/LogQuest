@@ -3,7 +3,7 @@ import type { RegexGINA } from './RegexGINA';
 import type { SerializableRegex } from './SerializableRegex';
 
 export type Matcher =
-  | { WholeLine: string }
-  | { PartialLine: string }
-  | { Pattern: SerializableRegex }
-  | { GINA: RegexGINA };
+  | { variant: 'WholeLine'; value: string }
+  | { variant: 'PartialLine'; value: string }
+  | { variant: 'Pattern'; value: SerializableRegex }
+  | { variant: 'GINA'; value: RegexGINA };

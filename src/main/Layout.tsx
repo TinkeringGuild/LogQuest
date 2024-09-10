@@ -124,7 +124,6 @@ const styleNavSidebar: CSSProperties = {
 
 const styleMainFlexContainer: CSSProperties = {
   flex: 1,
-  position: 'relative',
 };
 
 export default Layout;

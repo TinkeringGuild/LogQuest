@@ -14,7 +14,7 @@ use crate::{
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tauri::{AppHandle, Manager, State, Window};
-use tracing::{debug, error, event, info, warn};
+use tracing::{debug, error, event, info};
 
 pub const CROSS_DISPATCH_EVENT_NAME: &str = "cross-dispatch";
 

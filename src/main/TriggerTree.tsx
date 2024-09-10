@@ -10,22 +10,24 @@ import {
   TextField,
 } from '@mui/material';
 import Button from '@mui/material/Button';
-import { clone, sortBy, values } from 'lodash';
+import { clone, cloneDeep, sortBy, values } from 'lodash';
 import React, { CSSProperties, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 
 import openGINATriggerFileDialog from '../dialogs/importGINAFile';
 import {
+  $triggerDraft,
+  editTriggerDraft,
+} from '../features/triggers/editorSlice';
+import {
   $activeTriggerTag,
   $activeTriggerTagID,
-  $selectedTriggerID,
   $topLevel,
   $trigger,
   $triggerGroup,
   $triggerTags,
   activateTriggerTagID,
   applyDeltas,
-  selectTriggerID,
 } from '../features/triggers/triggersSlice';
 import { TriggerGroupDescendant } from '../generated/TriggerGroupDescendant';
 import { UUID } from '../generated/UUID';
@@ -52,7 +54,8 @@ const TriggerTree: React.FC<{}> = () => {
   );
 
   const currentTriggerTagChanged = (event: SelectChangeEvent) => {
-    dispatch(activateTriggerTagID(event.target.value));
+    const value = event.target.value;
+    dispatch(activateTriggerTagID(value || null));
   };
 
   return (
@@ -73,18 +76,21 @@ const TriggerTree: React.FC<{}> = () => {
           {!!triggerTags.length && (
             <>
               <FormControl sx={{ minWidth: 175 }} size="small">
-                <InputLabel>Trigger Tags</InputLabel>
+                <InputLabel>Trigger Tag</InputLabel>
                 <Select
                   size="small"
-                  label="Trigger Tags"
+                  label="Trigger Tag"
                   onChange={currentTriggerTagChanged}
-                  value={activeTriggerTag?.id}
+                  value={activeTriggerTag?.id || ''}
                 >
                   {triggerTags.map((tag) => (
                     <MenuItem key={tag.id} value={tag.id}>
                       {tag.name}
                     </MenuItem>
                   ))}
+                  <MenuItem key={'none'} value={''}>
+                    <em>None</em>
+                  </MenuItem>
                 </Select>
               </FormControl>{' '}
             </>
@@ -96,13 +102,13 @@ const TriggerTree: React.FC<{}> = () => {
             <ul>
               {top.map((tgd) =>
                 tgd.variant === 'T' ? (
-                  <ViewTrigger
+                  <TriggerListItem
                     key={tgd.value}
                     triggerID={tgd.value}
                     activeTriggers={activeTriggers}
                   />
                 ) : (
-                  <ViewTriggerGroup
+                  <TriggerGroupListItem
                     key={tgd.value}
                     groupID={tgd.value}
                     activeTriggers={activeTriggers}
@@ -205,16 +211,16 @@ const TagCreationButton: React.FC<{}> = () => {
   );
 };
 
-const ViewTrigger: React.FC<{
+const TriggerListItem: React.FC<{
   triggerID: UUID;
   activeTriggers: Set<string> | null;
 }> = ({ triggerID, activeTriggers }) => {
   const dispatch = useDispatch();
   const trigger = useSelector($trigger(triggerID));
-  const selectedTriggerID = useSelector($selectedTriggerID);
+  const editingTrigger = useSelector($triggerDraft);
   const activeTriggerTagID = useSelector($activeTriggerTagID);
 
-  const selected = selectedTriggerID === triggerID;
+  const selected = editingTrigger?.id === triggerID;
   const enabled = !!activeTriggers && activeTriggers.has(triggerID);
 
   return (
@@ -226,6 +232,7 @@ const ViewTrigger: React.FC<{
           <Switch
             size="small"
             checked={enabled}
+            className="toggle-trigger-tag-inclusion-switch"
             onChange={({ target: { checked } }) => {
               if (checked) {
                 addTriggerToTag(triggerID, activeTriggerTagID).then((deltas) =>
@@ -240,13 +247,14 @@ const ViewTrigger: React.FC<{
           />{' '}
         </>
       )}
-      <span onClick={() => dispatch(selectTriggerID(trigger.id))}>
+      <span onClick={() => dispatch(editTriggerDraft(cloneDeep(trigger)))}>
         {trigger.name}
       </span>
     </li>
   );
 };
-const ViewTriggerGroup: React.FC<{
+
+const TriggerGroupListItem: React.FC<{
   groupID: UUID;
   activeTriggers: Set<string> | null;
 }> = ({ groupID, activeTriggers }) => {
@@ -254,13 +262,13 @@ const ViewTriggerGroup: React.FC<{
 
   return (
     <li>
-      {group.name}
+      <span className="view-trigger-group-name">{group.name}</span>
       {group.children.length && (
         <ul className="view-trigger-group-sublist">
           {group.children.map(({ variant, value: id }) => {
             if (variant === 'T') {
               return (
-                <ViewTrigger
+                <TriggerListItem
                   key={id}
                   triggerID={id}
                   activeTriggers={activeTriggers}
@@ -268,7 +276,7 @@ const ViewTriggerGroup: React.FC<{
               );
             } else if (variant === 'G') {
               return (
-                <ViewTriggerGroup
+                <TriggerGroupListItem
                   key={id}
                   groupID={id}
                   activeTriggers={activeTriggers}
@@ -283,11 +291,11 @@ const ViewTriggerGroup: React.FC<{
 };
 
 const styleMainScrollable: CSSProperties = {
-  position: 'absolute',
-  top: 0,
-  right: 0,
-  left: 0,
-  bottom: 0,
+  // position: 'absolute',
+  // top: 0,
+  // right: 0,
+  // left: 0,
+  // bottom: 0,
   overflowY: 'scroll',
   overflowX: 'hidden',
   // scrollbarGutter: 'stable',

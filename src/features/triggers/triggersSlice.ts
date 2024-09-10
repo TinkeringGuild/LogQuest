@@ -10,7 +10,6 @@ export const TRIGGERS_SLICE = 'triggers';
 
 interface TriggersState {
   index: TriggerIndex;
-  selectedTriggerID: UUID | null;
   activeTriggerTagID: UUID | null;
 }
 
@@ -21,7 +20,6 @@ const INITIAL_TRIGGERS_STATE: TriggersState = {
     top_level: [],
     trigger_tags: {},
   },
-  selectedTriggerID: null,
   activeTriggerTagID: null,
 };
 
@@ -36,20 +34,9 @@ const triggersSlice = createSlice({
       state.index = index;
     },
 
-    selectTriggerID(
-      state: TriggersState,
-      { payload: triggerID }: PayloadAction<UUID>
-    ) {
-      if (state.selectedTriggerID === triggerID) {
-        state.selectedTriggerID = null;
-      } else {
-        state.selectedTriggerID = triggerID;
-      }
-    },
-
     activateTriggerTagID(
       state: TriggersState,
-      { payload: triggerTagID }: PayloadAction<UUID>
+      { payload: triggerTagID }: PayloadAction<UUID | null>
     ) {
       state.activeTriggerTagID = triggerTagID;
     },
@@ -99,13 +86,14 @@ const triggersSlice = createSlice({
     },
   },
 });
+
 export const {
   initTriggers,
-  selectTriggerID,
   activateTriggerTagID,
   applyDeltas,
   updateTriggerEffect,
 } = triggersSlice.actions;
+
 export default triggersSlice.reducer;
 
 export const $topLevel = ({
@@ -141,19 +129,6 @@ export const $triggerTags = ({
 }: {
   [TRIGGERS_SLICE]: TriggersState;
 }) => triggers.index.trigger_tags;
-
-export const $selectedTriggerID = ({
-  [TRIGGERS_SLICE]: { selectedTriggerID },
-}: {
-  [TRIGGERS_SLICE]: TriggersState;
-}) => selectedTriggerID;
-
-export const $selectedTrigger = (state: {
-  [TRIGGERS_SLICE]: TriggersState;
-}) => {
-  const triggerID = state[TRIGGERS_SLICE].selectedTriggerID;
-  return triggerID ? state[TRIGGERS_SLICE].index.triggers[triggerID] : null;
-};
 
 export const $activeTriggerTagID = ({
   [TRIGGERS_SLICE]: { activeTriggerTagID },

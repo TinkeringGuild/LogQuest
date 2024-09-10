@@ -20,6 +20,8 @@ pub struct Timer {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, ts_rs::TS)]
+#[serde(tag = "variant", content = "value")]
+#[ts(tag = "variant", content = "value")]
 pub enum TimerEffect {
   ClearTimer,
   HideTimer,
@@ -31,7 +33,6 @@ pub enum TimerEffect {
   // WaitUntilRestarted,
   AddTag(TimerTag),
   RemoveTag(TimerTag),
-  WaitUntilTagged(TimerTag),
   IncrementCounter,
   DecrementCounter,
   ResetCounter,
