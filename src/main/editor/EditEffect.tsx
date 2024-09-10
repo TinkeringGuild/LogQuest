@@ -16,6 +16,8 @@ import {
   editorSelector,
   EditorSelector,
   EditorState,
+  EffectVariantCopyToClipboard,
+  EffectVariantSpeak,
 } from '../../features/triggers/editorSlice';
 import { Effect } from '../../generated/Effect';
 import { EffectWithID } from '../../generated/EffectWithID';
@@ -27,14 +29,14 @@ import EditSpeakEffect from './EditSpeakEffect';
 import EditStartTimerEffect from './EditStartTimerEffect';
 import { EffectHeader, EffectTitle } from './widgets/EffectHeader';
 
-type TimerEffectVariantScopedTimer = Extract<
+type EffectVariantScopedTimer = Extract<
   Effect,
   { variant: 'ScopedTimerEffect' }
 >;
 
-type TimerEffectVariantSequence = Extract<Effect, { variant: 'Sequence' }>;
+type EffectVariantSequence = Extract<Effect, { variant: 'Sequence' }>;
 
-type TimerEffectVariantStartTimer = Extract<Effect, { variant: 'StartTimer' }>;
+type EffectVariantStartTimer = Extract<Effect, { variant: 'StartTimer' }>;
 
 const EditEffect: React.FC<{
   triggerID: UUID;
@@ -47,18 +49,20 @@ const EditEffect: React.FC<{
     case 'CopyToClipboard':
       return (
         <EditCopyToClipboardEffect
-          triggerID={triggerID}
-          effectID={effect.id}
-          tmpl={effect.inner.value}
+          selector={(slice) => {
+            const effect: EffectWithID = effectSelector(slice);
+            return effect.inner as EffectVariantCopyToClipboard;
+          }}
           onDelete={onDelete}
         />
       );
     case 'Speak':
       return (
         <EditSpeakEffect
-          triggerID={triggerID}
-          effectID={effect.id}
-          tmpl={effect.inner.value.tmpl}
+          selector={(slice) => {
+            const effect: EffectWithID = effectSelector(slice);
+            return effect.inner as EffectVariantSpeak;
+          }}
           onDelete={onDelete}
         />
       );
@@ -68,8 +72,7 @@ const EditEffect: React.FC<{
           triggerID={triggerID}
           seqSelector={(slice: EditorState) => {
             const effect: EffectWithID = effectSelector(slice);
-            const scopedTimerEffect =
-              effect.inner as TimerEffectVariantSequence;
+            const scopedTimerEffect = effect.inner as EffectVariantSequence;
             return scopedTimerEffect.value;
           }}
           onDelete={onDelete}
@@ -80,8 +83,7 @@ const EditEffect: React.FC<{
         <EditStartTimerEffect
           timerSelector={(slice: EditorState) => {
             const effect: EffectWithID = effectSelector(slice);
-            const scopedTimerEffect =
-              effect.inner as TimerEffectVariantStartTimer;
+            const scopedTimerEffect = effect.inner as EffectVariantStartTimer;
             return scopedTimerEffect.value;
           }}
           onDelete={onDelete}
@@ -93,8 +95,7 @@ const EditEffect: React.FC<{
           triggerID={triggerID}
           timerSelector={(slice: EditorState) => {
             const effect: EffectWithID = effectSelector(slice);
-            const scopedTimerEffect =
-              effect.inner as TimerEffectVariantScopedTimer;
+            const scopedTimerEffect = effect.inner as EffectVariantScopedTimer;
             return scopedTimerEffect.value;
           }}
           onDelete={onDelete}
@@ -157,6 +158,12 @@ const EditEffect: React.FC<{
           </CardContent>
         </Card>
       );
+    case 'Pause':
+    case 'Parallel':
+    case 'DoNothing':
+    case 'RunSystemCommand':
+    case 'SpeakStop':
+    case 'StartStopwatch':
     default:
       return (
         <Card elevation={10}>

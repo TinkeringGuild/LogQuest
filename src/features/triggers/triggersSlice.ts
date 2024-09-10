@@ -64,35 +64,11 @@ const triggersSlice = createSlice({
         }
       });
     },
-
-    updateTriggerEffect(
-      state: TriggersState,
-      action: PayloadAction<{
-        triggerID: UUID;
-        effectID: UUID;
-        mutation: (effect: Effect) => void;
-      }>
-    ) {
-      const { triggerID, effectID, mutation } = action.payload;
-      const trigger = $trigger(triggerID)({
-        [TRIGGERS_SLICE]: state,
-      });
-      if (trigger) {
-        const effect = trigger.effects.find((e) => e.id === effectID);
-        if (effect) {
-          mutation(effect.inner);
-        }
-      }
-    },
   },
 });
 
-export const {
-  initTriggers,
-  activateTriggerTagID,
-  applyDeltas,
-  updateTriggerEffect,
-} = triggersSlice.actions;
+export const { initTriggers, activateTriggerTagID, applyDeltas } =
+  triggersSlice.actions;
 
 export default triggersSlice.reducer;
 

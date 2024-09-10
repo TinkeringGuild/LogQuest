@@ -2,6 +2,7 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { pullAt, remove } from 'lodash';
 
 import { Duration } from '../../generated/Duration';
+import { Effect } from '../../generated/Effect';
 import { EffectWithID } from '../../generated/EffectWithID';
 import { Filter } from '../../generated/Filter';
 import { FilterWithContext } from '../../generated/FilterWithContext';
@@ -33,6 +34,13 @@ export type TimerEffectWaitUntilFilterMatchesType = Extract<
   TimerEffect,
   { variant: 'WaitUntilFilterMatches' }
 >;
+
+export type EffectVariantCopyToClipboard = Extract<
+  Effect,
+  { variant: 'CopyToClipboard' }
+>;
+
+export type EffectVariantSpeak = Extract<Effect, { variant: 'Speak' }>;
 
 const INITIAL_EDITOR_STATE = {
   draft: null,
@@ -138,6 +146,33 @@ const editorSlice = createSlice({
       const timerEffect = selector(slice);
       timerEffect.value[1] = duration;
     },
+
+    setCopyToClipboardTemplate(
+      slice: EditorState,
+      {
+        payload: { tmpl, selector },
+      }: PayloadAction<{
+        tmpl: string;
+        selector: EditorSelector<EffectVariantCopyToClipboard>;
+      }>
+    ) {
+      const effect = selector(slice);
+      effect.value = tmpl;
+    },
+
+    setSpeakTemplate(
+      slice: EditorState,
+      {
+        payload: { tmpl, interrupt, selector },
+      }: PayloadAction<{
+        tmpl: string;
+        interrupt: boolean;
+        selector: EditorSelector<EffectVariantSpeak>;
+      }>
+    ) {
+      const effect = selector(slice);
+      effect.value = { tmpl, interrupt };
+    },
   },
 });
 
@@ -146,10 +181,12 @@ export const {
   deleteEffect,
   deleteFilterMatcher,
   editTriggerDraft,
+  setCopyToClipboardTemplate,
   setMatcherValue,
+  setSpeakTemplate,
   setTimerField,
-  setTriggerName,
   setTriggerComment,
+  setTriggerName,
   setWaitUntilFilterMatchesDuration,
 } = editorSlice.actions;
 

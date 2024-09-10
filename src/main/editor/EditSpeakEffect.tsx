@@ -1,35 +1,76 @@
 import TextField from '@mui/material/TextField';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
+import Card from '@mui/material/Card';
+import CardHeader from '@mui/material/CardHeader';
+import CardContent from '@mui/material/CardContent';
 
-import { updateTriggerEffect } from '../../features/triggers/triggersSlice';
-import { Effect } from '../../generated/Effect';
-import { TemplateString } from '../../generated/TemplateString';
-import { UUID } from '../../generated/UUID';
+import {
+  editorSelector,
+  EditorSelector,
+  EffectVariantSpeak,
+  setSpeakTemplate,
+} from '../../features/triggers/editorSlice';
+import { EffectHeader, EffectTitle } from './widgets/EffectHeader';
+import { RecordVoiceOverOutlined } from '@mui/icons-material';
+import { useRef } from 'react';
+import Checkbox from '@mui/material/Checkbox';
+import FormGroup from '@mui/material/FormGroup';
+import FormControlLabel from '@mui/material/FormControlLabel';
 
 const EditSpeakEffect: React.FC<{
-  triggerID: UUID;
-  effectID: UUID;
-  tmpl: TemplateString;
+  selector: EditorSelector<EffectVariantSpeak>;
   onDelete: () => void;
-}> = ({ triggerID, effectID, tmpl, onDelete: _TODO }) => {
+}> = ({ selector, onDelete }) => {
   const dispatch = useDispatch();
+  const {
+    value: { tmpl, interrupt },
+  } = useSelector(editorSelector(selector));
+  const tmplRef = useRef<HTMLInputElement>(null);
+  const interruptRef = useRef<HTMLInputElement>(null);
+
+  const dispatchUpdate = () => {
+    if (tmplRef.current && interruptRef.current) {
+      const tmpl = tmplRef.current.value;
+      const interrupt = interruptRef.current.checked;
+      dispatch(setSpeakTemplate({ tmpl, interrupt, selector }));
+    }
+  };
+
   return (
-    <div>
-      <p className="effect-name">Text-to-Speech</p>
-      <TextField
-        label="Template"
-        variant="standard"
-        defaultValue={tmpl}
-        onChange={({ target }) => {
-          const mutation = (effect: Effect) => {
-            if (effect.variant === 'Speak') {
-              effect.value.tmpl = target.value;
-            }
-          };
-          dispatch(updateTriggerEffect({ triggerID, effectID, mutation }));
-        }}
+    <Card elevation={10}>
+      <CardHeader
+        title={
+          <EffectHeader onDelete={onDelete}>
+            <EffectTitle
+              title="Speak"
+              help="Uses the system Text-to-Speech engine to speak the (templated) text"
+              icon={<RecordVoiceOverOutlined />}
+            />
+          </EffectHeader>
+        }
       />
-    </div>
+      <CardContent>
+        <TextField
+          label="Text-to-Speech Text (Template)"
+          defaultValue={tmpl}
+          fullWidth
+          inputRef={tmplRef}
+          onBlur={dispatchUpdate}
+        />
+        <FormGroup>
+          <FormControlLabel
+            label="Interrupt other Text-to-Speech playback"
+            control={
+              <Checkbox
+                inputRef={interruptRef}
+                defaultChecked={interrupt}
+                onChange={dispatchUpdate}
+              />
+            }
+          />
+        </FormGroup>
+      </CardContent>
+    </Card>
   );
 };
 

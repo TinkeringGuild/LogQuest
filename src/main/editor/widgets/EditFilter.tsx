@@ -17,27 +17,13 @@ import {
 } from '../../../features/triggers/editorSlice';
 import { Filter } from '../../../generated/Filter';
 import { FilterWithContext } from '../../../generated/FilterWithContext';
+import { Matcher } from '../../../generated/Matcher';
+import { MatcherWithContext } from '../../../generated/MatcherWithContext';
 import StandardTooltip from '../../../widgets/StandardTooltip';
 
 import './EditFilter.css';
 
-// TODO: Derive this type from the source interface
-type MatcherVariant = 'GINA' | 'Pattern' | 'WholeLine' | 'PartialLine';
-
-const humanizeMatcherVariant = (variant: MatcherVariant) => {
-  if (variant === 'WholeLine') {
-    return 'Whole Line';
-  } else if (variant === 'PartialLine') {
-    return 'Partial Line';
-  } else if (variant === 'GINA') {
-    return 'GINA-style Regular Expression';
-  } else if (variant === 'Pattern') {
-    return 'LogQuest-style Regular Expression';
-  } else {
-    // Shouldn't ever get here
-    return variant;
-  }
-};
+type MatcherVariant = (Matcher & MatcherWithContext)['variant'];
 
 const MatcherInputField: React.FC<{
   variant: MatcherVariant;
@@ -50,11 +36,12 @@ const MatcherInputField: React.FC<{
     <FormControl sx={{ m: 1 }} variant="outlined">
       <InputLabel>{variantHumanized}</InputLabel>
       <OutlinedInput
-        type="text"
+        label={variantHumanized}
+        defaultValue={defaultValue}
         className="pattern-input"
+        type="text"
         fullWidth
         multiline
-        defaultValue={defaultValue}
         onBlur={(e) => onBlur(e.target.value)}
         endAdornment={
           <InputAdornment position="end">
@@ -65,7 +52,6 @@ const MatcherInputField: React.FC<{
             </StandardTooltip>
           </InputAdornment>
         }
-        label={variantHumanized}
       />
     </FormControl>
   );
@@ -110,5 +96,20 @@ function EditFilter<T extends Filter | FilterWithContext>({
     </Stack>
   );
 }
+
+const humanizeMatcherVariant = (variant: MatcherVariant) => {
+  if (variant === 'WholeLine') {
+    return 'Whole Line';
+  } else if (variant === 'PartialLine') {
+    return 'Partial Line';
+  } else if (variant === 'GINA') {
+    return 'GINA-style Regular Expression';
+  } else if (variant === 'Pattern') {
+    return 'LogQuest-style Regular Expression';
+  } else {
+    // Shouldn't ever get here
+    return variant;
+  }
+};
 
 export default EditFilter;
