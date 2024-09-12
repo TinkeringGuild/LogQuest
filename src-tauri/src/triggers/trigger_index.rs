@@ -1,7 +1,8 @@
-use super::{effects::Effect, template_string::TemplateString, Trigger, TriggerGroup};
+use super::{Trigger, TriggerGroup};
 use crate::common::{LogQuestVersion, UUID};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::iter::once;
 use std::{cmp::min, collections::HashSet};
 use tracing::error;
 
@@ -34,16 +35,12 @@ pub enum TriggerGroupDescendant {
 #[serde(tag = "variant", content = "value")]
 #[ts(tag = "variant", content = "value")]
 pub enum Mutation {
-  // TODO: Maybe have an SetTriggerField(TriggerFieldValue) mutation?
-  SetTriggerName {
-    trigger_id: UUID,
-    new_name: String,
-  },
   CreateTrigger {
     trigger: Trigger,
     parent_position: usize,
   },
   SaveTrigger(Trigger),
+  DeleteTrigger(UUID),
   CreateTriggerGroup {
     trigger_group: TriggerGroup,
     parent_position: usize,
@@ -58,16 +55,6 @@ pub enum Mutation {
     trigger_id: UUID,
     trigger_tag_id: UUID,
   },
-  EffectTemplateChanged {
-    trigger_id: UUID,
-    effect_id: UUID,
-    tmpl: TemplateString,
-  },
-  EffectSpeakInterrupt {
-    trigger_id: UUID,
-    effect_id: UUID,
-    interrupt: bool,
-  },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
@@ -75,6 +62,7 @@ pub enum Mutation {
 #[ts(tag = "variant", content = "value")]
 pub enum DataDelta {
   TriggerSaved(Trigger),
+  TriggerDeleted(UUID),
   TriggerGroupCreated(TriggerGroup),
   TriggerGroupChildrenChanged {
     trigger_group_id: UUID,
@@ -91,6 +79,10 @@ pub enum DataDelta {
   },
   TriggerTagCreated(TriggerTag),
   TriggerTagDeleted(UUID),
+  TriggerTagTriggersChanged {
+    trigger_tag_id: UUID,
+    triggers: Vec<UUID>,
+  },
 }
 
 #[derive(thiserror::Error, Debug, Serialize, Deserialize, ts_rs::TS)]
@@ -200,7 +192,7 @@ impl TriggerIndex {
   pub fn mutate(&mut self, mutation: Mutation) -> MutationResult {
     match mutation {
       Mutation::CreateTrigger {
-        trigger,
+        mut trigger,
         parent_position,
       } => {
         let id = trigger.id.clone();
@@ -226,65 +218,55 @@ impl TriggerIndex {
             .insert(parent_position, TriggerGroupDescendant::T(id.clone()));
           DataDelta::TopLevelChanged(self.top_level.clone())
         };
+        trigger.updated_now();
         self.triggers.insert(id, trigger.clone());
         Ok(vec![DataDelta::TriggerSaved(trigger), parent_delta])
       }
-      Mutation::SaveTrigger(trigger) => {
+      Mutation::SaveTrigger(mut trigger) => {
         _ = self.try_get_mutable_trigger(&trigger.id)?;
+        trigger.updated_now();
         self.triggers.insert(trigger.id.clone(), trigger.clone());
         Ok(vec![DataDelta::TriggerSaved(trigger)])
       }
-      Mutation::SetTriggerName {
-        trigger_id,
-        new_name,
-      } => {
-        let trigger = self.try_get_mutable_trigger(&trigger_id)?;
-        trigger.name = new_name;
-        trigger.updated_now();
-        Ok(vec![DataDelta::TriggerSaved(trigger.clone())])
-      }
-      Mutation::EffectTemplateChanged {
-        trigger_id,
-        effect_id,
-        tmpl,
-      } => {
-        let trigger = self.try_get_mutable_trigger(&trigger_id)?;
-        let effect = trigger
-          .get_mut_effect(&effect_id)
-          .ok_or_else(|| DataMutationError::EffectNotFound(effect_id))?;
-        match effect.inner {
-          Effect::CopyToClipboard(_) => effect.inner = Effect::CopyToClipboard(tmpl),
-          Effect::Speak { interrupt, .. } => effect.inner = Effect::Speak { tmpl, interrupt },
-          // TODO: MORE
-          // TODO: MORE
-          // TODO: MORE
-          // TODO: MORE
-          // TODO: MORE
-          _ => {}
+      Mutation::DeleteTrigger(trigger_id) => {
+        if let Some(trigger) = self.triggers.remove(&trigger_id) {
+          let parent_delta = if let Some(parent_id) = trigger.parent_id {
+            if let Some(parent) = self.groups.get_mut(&parent_id) {
+              remove_trigger_from_descendants(&trigger_id, &mut parent.children);
+              Some(DataDelta::TriggerGroupChildrenChanged {
+                trigger_group_id: parent.id.clone(),
+                children: parent.children.clone(),
+              })
+            } else {
+              remove_trigger_from_descendants(&trigger_id, &mut self.top_level);
+              Some(DataDelta::TopLevelChanged(self.top_level.clone()))
+            }
+          } else {
+            error!("Deleting Trigger[{trigger_id}] but its parent was not found!");
+            None
+          };
+
+          let trigger_tag_deltas: Vec<DataDelta> = self
+            .mut_trigger_tags_with_trigger(&trigger_id)
+            .into_iter()
+            .map(|tag| {
+              tag.triggers.remove(&trigger_id);
+              DataDelta::TriggerTagTriggersChanged {
+                trigger_tag_id: trigger_id.clone(),
+                triggers: tag.triggers.iter().cloned().collect(),
+              }
+            })
+            .collect();
+
+          let deltas = once(DataDelta::TriggerDeleted(trigger_id))
+            .chain(parent_delta.into_iter())
+            .chain(trigger_tag_deltas.into_iter())
+            .collect();
+
+          Ok(deltas)
+        } else {
+          Err(DataMutationError::TriggerNotFound(trigger_id))
         }
-        trigger.updated_now();
-        Ok(vec![DataDelta::TriggerSaved(trigger.clone())])
-      }
-      Mutation::EffectSpeakInterrupt {
-        trigger_id,
-        effect_id,
-        interrupt,
-      } => {
-        let trigger = self.try_get_mutable_trigger(&trigger_id)?;
-        let effect = trigger
-          .get_mut_effect(&effect_id)
-          .ok_or_else(|| DataMutationError::EffectNotFound(effect_id))?;
-        match &mut effect.inner {
-          Effect::Speak { tmpl, .. } => {
-            effect.inner = Effect::Speak {
-              tmpl: tmpl.to_owned(),
-              interrupt,
-            };
-          }
-          _ => return Err(DataMutationError::IncorrectEffectType),
-        }
-        trigger.updated_now();
-        Ok(vec![DataDelta::TriggerSaved(trigger.clone())])
       }
       Mutation::TagTrigger {
         trigger_id,
@@ -371,6 +353,20 @@ impl TriggerIndex {
 
     Ok(vec![group_delta, parent_delta])
   }
+
+  fn mut_trigger_tags_with_trigger(&mut self, trigger_id: &UUID) -> Vec<&mut TriggerTag> {
+    self
+      .trigger_tags
+      .iter_mut()
+      .filter_map(|(_, tag)| {
+        if tag.triggers.contains(trigger_id) {
+          Some(tag)
+        } else {
+          None
+        }
+      })
+      .collect()
+  }
 }
 
 impl TriggerTag {
@@ -380,5 +376,21 @@ impl TriggerTag {
       name: name.to_owned(),
       triggers: HashSet::new(),
     }
+  }
+}
+
+fn remove_trigger_from_descendants(
+  trigger_id: &UUID,
+  descendants: &mut Vec<TriggerGroupDescendant>,
+) {
+  let trigger_index = descendants.iter().position(|tgd| {
+    if let TriggerGroupDescendant::T(tgd_id) = tgd {
+      tgd_id == trigger_id
+    } else {
+      false
+    }
+  });
+  if let Some(trigger_index) = trigger_index {
+    descendants.remove(trigger_index);
   }
 }

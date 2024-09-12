@@ -1,6 +1,8 @@
 import AddBoxOutlinedIcon from '@mui/icons-material/AddBoxOutlined';
 import DownloadingIcon from '@mui/icons-material/Downloading';
 import {
+  Menu,
+  Divider,
   FormControl,
   InputLabel,
   MenuItem,
@@ -11,7 +13,13 @@ import {
 } from '@mui/material';
 import Button from '@mui/material/Button';
 import { clone, cloneDeep, sortBy, values } from 'lodash';
-import React, { CSSProperties, useRef, useState } from 'react';
+import React, {
+  createContext,
+  CSSProperties,
+  useContext,
+  useRef,
+  useState,
+} from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 
 import openGINATriggerFileDialog from '../dialogs/importGINAFile';
@@ -34,10 +42,21 @@ import { UUID } from '../generated/UUID';
 import {
   addTriggerToTag,
   createTriggerTag,
+  deleteTrigger,
   removeTriggerFromTag,
 } from '../ipc';
 
 import './TriggerTree.css';
+
+type TriggerContextMenuState = {
+  triggerID: string;
+  mouseX: number;
+  mouseY: number;
+} | null;
+
+const TriggerMenuContext = createContext<React.Dispatch<
+  React.SetStateAction<TriggerContextMenuState>
+> | null>(null);
 
 const TriggerTree: React.FC<{}> = () => {
   const dispatch = useDispatch();
@@ -57,6 +76,11 @@ const TriggerTree: React.FC<{}> = () => {
     const value = event.target.value;
     dispatch(activateTriggerTagID(value || null));
   };
+
+  const [triggerContextMenu, setTriggerContextMenu] =
+    useState<TriggerContextMenuState>(null);
+
+  const closeTriggerContextMenu = () => setTriggerContextMenu(null);
 
   return (
     <div className="trigger-tree">
@@ -97,30 +121,64 @@ const TriggerTree: React.FC<{}> = () => {
           )}
           <TagCreationButton />
         </div>
-        <div>
-          {top.length ? (
-            <ul>
-              {top.map((tgd) =>
-                tgd.variant === 'T' ? (
-                  <TriggerListItem
-                    key={tgd.value}
-                    triggerID={tgd.value}
-                    activeTriggers={activeTriggers}
-                  />
-                ) : (
-                  <TriggerGroupListItem
-                    key={tgd.value}
-                    groupID={tgd.value}
-                    activeTriggers={activeTriggers}
-                  />
-                )
-              )}
-            </ul>
-          ) : (
-            <p>You have not created any triggers yet.</p>
-          )}
-        </div>
+        <TriggerMenuContext.Provider value={setTriggerContextMenu}>
+          <div>
+            {top.length ? (
+              <ul>
+                {top.map((tgd) =>
+                  tgd.variant === 'T' ? (
+                    <TriggerListItem
+                      key={tgd.value}
+                      triggerID={tgd.value}
+                      activeTriggers={activeTriggers}
+                    />
+                  ) : (
+                    <TriggerGroupListItem
+                      key={tgd.value}
+                      groupID={tgd.value}
+                      activeTriggers={activeTriggers}
+                    />
+                  )
+                )}
+              </ul>
+            ) : (
+              <p>You have not created any triggers yet.</p>
+            )}
+          </div>
+        </TriggerMenuContext.Provider>
       </div>
+      <Menu
+        open={triggerContextMenu !== null}
+        onClose={closeTriggerContextMenu}
+        anchorReference="anchorPosition"
+        anchorPosition={
+          triggerContextMenu !== null
+            ? {
+                top: triggerContextMenu.mouseY,
+                left: triggerContextMenu.mouseX,
+              }
+            : undefined
+        }
+      >
+        <MenuItem>Duplicate Trigger</MenuItem>
+        <MenuItem
+          onClick={async () => {
+            if (!triggerContextMenu) {
+              return;
+            }
+            const deltas = await deleteTrigger(triggerContextMenu.triggerID);
+            dispatch(applyDeltas(deltas));
+          }}
+        >
+          Delete Trigger
+        </MenuItem>
+        <Divider />
+        <MenuItem>Create new Trigger above</MenuItem>
+        <MenuItem>Create new Trigger below</MenuItem>
+        <Divider />
+        <MenuItem>Create new Trigger Group above</MenuItem>
+        <MenuItem>Create new Trigger Group below</MenuItem>
+      </Menu>
     </div>
   );
 };
@@ -223,6 +281,18 @@ const TriggerListItem: React.FC<{
   const selected = editingTrigger?.id === triggerID;
   const enabled = !!activeTriggers && activeTriggers.has(triggerID);
 
+  const setContextMenu = useContext(TriggerMenuContext);
+
+  const handleTriggerContextMenu = (e: React.MouseEvent<HTMLSpanElement>) => {
+    e.preventDefault();
+    setContextMenu &&
+      setContextMenu({
+        triggerID,
+        mouseX: e.clientX + 2,
+        mouseY: e.clientY + 2,
+      });
+  };
+
   return (
     <li
       className={`view-trigger-list-item ${selected ? 'view-trigger-list-item-selected' : ''}`}
@@ -247,7 +317,10 @@ const TriggerListItem: React.FC<{
           />{' '}
         </>
       )}
-      <span onClick={() => dispatch(editTriggerDraft(cloneDeep(trigger)))}>
+      <span
+        onContextMenu={handleTriggerContextMenu}
+        onClick={() => dispatch(editTriggerDraft(cloneDeep(trigger)))}
+      >
         {trigger.name}
       </span>
     </li>
@@ -263,7 +336,7 @@ const TriggerGroupListItem: React.FC<{
   return (
     <li>
       <span className="view-trigger-group-name">{group.name}</span>
-      {group.children.length && (
+      {!!group.children.length && (
         <ul className="view-trigger-group-sublist">
           {group.children.map(({ variant, value: id }) => {
             if (variant === 'T') {

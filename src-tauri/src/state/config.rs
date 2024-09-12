@@ -309,6 +309,14 @@ impl LogQuestConfig {
     Ok(Some(top_level))
   }
 
+  pub fn delete_trigger_file(&self, trigger_id: &UUID) -> io::Result<()> {
+    let path = id_file_in(self.triggers_dir_path(), trigger_id);
+    if path.is_file() {
+      fs::remove_file(path)?;
+    }
+    Ok(())
+  }
+
   pub fn delete_trigger_tag_file(&self, trigger_tag_id: &UUID) -> io::Result<()> {
     let path = id_file_in(self.trigger_tags_dir_path(), trigger_tag_id);
     if path.is_file() {

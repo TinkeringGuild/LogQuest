@@ -44,6 +44,8 @@ const triggersSlice = createSlice({
       payload.forEach(({ variant, value }) => {
         if (variant === 'TriggerSaved') {
           deltas[variant](state.index, value);
+        } else if (variant === 'TriggerDeleted') {
+          deltas[variant](state.index, value);
         } else if (variant === 'TriggerGroupCreated') {
           deltas[variant](state.index, value);
         } else if (variant === 'TriggerGroupChildrenChanged') {
@@ -57,6 +59,8 @@ const triggersSlice = createSlice({
         } else if (variant === 'TriggerTagCreated') {
           deltas[variant](state.index, value);
         } else if (variant === 'TriggerTagDeleted') {
+          deltas[variant](state.index, value);
+        } else if (variant === 'TriggerTagTriggersChanged') {
           deltas[variant](state.index, value);
         } else {
           throw new Error('UNIMPLEMENTED DELTA TYPE: ' + variant);

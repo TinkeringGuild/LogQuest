@@ -61,33 +61,33 @@ impl Trigger {
     Self { effects, ..self }
   }
 
-  fn get_mut_effect(&mut self, effect_id: &UUID) -> Option<&mut EffectWithID> {
-    let mut queue: VecDeque<&mut Vec<EffectWithID>> = [&mut self.effects].into();
-    while let Some(effects) = queue.pop_front() {
-      for effect in effects.iter_mut() {
-        if effect.id == *effect_id {
-          return Some(effect);
-        }
-        match &mut effect.inner {
-          Effect::Sequence(effects) | Effect::Parallel(effects) => {
-            queue.push_back(effects);
-          }
-          Effect::StartTimer(timer) => {
-            queue.push_back(&mut timer.effects);
-          }
-          Effect::StartStopwatch(stopwatch) => {
-            queue.push_back(&mut stopwatch.effects);
-          }
-          _ => {}
-        }
-      }
-    }
-    None
-  }
-
   fn updated_now(&mut self) {
     self.updated_at = Timestamp::now();
   }
+
+  // fn get_mut_effect(&mut self, effect_id: &UUID) -> Option<&mut EffectWithID> {
+  //   let mut queue: VecDeque<&mut Vec<EffectWithID>> = [&mut self.effects].into();
+  //   while let Some(effects) = queue.pop_front() {
+  //     for effect in effects.iter_mut() {
+  //       if effect.id == *effect_id {
+  //         return Some(effect);
+  //       }
+  //       match &mut effect.inner {
+  //         Effect::Sequence(effects) | Effect::Parallel(effects) => {
+  //           queue.push_back(effects);
+  //         }
+  //         Effect::StartTimer(timer) => {
+  //           queue.push_back(&mut timer.effects);
+  //         }
+  //         Effect::StartStopwatch(stopwatch) => {
+  //           queue.push_back(&mut stopwatch.effects);
+  //         }
+  //         _ => {}
+  //       }
+  //     }
+  //   }
+  //   None
+  // }
 }
 
 pub fn load_or_create_relative_to_config(

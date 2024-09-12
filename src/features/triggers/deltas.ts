@@ -10,6 +10,10 @@ export function TriggerSaved(index: TriggerIndex, trigger: Trigger) {
   index.triggers[trigger.id] = trigger;
 }
 
+export function TriggerDeleted(index: TriggerIndex, trigger_id: UUID) {
+  delete index.triggers[trigger_id];
+}
+
 export function TriggerGroupCreated(index: TriggerIndex, group: TriggerGroup) {
   index.groups[group.id] = group;
 }
@@ -65,4 +69,14 @@ export function TriggerTagCreated(
 
 export function TriggerTagDeleted(index: TriggerIndex, trigger_tag_id: UUID) {
   delete index.trigger_tags[trigger_tag_id];
+}
+
+export function TriggerTagTriggersChanged(
+  index: TriggerIndex,
+  { trigger_tag_id, triggers }: { trigger_tag_id: UUID; triggers: UUID[] }
+) {
+  const tag = index.trigger_tags[trigger_tag_id];
+  if (tag) {
+    tag.triggers = triggers;
+  }
 }

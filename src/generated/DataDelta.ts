@@ -7,6 +7,7 @@ import type { UUID } from './UUID';
 
 export type DataDelta =
   | { variant: 'TriggerSaved'; value: Trigger }
+  | { variant: 'TriggerDeleted'; value: UUID }
   | { variant: 'TriggerGroupCreated'; value: TriggerGroup }
   | {
       variant: 'TriggerGroupChildrenChanged';
@@ -25,4 +26,8 @@ export type DataDelta =
       value: { trigger_id: UUID; trigger_tag_id: UUID };
     }
   | { variant: 'TriggerTagCreated'; value: TriggerTag }
-  | { variant: 'TriggerTagDeleted'; value: UUID };
+  | { variant: 'TriggerTagDeleted'; value: UUID }
+  | {
+      variant: 'TriggerTagTriggersChanged';
+      value: { trigger_tag_id: UUID; triggers: Array<UUID> };
+    };

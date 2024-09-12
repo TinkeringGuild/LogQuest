@@ -92,6 +92,9 @@ impl StateHandle {
           for delta in deltas.iter() {
             match delta {
               DataDelta::TriggerSaved(trigger) => config.save_trigger(&trigger)?,
+              DataDelta::TriggerDeleted(trigger_id) => {
+                config.delete_trigger_file(trigger_id)?;
+              }
               DataDelta::TriggerTagCreated(trigger_tag) => {
                 config.save_trigger_tag(trigger_tag)?;
               }
@@ -99,7 +102,8 @@ impl StateHandle {
                 config.delete_trigger_tag_file(trigger_tag_id)?;
               }
               DataDelta::TriggerTagged { trigger_tag_id, .. }
-              | DataDelta::TriggerUntagged { trigger_tag_id, .. } => {
+              | DataDelta::TriggerUntagged { trigger_tag_id, .. }
+              | DataDelta::TriggerTagTriggersChanged { trigger_tag_id, .. } => {
                 if let Some(trigger_tag) = index.trigger_tags.get(trigger_tag_id) {
                   config.save_trigger_tag(trigger_tag)?;
                 }

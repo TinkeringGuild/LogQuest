@@ -32,6 +32,10 @@ export async function saveTrigger(trigger: Trigger): Promise<DataDelta[]> {
   return mutate([{ variant: 'SaveTrigger', value: trigger }]);
 }
 
+export async function deleteTrigger(triggerID: UUID): Promise<DataDelta[]> {
+  return mutate([{ variant: 'DeleteTrigger', value: triggerID }]);
+}
+
 export async function createTriggerTag(name: string): Promise<DataDelta[]> {
   return mutate([{ variant: 'CreateTriggerTag', value: name }]);
 }
