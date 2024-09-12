@@ -1,7 +1,6 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
 import { DataDelta } from '../../generated/DataDelta';
-import { Effect } from '../../generated/Effect';
 import { TriggerIndex } from '../../generated/TriggerIndex';
 import { UUID } from '../../generated/UUID';
 import * as deltas from './deltas';

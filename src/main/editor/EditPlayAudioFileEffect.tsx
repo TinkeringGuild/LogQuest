@@ -3,7 +3,7 @@ import {
   PlayCircleOutline,
   VolumeUpOutlined,
 } from '@mui/icons-material';
-import { useDispatch, useSelector } from 'react-redux';
+import { useSelector } from 'react-redux';
 
 import {
   editorSelector,
@@ -17,7 +17,6 @@ const EditPlayAudioFileEffect: React.FC<{
   selector: EditorSelector<EffectVariantPlayAudioFile>;
   onDelete: () => void;
 }> = ({ selector, onDelete }) => {
-  const _dispatch = useDispatch();
   const { value: filePath } = useSelector(editorSelector(selector));
   return (
     <EffectWithOptions

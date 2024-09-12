@@ -141,7 +141,7 @@ const TagCreationButton: React.FC<{}> = () => {
         onClick={() => setOpen(true)}
         startIcon={<AddBoxOutlinedIcon />}
       >
-        New Tag
+        New Trigger Tag
       </Button>
     );
   }
