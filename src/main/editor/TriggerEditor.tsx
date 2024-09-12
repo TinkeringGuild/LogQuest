@@ -1,4 +1,5 @@
-import { Stack, TextField, Tooltip } from '@mui/material';
+import { CancelOutlined, Save } from '@mui/icons-material';
+import { Button, Stack, TextField, Tooltip } from '@mui/material';
 import { formatDistanceToNow } from 'date-fns/formatDistanceToNow';
 import { format } from 'date-fns/fp/format';
 import { parseISO } from 'date-fns/fp/parseISO';
@@ -9,6 +10,7 @@ import {
   $$selectTriggerFilter,
   $$triggerDraftEffects,
   $triggerDraft,
+  cancelEditing,
   deleteEffect,
   setTriggerComment,
   setTriggerName,
@@ -16,6 +18,8 @@ import {
 import { EffectWithID } from '../../generated/EffectWithID';
 import EditEffect from './EditEffect';
 import EditFilter from './widgets/EditFilter';
+import { saveTrigger } from '../../ipc';
+import { applyDeltas } from '../../features/triggers/triggersSlice';
 
 import './TriggerEditor.css';
 
@@ -35,6 +39,31 @@ const TriggerEditor: React.FC<{}> = () => {
 
   return (
     <div className="trigger-editor">
+      <div style={{ marginBottom: 10 }}>
+        <Button
+          variant="contained"
+          size="large"
+          startIcon={<Save />}
+          onClick={() => {
+            // TODO: I need to handle CreateTrigger for when the Trigger is new
+            saveTrigger(trigger).then((deltas) => {
+              console.log('DELTAS:', deltas);
+              dispatch(applyDeltas(deltas));
+              dispatch(cancelEditing());
+            });
+          }}
+        >
+          Save
+        </Button>{' '}
+        <Button
+          variant="outlined"
+          size="large"
+          startIcon={<CancelOutlined />}
+          onClick={() => dispatch(cancelEditing())}
+        >
+          Cancel
+        </Button>{' '}
+      </div>
       <p className="trigger-editor-info">
         Last updated:{' '}
         <Tooltip arrow title={updatedExact}>

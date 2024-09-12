@@ -18,7 +18,13 @@ export const EDITOR_SLICE = 'trigger-editor';
 
 export type EditorState = {
   draft: Trigger | null;
+  disabled: boolean;
 };
+
+const INITIAL_EDITOR_STATE = {
+  draft: null,
+  disabled: false,
+} satisfies EditorState;
 
 export type EditorSelector<T> = (slice: EditorState) => T;
 
@@ -54,10 +60,6 @@ export type EffectVariantPlayAudioFile = Extract<
 
 export type EffectVariantPause = Extract<Effect, { variant: 'Pause' }>;
 
-const INITIAL_EDITOR_STATE = {
-  draft: null,
-} satisfies EditorState;
-
 const editorSlice = createSlice({
   name: EDITOR_SLICE,
   initialState: INITIAL_EDITOR_STATE,
@@ -68,6 +70,10 @@ const editorSlice = createSlice({
       { payload: trigger }: PayloadAction<Trigger>
     ) {
       state.draft = trigger;
+    },
+
+    cancelEditing(state: EditorState) {
+      state.draft = null;
     },
 
     setTriggerName(
@@ -216,6 +222,7 @@ const editorSlice = createSlice({
 
 export const {
   appendNewMatcher,
+  cancelEditing,
   deleteEffect,
   deleteFilterMatcher,
   editTriggerDraft,
@@ -249,3 +256,7 @@ export const $$selectTriggerFilter = (slice: EditorState) =>
   slice.draft!.filter;
 
 export const $selectTriggerFilter = editorSelector($$selectTriggerFilter);
+
+export const $editingDisabled = editorSelector(
+  (slice: EditorState) => slice.disabled
+);

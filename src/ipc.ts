@@ -10,6 +10,7 @@ import { OverlayState } from './generated/OverlayState';
 import { TimerLifetime } from './generated/TimerLifetime';
 import { TriggerIndex } from './generated/TriggerIndex';
 import { UUID } from './generated/UUID';
+import { Trigger } from './generated/Trigger';
 
 export async function getBootstrap(): Promise<Bootstrap> {
   return await invoke<Bootstrap>('bootstrap');
@@ -25,6 +26,10 @@ export async function dispatchToOverlay(action: Action) {
 
 export async function startTimersSync(): Promise<TimerLifetime[]> {
   return await invoke<TimerLifetime[]>('start_timers_sync');
+}
+
+export async function saveTrigger(trigger: Trigger): Promise<DataDelta[]> {
+  return mutate([{ variant: 'SaveTrigger', value: trigger }]);
 }
 
 export async function createTriggerTag(name: string): Promise<DataDelta[]> {

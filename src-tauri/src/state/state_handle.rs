@@ -91,7 +91,7 @@ impl StateHandle {
           let deltas = func(index)?;
           for delta in deltas.iter() {
             match delta {
-              DataDelta::TriggerUpdated(trigger) => config.save_trigger(&trigger)?,
+              DataDelta::TriggerSaved(trigger) => config.save_trigger(&trigger)?,
               DataDelta::TriggerTagCreated(trigger_tag) => {
                 config.save_trigger_tag(trigger_tag)?;
               }

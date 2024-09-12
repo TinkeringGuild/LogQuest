@@ -43,7 +43,7 @@ const triggersSlice = createSlice({
 
     applyDeltas(state: TriggersState, { payload }: PayloadAction<DataDelta[]>) {
       payload.forEach(({ variant, value }) => {
-        if (variant === 'TriggerUpdated') {
+        if (variant === 'TriggerSaved') {
           deltas[variant](state.index, value);
         } else if (variant === 'TriggerGroupCreated') {
           deltas[variant](state.index, value);

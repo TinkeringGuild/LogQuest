@@ -4,6 +4,6 @@ import type { UUID } from './UUID';
 export type DataMutationError =
   | { TriggerNotFound: UUID }
   | { TriggerGroupNotFound: UUID }
-  | { TagNotFound: UUID }
+  | { TriggerTagNotFound: UUID }
   | { EffectNotFound: UUID }
   | 'IncorrectEffectType';

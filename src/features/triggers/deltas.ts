@@ -6,7 +6,7 @@ import { TriggerIndex } from '../../generated/TriggerIndex';
 import { UUID } from '../../generated/UUID';
 import { TriggerTag } from '../../generated/TriggerTag';
 
-export function TriggerUpdated(index: TriggerIndex, trigger: Trigger) {
+export function TriggerSaved(index: TriggerIndex, trigger: Trigger) {
   index.triggers[trigger.id] = trigger;
 }
 

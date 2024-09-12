@@ -39,16 +39,21 @@ pub enum Mutation {
     trigger_id: UUID,
     new_name: String,
   },
-  TagTrigger {
-    trigger_id: UUID,
-    trigger_tag_id: UUID,
+  CreateTrigger {
+    trigger: Trigger,
+    parent_position: usize,
   },
+  SaveTrigger(Trigger),
   CreateTriggerGroup {
     trigger_group: TriggerGroup,
     parent_position: usize,
   },
   CreateTriggerTag(String),
   DeleteTriggerTag(UUID),
+  TagTrigger {
+    trigger_id: UUID,
+    trigger_tag_id: UUID,
+  },
   UntagTrigger {
     trigger_id: UUID,
     trigger_tag_id: UUID,
@@ -69,7 +74,7 @@ pub enum Mutation {
 #[serde(tag = "variant", content = "value")]
 #[ts(tag = "variant", content = "value")]
 pub enum DataDelta {
-  TriggerUpdated(Trigger),
+  TriggerSaved(Trigger),
   TriggerGroupCreated(TriggerGroup),
   TriggerGroupChildrenChanged {
     trigger_group_id: UUID,
@@ -97,7 +102,7 @@ pub enum DataMutationError {
   TriggerGroupNotFound(UUID),
 
   #[error("Tried mutating a non-existent Tag! ID: {0}")]
-  TagNotFound(UUID),
+  TriggerTagNotFound(UUID),
 
   #[error("Tried mutating a non-existent Effect! ID: {0}")]
   EffectNotFound(UUID),
@@ -194,6 +199,41 @@ impl TriggerIndex {
 
   pub fn mutate(&mut self, mutation: Mutation) -> MutationResult {
     match mutation {
+      Mutation::CreateTrigger {
+        trigger,
+        parent_position,
+      } => {
+        let id = trigger.id.clone();
+        let parent_delta = if let Some(parent_id) = &trigger.parent_id {
+          if let Some(parent) = self.groups.get_mut(parent_id) {
+            parent
+              .children
+              .insert(parent_position, TriggerGroupDescendant::T(id.clone()));
+            DataDelta::TriggerGroupChildrenChanged {
+              trigger_group_id: parent_id.to_owned(),
+              children: parent.children.clone(),
+            }
+          } else {
+            error!(
+              "Tried to save a Trigger with an unknown parent! Appending to top-level instead"
+            );
+            self.top_level.push(TriggerGroupDescendant::T(id.clone()));
+            DataDelta::TopLevelChanged(self.top_level.clone())
+          }
+        } else {
+          self
+            .top_level
+            .insert(parent_position, TriggerGroupDescendant::T(id.clone()));
+          DataDelta::TopLevelChanged(self.top_level.clone())
+        };
+        self.triggers.insert(id, trigger.clone());
+        Ok(vec![DataDelta::TriggerSaved(trigger), parent_delta])
+      }
+      Mutation::SaveTrigger(trigger) => {
+        _ = self.try_get_mutable_trigger(&trigger.id)?;
+        self.triggers.insert(trigger.id.clone(), trigger.clone());
+        Ok(vec![DataDelta::TriggerSaved(trigger)])
+      }
       Mutation::SetTriggerName {
         trigger_id,
         new_name,
@@ -201,7 +241,7 @@ impl TriggerIndex {
         let trigger = self.try_get_mutable_trigger(&trigger_id)?;
         trigger.name = new_name;
         trigger.updated_now();
-        Ok(vec![DataDelta::TriggerUpdated(trigger.clone())])
+        Ok(vec![DataDelta::TriggerSaved(trigger.clone())])
       }
       Mutation::EffectTemplateChanged {
         trigger_id,
@@ -223,7 +263,7 @@ impl TriggerIndex {
           _ => {}
         }
         trigger.updated_now();
-        Ok(vec![DataDelta::TriggerUpdated(trigger.clone())])
+        Ok(vec![DataDelta::TriggerSaved(trigger.clone())])
       }
       Mutation::EffectSpeakInterrupt {
         trigger_id,
@@ -244,7 +284,7 @@ impl TriggerIndex {
           _ => return Err(DataMutationError::IncorrectEffectType),
         }
         trigger.updated_now();
-        Ok(vec![DataDelta::TriggerUpdated(trigger.clone())])
+        Ok(vec![DataDelta::TriggerSaved(trigger.clone())])
       }
       Mutation::TagTrigger {
         trigger_id,
@@ -259,7 +299,7 @@ impl TriggerIndex {
           }])
         } else {
           error!("Tried to add Trigger[{trigger_id}] to TriggerTag[{trigger_tag_id}], but the TriggerTag does not exist!");
-          Err(DataMutationError::TagNotFound(trigger_tag_id))
+          Err(DataMutationError::TriggerTagNotFound(trigger_tag_id))
         }
       }
       Mutation::UntagTrigger {
@@ -275,7 +315,7 @@ impl TriggerIndex {
           }])
         } else {
           error!("Tried to add Trigger[{trigger_id}] to TriggerTag[{trigger_tag_id}], but the TriggerTag does not exist!");
-          Err(DataMutationError::TagNotFound(trigger_tag_id))
+          Err(DataMutationError::TriggerTagNotFound(trigger_tag_id))
         }
       }
       Mutation::CreateTriggerGroup {
@@ -295,13 +335,8 @@ impl TriggerIndex {
   }
 
   pub fn create_trigger_tag(&mut self, name: &str) -> TriggerTag {
-    let id = UUID::new();
-    let tag = TriggerTag {
-      id: id.clone(),
-      name: name.to_owned(),
-      triggers: HashSet::new(),
-    };
-    self.trigger_tags.insert(id, tag.clone());
+    let tag = TriggerTag::new(name);
+    self.trigger_tags.insert(tag.id.clone(), tag.clone());
     tag
   }
 
@@ -335,5 +370,15 @@ impl TriggerIndex {
     let group_delta = DataDelta::TriggerGroupCreated(group);
 
     Ok(vec![group_delta, parent_delta])
+  }
+}
+
+impl TriggerTag {
+  pub fn new(name: &str) -> Self {
+    Self {
+      id: UUID::new(),
+      name: name.to_owned(),
+      triggers: HashSet::new(),
+    }
   }
 }
