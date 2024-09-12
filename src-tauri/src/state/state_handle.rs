@@ -108,7 +108,7 @@ impl StateHandle {
                   config.save_trigger_tag(trigger_tag)?;
                 }
               }
-              DataDelta::TriggerGroupCreated(group) => {
+              DataDelta::TriggerGroupSaved(group) => {
                 config.save_trigger_group(group)?;
               }
               DataDelta::TriggerGroupDeleted(group_id) => {

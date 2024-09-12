@@ -1,5 +1,6 @@
 import {
   ControlPointDuplicateOutlined,
+  Edit,
   VerticalAlignBottom,
   VerticalAlignTop,
 } from '@mui/icons-material';
@@ -58,6 +59,7 @@ import {
   deleteTrigger,
   deleteTriggerGroup,
   removeTriggerFromTag,
+  saveTriggerGroup,
 } from '../ipc';
 
 import './TriggerTree.css';
@@ -264,11 +266,15 @@ const TriggerGroupContextMenu: React.FC<{
   >;
 }> = ({ menuState, setMenuState }) => {
   const dispatch = useDispatch();
-  const [confirmationDialogGroupID, setConfirmationDialogGroupID] =
+
+  const [deleteConfirmationGroupID, setDeleteConfirmationGroupID] =
+    React.useState<UUID | null>(null);
+
+  const [triggerGroupEditorGroupID, setTriggerGroupEditorGroupID] =
     React.useState<UUID | null>(null);
 
   const triggerGroup = useSelector(
-    $triggerGroupMaybe(confirmationDialogGroupID)
+    $triggerGroupMaybe(deleteConfirmationGroupID)
   );
 
   const closeMenu = () => setMenuState(null);
@@ -289,7 +295,18 @@ const TriggerGroupContextMenu: React.FC<{
       >
         <MenuItem
           onClick={() => {
-            setConfirmationDialogGroupID(menuState!.groupID);
+            setTriggerGroupEditorGroupID(menuState!.groupID);
+            closeMenu();
+          }}
+        >
+          <ListItemIcon>
+            <Edit />
+          </ListItemIcon>
+          Edit Trigger Group
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            setDeleteConfirmationGroupID(menuState!.groupID);
             closeMenu();
           }}
         >
@@ -299,7 +316,7 @@ const TriggerGroupContextMenu: React.FC<{
           Delete Trigger Group
         </MenuItem>
       </Menu>
-      <Dialog open={confirmationDialogGroupID !== null}>
+      <Dialog open={deleteConfirmationGroupID !== null}>
         <DialogTitle>
           Confirm deleting "{triggerGroup && triggerGroup.name}"
         </DialogTitle>
@@ -321,7 +338,7 @@ const TriggerGroupContextMenu: React.FC<{
           <Button
             variant="outlined"
             onClick={() => {
-              setConfirmationDialogGroupID(null);
+              setDeleteConfirmationGroupID(null);
             }}
           >
             Cancel
@@ -331,17 +348,85 @@ const TriggerGroupContextMenu: React.FC<{
             variant="contained"
             onClick={async () => {
               const deltas = await deleteTriggerGroup(
-                confirmationDialogGroupID!
+                deleteConfirmationGroupID!
               );
               dispatch(applyDeltas(deltas));
-              setConfirmationDialogGroupID(null);
+              setDeleteConfirmationGroupID(null);
             }}
           >
             Delete Trigger Group and everything in it
           </Button>
         </DialogActions>
       </Dialog>
+      {!!triggerGroupEditorGroupID && (
+        <TriggerGroupEditorDialog
+          triggerGroupID={triggerGroupEditorGroupID}
+          onSave={async ({ name, comment }) => {
+            const deltas = await saveTriggerGroup(
+              triggerGroupEditorGroupID,
+              name,
+              comment
+            );
+            dispatch(applyDeltas(deltas));
+            setTriggerGroupEditorGroupID(null);
+          }}
+          onCancel={() => setTriggerGroupEditorGroupID(null)}
+        />
+      )}
     </>
+  );
+};
+
+const TriggerGroupEditorDialog: React.FC<{
+  triggerGroupID: UUID;
+  onSave: (group: { name: string; comment: string | null }) => void;
+  onCancel: () => void;
+}> = ({ triggerGroupID, onSave, onCancel }) => {
+  const nameRef = useRef<HTMLInputElement | null>(null);
+  const commentRef = useRef<HTMLInputElement | null>(null);
+
+  const triggerGroup = useSelector($triggerGroup(triggerGroupID));
+
+  const saveClicked = () => {
+    if (nameRef.current && commentRef.current) {
+      const name = nameRef.current.value.trim();
+      let comment: string | null = commentRef.current.value.trim();
+
+      onSave({ name, comment: comment ? comment : null });
+    }
+  };
+
+  return (
+    <Dialog open={true}>
+      <DialogTitle>Editing Trigger Group "{triggerGroup.name}"</DialogTitle>
+      <DialogContent>
+        <TextField
+          label="Trigger Group Name"
+          variant="outlined"
+          defaultValue={triggerGroup.name}
+          inputRef={nameRef}
+          sx={{ mt: 1, mb: 1 }}
+          fullWidth
+        />
+        <TextField
+          label="Comment (Optional)"
+          variant="outlined"
+          defaultValue={triggerGroup.comment}
+          inputRef={commentRef}
+          sx={{ mt: 1, mb: 1 }}
+          fullWidth
+          multiline
+        />
+      </DialogContent>
+      <DialogActions>
+        <Button variant="outlined" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button variant="contained" onClick={saveClicked}>
+          Save
+        </Button>
+      </DialogActions>
+    </Dialog>
   );
 };
 

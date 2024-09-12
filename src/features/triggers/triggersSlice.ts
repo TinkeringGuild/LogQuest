@@ -46,7 +46,7 @@ const triggersSlice = createSlice({
           deltas[variant](state.index, value);
         } else if (variant === 'TriggerDeleted') {
           deltas[variant](state.index, value);
-        } else if (variant === 'TriggerGroupCreated') {
+        } else if (variant === 'TriggerGroupSaved') {
           deltas[variant](state.index, value);
         } else if (variant === 'TriggerGroupChildrenChanged') {
           deltas[variant](state.index, value);

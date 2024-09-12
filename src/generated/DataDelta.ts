@@ -6,18 +6,9 @@ import type { TriggerTag } from './TriggerTag';
 import type { UUID } from './UUID';
 
 export type DataDelta =
+  | { variant: 'TopLevelChanged'; value: Array<TriggerGroupDescendant> }
   | { variant: 'TriggerSaved'; value: Trigger }
   | { variant: 'TriggerDeleted'; value: UUID }
-  | { variant: 'TriggerGroupCreated'; value: TriggerGroup }
-  | { variant: 'TriggerGroupDeleted'; value: UUID }
-  | {
-      variant: 'TriggerGroupChildrenChanged';
-      value: {
-        trigger_group_id: UUID;
-        children: Array<TriggerGroupDescendant>;
-      };
-    }
-  | { variant: 'TopLevelChanged'; value: Array<TriggerGroupDescendant> }
   | {
       variant: 'TriggerTagged';
       value: { trigger_id: UUID; trigger_tag_id: UUID };
@@ -26,9 +17,18 @@ export type DataDelta =
       variant: 'TriggerUntagged';
       value: { trigger_id: UUID; trigger_tag_id: UUID };
     }
+  | { variant: 'TriggerGroupSaved'; value: TriggerGroup }
+  | {
+      variant: 'TriggerGroupChildrenChanged';
+      value: {
+        trigger_group_id: UUID;
+        children: Array<TriggerGroupDescendant>;
+      };
+    }
+  | { variant: 'TriggerGroupDeleted'; value: UUID }
   | { variant: 'TriggerTagCreated'; value: TriggerTag }
-  | { variant: 'TriggerTagDeleted'; value: UUID }
   | {
       variant: 'TriggerTagTriggersChanged';
       value: { trigger_tag_id: UUID; triggers: Array<UUID> };
-    };
+    }
+  | { variant: 'TriggerTagDeleted'; value: UUID };

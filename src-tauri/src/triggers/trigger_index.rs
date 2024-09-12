@@ -45,6 +45,11 @@ pub enum Mutation {
     trigger_group: TriggerGroup,
     parent_position: usize,
   },
+  SaveTriggerGroup {
+    trigger_group_id: UUID,
+    name: String,
+    comment: Option<String>,
+  },
   DeleteTriggerGroup(UUID),
   CreateTriggerTag(String),
   DeleteTriggerTag(UUID),
@@ -62,15 +67,11 @@ pub enum Mutation {
 #[serde(tag = "variant", content = "value")]
 #[ts(tag = "variant", content = "value")]
 pub enum DataDelta {
+  TopLevelChanged(Vec<TriggerGroupDescendant>),
+
   TriggerSaved(Trigger),
   TriggerDeleted(UUID),
-  TriggerGroupCreated(TriggerGroup),
-  TriggerGroupDeleted(UUID),
-  TriggerGroupChildrenChanged {
-    trigger_group_id: UUID,
-    children: Vec<TriggerGroupDescendant>,
-  },
-  TopLevelChanged(Vec<TriggerGroupDescendant>),
+
   TriggerTagged {
     trigger_id: UUID,
     trigger_tag_id: UUID,
@@ -79,12 +80,20 @@ pub enum DataDelta {
     trigger_id: UUID,
     trigger_tag_id: UUID,
   },
+
+  TriggerGroupSaved(TriggerGroup),
+  TriggerGroupChildrenChanged {
+    trigger_group_id: UUID,
+    children: Vec<TriggerGroupDescendant>,
+  },
+  TriggerGroupDeleted(UUID),
+
   TriggerTagCreated(TriggerTag),
-  TriggerTagDeleted(UUID),
   TriggerTagTriggersChanged {
     trigger_tag_id: UUID,
     triggers: Vec<UUID>,
   },
+  TriggerTagDeleted(UUID),
 }
 
 #[derive(thiserror::Error, Debug, Serialize, Deserialize, ts_rs::TS)]
@@ -269,6 +278,18 @@ impl TriggerIndex {
 
         Ok(deltas)
       }
+      Mutation::SaveTriggerGroup {
+        trigger_group_id,
+        name,
+        comment,
+      } => {
+        let Some(group) = self.groups.get_mut(&trigger_group_id) else {
+          return Err(DataMutationError::TriggerGroupNotFound(trigger_group_id));
+        };
+        group.name = name;
+        group.comment = comment;
+        Ok(vec![DataDelta::TriggerGroupSaved(group.clone())])
+      }
       Mutation::DeleteTriggerGroup(group_id) => {
         let Some(group) = self.groups.remove(&group_id) else {
           return Err(DataMutationError::TriggerGroupNotFound(group_id));
@@ -437,7 +458,7 @@ impl TriggerIndex {
 
     self.groups.insert(group.id.clone(), group.clone());
 
-    let group_delta = DataDelta::TriggerGroupCreated(group);
+    let group_delta = DataDelta::TriggerGroupSaved(group);
 
     Ok(vec![group_delta, parent_delta])
   }

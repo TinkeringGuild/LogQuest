@@ -14,6 +14,10 @@ export type Mutation =
       variant: 'CreateTriggerGroup';
       value: { trigger_group: TriggerGroup; parent_position: number };
     }
+  | {
+      variant: 'SaveTriggerGroup';
+      value: { trigger_group_id: UUID; name: string; comment: string | null };
+    }
   | { variant: 'DeleteTriggerGroup'; value: UUID }
   | { variant: 'CreateTriggerTag'; value: string }
   | { variant: 'DeleteTriggerTag'; value: UUID }
