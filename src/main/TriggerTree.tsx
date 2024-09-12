@@ -10,6 +10,7 @@ import {
   SelectChangeEvent,
   Switch,
   TextField,
+  ListItemIcon,
 } from '@mui/material';
 import Button from '@mui/material/Button';
 import { clone, cloneDeep, sortBy, values } from 'lodash';
@@ -47,6 +48,12 @@ import {
 } from '../ipc';
 
 import './TriggerTree.css';
+import DeleteForeverOutlined from '@mui/icons-material/DeleteForeverOutlined';
+import {
+  ControlPointDuplicateOutlined,
+  VerticalAlignBottom,
+  VerticalAlignTop,
+} from '@mui/icons-material';
 
 type TriggerContextMenuState = {
   triggerID: string;
@@ -54,9 +61,10 @@ type TriggerContextMenuState = {
   mouseY: number;
 } | null;
 
-const TriggerMenuContext = createContext<React.Dispatch<
-  React.SetStateAction<TriggerContextMenuState>
-> | null>(null);
+const TriggerMenuContext = createContext<
+  | null
+  | [UUID | null, React.Dispatch<React.SetStateAction<TriggerContextMenuState>>]
+>(null);
 
 const TriggerTree: React.FC<{}> = () => {
   const dispatch = useDispatch();
@@ -121,7 +129,9 @@ const TriggerTree: React.FC<{}> = () => {
           )}
           <TagCreationButton />
         </div>
-        <TriggerMenuContext.Provider value={setTriggerContextMenu}>
+        <TriggerMenuContext.Provider
+          value={[triggerContextMenu?.triggerID || null, setTriggerContextMenu]}
+        >
           <div>
             {top.length ? (
               <ul>
@@ -160,7 +170,6 @@ const TriggerTree: React.FC<{}> = () => {
             : undefined
         }
       >
-        <MenuItem>Duplicate Trigger</MenuItem>
         <MenuItem
           onClick={async () => {
             if (!triggerContextMenu) {
@@ -168,16 +177,46 @@ const TriggerTree: React.FC<{}> = () => {
             }
             const deltas = await deleteTrigger(triggerContextMenu.triggerID);
             dispatch(applyDeltas(deltas));
+            setTriggerContextMenu(null);
           }}
         >
+          <ListItemIcon>
+            <DeleteForeverOutlined />
+          </ListItemIcon>
           Delete Trigger
         </MenuItem>
+        <MenuItem>
+          <ListItemIcon>
+            <ControlPointDuplicateOutlined />
+          </ListItemIcon>
+          Duplicate Trigger
+        </MenuItem>
         <Divider />
-        <MenuItem>Create new Trigger above</MenuItem>
-        <MenuItem>Create new Trigger below</MenuItem>
+        <MenuItem>
+          <ListItemIcon>
+            <VerticalAlignTop />
+          </ListItemIcon>
+          Create new Trigger above
+        </MenuItem>
+        <MenuItem>
+          <ListItemIcon>
+            <VerticalAlignBottom />
+          </ListItemIcon>
+          Create new Trigger below
+        </MenuItem>
         <Divider />
-        <MenuItem>Create new Trigger Group above</MenuItem>
-        <MenuItem>Create new Trigger Group below</MenuItem>
+        <MenuItem>
+          <ListItemIcon>
+            <VerticalAlignTop />
+          </ListItemIcon>
+          Create new Trigger Group above
+        </MenuItem>
+        <MenuItem>
+          <ListItemIcon>
+            <VerticalAlignBottom />
+          </ListItemIcon>
+          Create new Trigger Group below
+        </MenuItem>
       </Menu>
     </div>
   );
@@ -278,24 +317,27 @@ const TriggerListItem: React.FC<{
   const editingTrigger = useSelector($triggerDraft);
   const activeTriggerTagID = useSelector($activeTriggerTagID);
 
-  const selected = editingTrigger?.id === triggerID;
-  const enabled = !!activeTriggers && activeTriggers.has(triggerID);
+  const menuContext = useContext(TriggerMenuContext);
 
-  const setContextMenu = useContext(TriggerMenuContext);
+  const currentlyEditing = editingTrigger?.id === triggerID;
+  const enabled = !!activeTriggers && activeTriggers.has(triggerID);
+  const hasContextMenuOpened = menuContext && menuContext[0] === triggerID;
 
   const handleTriggerContextMenu = (e: React.MouseEvent<HTMLSpanElement>) => {
     e.preventDefault();
-    setContextMenu &&
+    if (menuContext) {
+      const [_, setContextMenu] = menuContext;
       setContextMenu({
         triggerID,
         mouseX: e.clientX + 2,
         mouseY: e.clientY + 2,
       });
+    }
   };
 
   return (
     <li
-      className={`view-trigger-list-item ${selected ? 'view-trigger-list-item-selected' : ''}`}
+      className={`view-trigger-list-item ${currentlyEditing ? 'view-trigger-list-item-currently-editing' : ''} ${hasContextMenuOpened ? 'view-trigger-list-item-context-menu-open' : ''}`}
     >
       {!!activeTriggerTagID && (
         <>

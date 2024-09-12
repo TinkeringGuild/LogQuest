@@ -16,11 +16,23 @@ li.view-trigger-list-item {
   text-overflow: ellipsis;
   overflow: hidden;
   white-space: nowrap;
+  border-bottom: 1px solid transparent;
 }
 
-li.view-trigger-list-item-selected {
+li.view-trigger-list-item-currently-editing {
   background-color: #eee;
   font-weight: bold;
+}
+
+li.view-trigger-list-item-context-menu-open {
+  font-style: italic;
+  border-bottom: 1px dotted black;
+  /* text-decoration: underline;
+  text-decoration-style: dotted; */
+}
+
+li.view-trigger-list-item span {
+  cursor: context-menu;
 }
 
 .toggle-trigger-tag-inclusion-switch {
