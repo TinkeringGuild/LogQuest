@@ -11,24 +11,24 @@ import { useDispatch, useSelector } from 'react-redux';
 
 import {
   deleteEffect,
-  editorSelector,
-  EditorSelector,
-  EditorState,
+  triggerEditorSelector,
+  TriggerEditorSelector,
+  TriggerEditorState,
   setTimerField,
-} from '../../features/triggers/editorSlice';
+} from '../../features/triggers/triggerEditorSlice';
 import { Timer } from '../../generated/Timer';
 import EditEffect from './EditEffect';
 import EditDuration from './widgets/EditDuration';
 import { EffectHeader, EffectTitle } from './widgets/EffectHeader';
 
 const EditStartTimerEffect: React.FC<{
-  timerSelector: EditorSelector<Timer>;
+  timerSelector: TriggerEditorSelector<Timer>;
   onDelete: () => void;
 }> = ({ timerSelector, onDelete }) => {
   const dispatch = useDispatch();
-  const timer = useSelector(editorSelector(timerSelector));
+  const timer = useSelector(triggerEditorSelector(timerSelector));
 
-  const $effects = (state: EditorState) => {
+  const $effects = (state: TriggerEditorState) => {
     const timer: Timer = timerSelector(state);
     return timer.effects;
   };

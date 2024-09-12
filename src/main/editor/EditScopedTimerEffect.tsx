@@ -18,11 +18,11 @@ import React, { ReactElement, ReactNode } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 
 import {
-  editorSelector,
-  EditorSelector,
+  triggerEditorSelector,
+  TriggerEditorSelector,
   setWaitUntilFilterMatchesDuration,
   TimerEffectWaitUntilFilterMatchesType,
-} from '../../features/triggers/editorSlice';
+} from '../../features/triggers/triggerEditorSlice';
 import { FilterWithContext } from '../../generated/FilterWithContext';
 import { TimerEffect } from '../../generated/TimerEffect';
 import { TimerTag } from '../../generated/TimerTag';
@@ -33,13 +33,13 @@ import { EffectHeader, EffectTitle } from './widgets/EffectHeader';
 
 const TIMER_EFFECT_COMPONENTS = {
   WaitUntilFilterMatches(
-    selector: EditorSelector<TimerEffectWaitUntilFilterMatchesType>,
+    selector: TriggerEditorSelector<TimerEffectWaitUntilFilterMatchesType>,
     onDelete: () => void
   ) {
     const dispatch = useDispatch();
-    const timerEffect = useSelector(editorSelector(selector));
+    const timerEffect = useSelector(triggerEditorSelector(selector));
     const [_, durationMaybe] = timerEffect.value;
-    const filterSelector: EditorSelector<FilterWithContext> = (state) =>
+    const filterSelector: TriggerEditorSelector<FilterWithContext> = (state) =>
       selector(state).value[0];
     return (
       <TimerEffectWithOptions
@@ -178,10 +178,10 @@ const TIMER_EFFECT_COMPONENTS = {
 
 const EditScopedTimerEffect: React.FC<{
   triggerID: UUID;
-  timerSelector: EditorSelector<TimerEffect>;
+  timerSelector: TriggerEditorSelector<TimerEffect>;
   onDelete: () => void;
 }> = ({ triggerID: _, timerSelector, onDelete }) => {
-  const timerEffect = useSelector(editorSelector(timerSelector));
+  const timerEffect = useSelector(triggerEditorSelector(timerSelector));
   const variant = timerEffect.variant;
   if (
     variant === 'IncrementCounter' ||
@@ -191,7 +191,7 @@ const EditScopedTimerEffect: React.FC<{
     return <p>TODO</p>;
   } else if (variant === 'WaitUntilFilterMatches') {
     return TIMER_EFFECT_COMPONENTS[variant](
-      timerSelector as EditorSelector<TimerEffectWaitUntilFilterMatchesType>,
+      timerSelector as TriggerEditorSelector<TimerEffectWaitUntilFilterMatchesType>,
       onDelete
     );
   } else if (variant === 'WaitUntilSecondsRemain') {

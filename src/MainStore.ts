@@ -4,18 +4,24 @@ import crossDispatchMiddleware from './crossDispatchMiddleware';
 import appReducer, { APP_SLICE } from './features/app/appSlice';
 import configReducer, { CONFIG_SLICE } from './features/config/configSlice';
 import overlayReducer, { OVERLAY_SLICE } from './features/overlay/overlaySlice';
-import editorReducer, { EDITOR_SLICE } from './features/triggers/editorSlice';
+import triggerEditorReducer, {
+  TRIGGER_EDITOR_SLICE,
+} from './features/triggers/triggerEditorSlice';
 import triggersReducer, {
   TRIGGERS_SLICE,
 } from './features/triggers/triggersSlice';
 import { initOverlayStateListeners } from './tauriEventListeners';
+import triggerGroupEditorReducer, {
+  TRIGGER_GROUP_EDITOR_SLICE,
+} from './features/triggers/triggerGroupEditorSlice';
 
 const store = configureStore({
   reducer: {
     [APP_SLICE]: appReducer,
     [CONFIG_SLICE]: configReducer,
     [TRIGGERS_SLICE]: triggersReducer,
-    [EDITOR_SLICE]: editorReducer,
+    [TRIGGER_EDITOR_SLICE]: triggerEditorReducer,
+    [TRIGGER_GROUP_EDITOR_SLICE]: triggerGroupEditorReducer,
     [OVERLAY_SLICE]: overlayReducer,
   },
   middleware: (getDefaultMiddleware) =>

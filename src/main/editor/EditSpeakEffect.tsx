@@ -5,11 +5,11 @@ import CardHeader from '@mui/material/CardHeader';
 import CardContent from '@mui/material/CardContent';
 
 import {
-  editorSelector,
-  EditorSelector,
+  triggerEditorSelector,
+  TriggerEditorSelector,
   EffectVariantSpeak,
   setSpeakTemplate,
-} from '../../features/triggers/editorSlice';
+} from '../../features/triggers/triggerEditorSlice';
 import { EffectHeader, EffectTitle } from './widgets/EffectHeader';
 import { RecordVoiceOverOutlined } from '@mui/icons-material';
 import { useRef } from 'react';
@@ -18,13 +18,13 @@ import FormGroup from '@mui/material/FormGroup';
 import FormControlLabel from '@mui/material/FormControlLabel';
 
 const EditSpeakEffect: React.FC<{
-  selector: EditorSelector<EffectVariantSpeak>;
+  selector: TriggerEditorSelector<EffectVariantSpeak>;
   onDelete: () => void;
 }> = ({ selector, onDelete }) => {
   const dispatch = useDispatch();
   const {
     value: { tmpl, interrupt },
-  } = useSelector(editorSelector(selector));
+  } = useSelector(triggerEditorSelector(selector));
   const tmplRef = useRef<HTMLInputElement>(null);
   const interruptRef = useRef<HTMLInputElement>(null);
 

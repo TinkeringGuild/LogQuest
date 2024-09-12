@@ -14,6 +14,10 @@ export function TriggerDeleted(index: TriggerIndex, trigger_id: UUID) {
   delete index.triggers[trigger_id];
 }
 
+export function TriggerGroupDeleted(index: TriggerIndex, group_id: UUID) {
+  delete index.groups[group_id];
+}
+
 export function TriggerGroupCreated(index: TriggerIndex, group: TriggerGroup) {
   index.groups[group.id] = group;
 }

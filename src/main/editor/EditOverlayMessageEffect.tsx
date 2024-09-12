@@ -3,19 +3,19 @@ import TextField from '@mui/material/TextField';
 import { useDispatch, useSelector } from 'react-redux';
 
 import {
-  editorSelector,
-  EditorSelector,
+  triggerEditorSelector,
+  TriggerEditorSelector,
   EffectVariantOverlayMessage,
   setOverlayMessageTemplate,
-} from '../../features/triggers/editorSlice';
+} from '../../features/triggers/triggerEditorSlice';
 import EffectWithOptions from './EffectWithOptions';
 
 const EditOverlayMessageEffect: React.FC<{
-  selector: EditorSelector<EffectVariantOverlayMessage>;
+  selector: TriggerEditorSelector<EffectVariantOverlayMessage>;
   onDelete: () => void;
 }> = ({ selector, onDelete }) => {
   const dispatch = useDispatch();
-  const { value: tmpl } = useSelector(editorSelector(selector));
+  const { value: tmpl } = useSelector(triggerEditorSelector(selector));
   return (
     <EffectWithOptions
       title="Show Overlay Message"

@@ -9,9 +9,8 @@ use crate::{
   matchers,
   state::config::{LogQuestConfig, TriggerLoadError, TriggersSaveError},
 };
-use effects::{Effect, EffectWithID};
+use effects::EffectWithID;
 use serde::{Deserialize, Serialize};
-use std::collections::VecDeque;
 use template_string::TemplateString;
 use trigger_index::{TriggerGroupDescendant, TriggerIndex};
 

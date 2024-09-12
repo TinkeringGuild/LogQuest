@@ -14,26 +14,26 @@ import { Trigger } from '../../generated/Trigger';
 import { UUID } from '../../generated/UUID';
 import { MainRootState } from '../../MainStore';
 
-export const EDITOR_SLICE = 'trigger-editor';
+export const TRIGGER_EDITOR_SLICE = 'trigger-editor';
 
-export type EditorState = {
+export type TriggerEditorState = {
   draft: Trigger | null;
   disabled: boolean;
 };
 
-const INITIAL_EDITOR_STATE = {
+const INITIAL_TRIGGER_EDITOR_STATE = {
   draft: null,
   disabled: false,
-} satisfies EditorState;
+} satisfies TriggerEditorState;
 
-export type EditorSelector<T> = (slice: EditorState) => T;
+export type TriggerEditorSelector<T> = (slice: TriggerEditorState) => T;
 
 type TimerField = keyof Timer;
 type TimerFieldValue<T extends TimerField> = Timer[T];
 interface SetTimerFieldPayload<T extends TimerField> {
   field: T;
   value: TimerFieldValue<T>;
-  selector: EditorSelector<Timer>;
+  selector: TriggerEditorSelector<Timer>;
 }
 
 export type TimerEffectWaitUntilFilterMatchesType = Extract<
@@ -60,43 +60,43 @@ export type EffectVariantPlayAudioFile = Extract<
 
 export type EffectVariantPause = Extract<Effect, { variant: 'Pause' }>;
 
-const editorSlice = createSlice({
-  name: EDITOR_SLICE,
-  initialState: INITIAL_EDITOR_STATE,
+const triggerEditorSlice = createSlice({
+  name: TRIGGER_EDITOR_SLICE,
+  initialState: INITIAL_TRIGGER_EDITOR_STATE,
 
   reducers: {
     editTriggerDraft(
-      state: EditorState,
+      state: TriggerEditorState,
       { payload: trigger }: PayloadAction<Trigger>
     ) {
       state.draft = trigger;
     },
 
-    cancelEditing(state: EditorState) {
+    cancelEditing(state: TriggerEditorState) {
       state.draft = null;
     },
 
     setTriggerName(
-      slice: EditorState,
+      slice: TriggerEditorState,
       { payload: name }: PayloadAction<string>
     ) {
       slice.draft!.name = name;
     },
 
     setTriggerComment(
-      state: EditorState,
+      state: TriggerEditorState,
       { payload: comment }: PayloadAction<string>
     ) {
       state.draft!.comment = comment;
     },
 
     deleteEffect(
-      state: EditorState,
+      state: TriggerEditorState,
       {
         payload: { effectID, selector },
       }: PayloadAction<{
         effectID: UUID;
-        selector: EditorSelector<EffectWithID[]>;
+        selector: TriggerEditorSelector<EffectWithID[]>;
       }>
     ) {
       const effects: EffectWithID[] = selector(state);
@@ -104,12 +104,12 @@ const editorSlice = createSlice({
     },
 
     setMatcherValue(
-      state: EditorState,
+      state: TriggerEditorState,
       {
         payload: { value, selector },
       }: PayloadAction<{
         value: string;
-        selector: EditorSelector<Matcher | MatcherWithContext>;
+        selector: TriggerEditorSelector<Matcher | MatcherWithContext>;
       }>
     ) {
       const matcher = selector(state);
@@ -117,11 +117,11 @@ const editorSlice = createSlice({
     },
 
     appendNewMatcher<M extends Matcher | MatcherWithContext, F extends M[]>(
-      slice: EditorState,
+      slice: TriggerEditorState,
       {
         payload: { matcherVariant, selector },
       }: PayloadAction<{
-        selector: EditorSelector<F>;
+        selector: TriggerEditorSelector<F>;
         matcherVariant: M['variant'];
       }>
     ) {
@@ -130,12 +130,12 @@ const editorSlice = createSlice({
     },
 
     deleteFilterMatcher(
-      slice: EditorState,
+      slice: TriggerEditorState,
       {
         payload: { index, selector },
       }: PayloadAction<{
         index: number;
-        selector: EditorSelector<Filter | FilterWithContext>;
+        selector: TriggerEditorSelector<Filter | FilterWithContext>;
       }>
     ) {
       const matchers = selector(slice);
@@ -143,7 +143,7 @@ const editorSlice = createSlice({
     },
 
     setTimerField<T extends TimerField>(
-      slice: EditorState,
+      slice: TriggerEditorState,
       {
         payload: { selector, field, value },
       }: PayloadAction<SetTimerFieldPayload<T>>
@@ -153,11 +153,11 @@ const editorSlice = createSlice({
     },
 
     setWaitUntilFilterMatchesDuration(
-      slice: EditorState,
+      slice: TriggerEditorState,
       {
         payload: { selector, duration },
       }: PayloadAction<{
-        selector: EditorSelector<TimerEffectWaitUntilFilterMatchesType>;
+        selector: TriggerEditorSelector<TimerEffectWaitUntilFilterMatchesType>;
         duration: Duration;
       }>
     ) {
@@ -166,12 +166,12 @@ const editorSlice = createSlice({
     },
 
     setCopyToClipboardTemplate(
-      slice: EditorState,
+      slice: TriggerEditorState,
       {
         payload: { tmpl, selector },
       }: PayloadAction<{
         tmpl: string;
-        selector: EditorSelector<EffectVariantCopyToClipboard>;
+        selector: TriggerEditorSelector<EffectVariantCopyToClipboard>;
       }>
     ) {
       const copyToClipboard = selector(slice);
@@ -179,13 +179,13 @@ const editorSlice = createSlice({
     },
 
     setSpeakTemplate(
-      slice: EditorState,
+      slice: TriggerEditorState,
       {
         payload: { tmpl, interrupt, selector },
       }: PayloadAction<{
         tmpl: string;
         interrupt: boolean;
-        selector: EditorSelector<EffectVariantSpeak>;
+        selector: TriggerEditorSelector<EffectVariantSpeak>;
       }>
     ) {
       const speak = selector(slice);
@@ -193,12 +193,12 @@ const editorSlice = createSlice({
     },
 
     setOverlayMessageTemplate(
-      slice: EditorState,
+      slice: TriggerEditorState,
       {
         payload: { tmpl, selector },
       }: PayloadAction<{
         tmpl: string;
-        selector: EditorSelector<EffectVariantOverlayMessage>;
+        selector: TriggerEditorSelector<EffectVariantOverlayMessage>;
       }>
     ) {
       const overlayMessage = selector(slice);
@@ -206,12 +206,12 @@ const editorSlice = createSlice({
     },
 
     setPauseDuration(
-      slice: EditorState,
+      slice: TriggerEditorState,
       {
         payload: { millis, selector },
       }: PayloadAction<{
         millis: number;
-        selector: EditorSelector<EffectVariantPause>;
+        selector: TriggerEditorSelector<EffectVariantPause>;
       }>
     ) {
       const pause = selector(slice);
@@ -235,28 +235,30 @@ export const {
   setTriggerComment,
   setTriggerName,
   setWaitUntilFilterMatchesDuration,
-} = editorSlice.actions;
+} = triggerEditorSlice.actions;
 
-export default editorSlice.reducer;
+export default triggerEditorSlice.reducer;
 
-export function editorSelector<T>(
-  selector: EditorSelector<T>
+export function triggerEditorSelector<T>(
+  selector: TriggerEditorSelector<T>
 ): (state: MainRootState) => T {
-  return (state: MainRootState) => selector(state[EDITOR_SLICE]);
+  return (state: MainRootState) => selector(state[TRIGGER_EDITOR_SLICE]);
 }
 
-export const $triggerDraft = editorSelector(
-  (slice: EditorState) => slice.draft
+export const $triggerDraft = triggerEditorSelector(
+  (slice: TriggerEditorState) => slice.draft
 );
 
-export const $$triggerDraftEffects = (slice: EditorState) =>
+export const $$triggerDraftEffects = (slice: TriggerEditorState) =>
   slice.draft!.effects;
 
-export const $$selectTriggerFilter = (slice: EditorState) =>
+export const $$selectTriggerFilter = (slice: TriggerEditorState) =>
   slice.draft!.filter;
 
-export const $selectTriggerFilter = editorSelector($$selectTriggerFilter);
+export const $selectTriggerFilter = triggerEditorSelector(
+  $$selectTriggerFilter
+);
 
-export const $editingDisabled = editorSelector(
-  (slice: EditorState) => slice.disabled
+export const $editingDisabled = triggerEditorSelector(
+  (slice: TriggerEditorState) => slice.disabled
 );

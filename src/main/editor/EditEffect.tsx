@@ -2,15 +2,15 @@ import { QuestionMarkOutlined } from '@mui/icons-material';
 import { useSelector } from 'react-redux';
 
 import {
-  editorSelector,
-  EditorSelector,
-  EditorState,
+  triggerEditorSelector,
+  TriggerEditorSelector,
+  TriggerEditorState,
   EffectVariantCopyToClipboard,
   EffectVariantOverlayMessage,
   EffectVariantPause,
   EffectVariantPlayAudioFile,
   EffectVariantSpeak,
-} from '../../features/triggers/editorSlice';
+} from '../../features/triggers/triggerEditorSlice';
 import { Effect } from '../../generated/Effect';
 import { EffectWithID } from '../../generated/EffectWithID';
 import { UUID } from '../../generated/UUID';
@@ -36,8 +36,8 @@ type EffectVariantStartTimer = Extract<Effect, { variant: 'StartTimer' }>;
 // Functions that begin with '$$' indicate a selector that operates on slice-state
 // rather than store-wide state.
 function $$innerAs<T extends Effect>(
-  effectSelector: EditorSelector<EffectWithID>
-): (slice: EditorState) => T {
+  effectSelector: TriggerEditorSelector<EffectWithID>
+): (slice: TriggerEditorState) => T {
   return (slice) => {
     const effect: EffectWithID = effectSelector(slice);
     return effect.inner as T;
@@ -46,10 +46,10 @@ function $$innerAs<T extends Effect>(
 
 const EditEffect: React.FC<{
   triggerID: UUID;
-  effectSelector: EditorSelector<EffectWithID>;
+  effectSelector: TriggerEditorSelector<EffectWithID>;
   onDelete: () => void;
 }> = ({ triggerID, effectSelector, onDelete }) => {
-  const effect = useSelector(editorSelector(effectSelector));
+  const effect = useSelector(triggerEditorSelector(effectSelector));
 
   switch (effect.inner.variant) {
     case 'CopyToClipboard':
@@ -70,7 +70,7 @@ const EditEffect: React.FC<{
       return (
         <EditSequenceEffect
           triggerID={triggerID}
-          seqSelector={(slice: EditorState) => {
+          seqSelector={(slice: TriggerEditorState) => {
             const sequenceEffect =
               $$innerAs<EffectVariantSequence>(effectSelector)(slice);
             return sequenceEffect.value;
@@ -81,7 +81,7 @@ const EditEffect: React.FC<{
     case 'StartTimer':
       return (
         <EditStartTimerEffect
-          timerSelector={(slice: EditorState) => {
+          timerSelector={(slice: TriggerEditorState) => {
             const startTimerEffect =
               $$innerAs<EffectVariantStartTimer>(effectSelector)(slice);
             return startTimerEffect.value;
@@ -93,7 +93,7 @@ const EditEffect: React.FC<{
       return (
         <EditScopedTimerEffect
           triggerID={triggerID}
-          timerSelector={(slice: EditorState) => {
+          timerSelector={(slice: TriggerEditorState) => {
             const scopedTimerEffect =
               $$innerAs<EffectVariantScopedTimer>(effectSelector)(slice);
             return scopedTimerEffect.value;

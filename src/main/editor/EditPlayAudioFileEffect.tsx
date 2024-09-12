@@ -6,18 +6,18 @@ import {
 import { useSelector } from 'react-redux';
 
 import {
-  editorSelector,
-  EditorSelector,
+  triggerEditorSelector,
+  TriggerEditorSelector,
   EffectVariantPlayAudioFile,
-} from '../../features/triggers/editorSlice';
+} from '../../features/triggers/triggerEditorSlice';
 import EffectWithOptions from './EffectWithOptions';
 import Button from '@mui/material/Button';
 
 const EditPlayAudioFileEffect: React.FC<{
-  selector: EditorSelector<EffectVariantPlayAudioFile>;
+  selector: TriggerEditorSelector<EffectVariantPlayAudioFile>;
   onDelete: () => void;
 }> = ({ selector, onDelete }) => {
-  const { value: filePath } = useSelector(editorSelector(selector));
+  const { value: filePath } = useSelector(triggerEditorSelector(selector));
   return (
     <EffectWithOptions
       title="Play Audio File"

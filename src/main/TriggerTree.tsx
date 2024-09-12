@@ -1,16 +1,27 @@
+import {
+  ControlPointDuplicateOutlined,
+  VerticalAlignBottom,
+  VerticalAlignTop,
+} from '@mui/icons-material';
 import AddBoxOutlinedIcon from '@mui/icons-material/AddBoxOutlined';
+import DeleteForeverOutlined from '@mui/icons-material/DeleteForeverOutlined';
 import DownloadingIcon from '@mui/icons-material/Downloading';
 import {
-  Menu,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
   Divider,
   FormControl,
   InputLabel,
+  ListItemIcon,
+  Menu,
   MenuItem,
   Select,
   SelectChangeEvent,
   Switch,
   TextField,
-  ListItemIcon,
 } from '@mui/material';
 import Button from '@mui/material/Button';
 import { clone, cloneDeep, sortBy, values } from 'lodash';
@@ -27,13 +38,14 @@ import openGINATriggerFileDialog from '../dialogs/importGINAFile';
 import {
   $triggerDraft,
   editTriggerDraft,
-} from '../features/triggers/editorSlice';
+} from '../features/triggers/triggerEditorSlice';
 import {
   $activeTriggerTag,
   $activeTriggerTagID,
   $topLevel,
   $trigger,
   $triggerGroup,
+  $triggerGroupMaybe,
   $triggerTags,
   activateTriggerTagID,
   applyDeltas,
@@ -44,16 +56,11 @@ import {
   addTriggerToTag,
   createTriggerTag,
   deleteTrigger,
+  deleteTriggerGroup,
   removeTriggerFromTag,
 } from '../ipc';
 
 import './TriggerTree.css';
-import DeleteForeverOutlined from '@mui/icons-material/DeleteForeverOutlined';
-import {
-  ControlPointDuplicateOutlined,
-  VerticalAlignBottom,
-  VerticalAlignTop,
-} from '@mui/icons-material';
 
 type TriggerContextMenuState = {
   triggerID: string;
@@ -61,9 +68,23 @@ type TriggerContextMenuState = {
   mouseY: number;
 } | null;
 
+type TriggerGroupContextMenuState = {
+  groupID: string;
+  mouseX: number;
+  mouseY: number;
+} | null;
+
 const TriggerMenuContext = createContext<
   | null
   | [UUID | null, React.Dispatch<React.SetStateAction<TriggerContextMenuState>>]
+>(null);
+
+const TriggerGroupMenuContext = createContext<
+  | null
+  | [
+      UUID | null,
+      React.Dispatch<React.SetStateAction<TriggerGroupContextMenuState>>,
+    ]
 >(null);
 
 const TriggerTree: React.FC<{}> = () => {
@@ -87,6 +108,9 @@ const TriggerTree: React.FC<{}> = () => {
 
   const [triggerContextMenu, setTriggerContextMenu] =
     useState<TriggerContextMenuState>(null);
+
+  const [triggerGroupContextMenu, setTriggerGroupContextMenu] =
+    useState<TriggerGroupContextMenuState>(null);
 
   const closeTriggerContextMenu = () => setTriggerContextMenu(null);
 
@@ -132,29 +156,36 @@ const TriggerTree: React.FC<{}> = () => {
         <TriggerMenuContext.Provider
           value={[triggerContextMenu?.triggerID || null, setTriggerContextMenu]}
         >
-          <div>
-            {top.length ? (
-              <ul>
-                {top.map((tgd) =>
-                  tgd.variant === 'T' ? (
-                    <TriggerListItem
-                      key={tgd.value}
-                      triggerID={tgd.value}
-                      activeTriggers={activeTriggers}
-                    />
-                  ) : (
-                    <TriggerGroupListItem
-                      key={tgd.value}
-                      groupID={tgd.value}
-                      activeTriggers={activeTriggers}
-                    />
-                  )
-                )}
-              </ul>
-            ) : (
-              <p>You have not created any triggers yet.</p>
-            )}
-          </div>
+          <TriggerGroupMenuContext.Provider
+            value={[
+              triggerGroupContextMenu?.groupID || null,
+              setTriggerGroupContextMenu,
+            ]}
+          >
+            <div>
+              {top.length ? (
+                <ul>
+                  {top.map((tgd) =>
+                    tgd.variant === 'T' ? (
+                      <TriggerListItem
+                        key={tgd.value}
+                        triggerID={tgd.value}
+                        activeTriggers={activeTriggers}
+                      />
+                    ) : (
+                      <TriggerGroupListItem
+                        key={tgd.value}
+                        groupID={tgd.value}
+                        activeTriggers={activeTriggers}
+                      />
+                    )
+                  )}
+                </ul>
+              ) : (
+                <p>You have not created any triggers yet.</p>
+              )}
+            </div>
+          </TriggerGroupMenuContext.Provider>
         </TriggerMenuContext.Provider>
       </div>
       <Menu
@@ -218,7 +249,99 @@ const TriggerTree: React.FC<{}> = () => {
           Create new Trigger Group below
         </MenuItem>
       </Menu>
+      <TriggerGroupContextMenu
+        menuState={triggerGroupContextMenu}
+        setMenuState={setTriggerGroupContextMenu}
+      />
     </div>
+  );
+};
+
+const TriggerGroupContextMenu: React.FC<{
+  menuState: TriggerGroupContextMenuState | null;
+  setMenuState: React.Dispatch<
+    React.SetStateAction<TriggerGroupContextMenuState>
+  >;
+}> = ({ menuState, setMenuState }) => {
+  const dispatch = useDispatch();
+  const [confirmationDialogGroupID, setConfirmationDialogGroupID] =
+    React.useState<UUID | null>(null);
+
+  const triggerGroup = useSelector(
+    $triggerGroupMaybe(confirmationDialogGroupID)
+  );
+
+  const closeMenu = () => setMenuState(null);
+  return (
+    <>
+      <Menu
+        open={menuState !== null}
+        onClose={closeMenu}
+        anchorReference="anchorPosition"
+        anchorPosition={
+          menuState !== null
+            ? {
+                top: menuState.mouseY,
+                left: menuState.mouseX,
+              }
+            : undefined
+        }
+      >
+        <MenuItem
+          onClick={() => {
+            setConfirmationDialogGroupID(menuState!.groupID);
+            closeMenu();
+          }}
+        >
+          <ListItemIcon>
+            <DeleteForeverOutlined />
+          </ListItemIcon>
+          Delete Trigger Group
+        </MenuItem>
+      </Menu>
+      <Dialog open={confirmationDialogGroupID !== null}>
+        <DialogTitle>
+          Confirm deleting "{triggerGroup && triggerGroup.name}"
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            {triggerGroup && (
+              <>
+                Deleting this "<strong>{triggerGroup.name}</strong>" Trigger
+                Group will also delete{' '}
+                <em>ALL nested Triggers and Trigger Groups within it.</em>
+              </>
+            )}
+          </DialogContentText>
+          <DialogContentText sx={{ mt: 1 }}>
+            Are you sure you wish to continue?
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            variant="outlined"
+            onClick={() => {
+              setConfirmationDialogGroupID(null);
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            color="error"
+            variant="contained"
+            onClick={async () => {
+              const deltas = await deleteTriggerGroup(
+                confirmationDialogGroupID!
+              );
+              dispatch(applyDeltas(deltas));
+              setConfirmationDialogGroupID(null);
+            }}
+          >
+            Delete Trigger Group and everything in it
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </>
   );
 };
 
@@ -375,9 +498,30 @@ const TriggerGroupListItem: React.FC<{
 }> = ({ groupID, activeTriggers }) => {
   const group = useSelector($triggerGroup(groupID));
 
+  const menuContext = useContext(TriggerGroupMenuContext);
+
+  const handleTriggerGroupContextMenu = (
+    e: React.MouseEvent<HTMLSpanElement>
+  ) => {
+    e.preventDefault();
+    if (menuContext) {
+      const [_, setContextMenu] = menuContext;
+      setContextMenu({
+        groupID,
+        mouseX: e.clientX + 2,
+        mouseY: e.clientY + 2,
+      });
+    }
+  };
+
   return (
     <li>
-      <span className="view-trigger-group-name">{group.name}</span>
+      <span
+        className="view-trigger-group-name"
+        onContextMenu={handleTriggerGroupContextMenu}
+      >
+        {group.name}
+      </span>
       {!!group.children.length && (
         <ul className="view-trigger-group-sublist">
           {group.children.map(({ variant, value: id }) => {

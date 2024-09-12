@@ -4,21 +4,21 @@ import { debounce } from 'lodash';
 import { useDispatch, useSelector } from 'react-redux';
 
 import {
-  editorSelector,
-  EditorSelector,
+  triggerEditorSelector,
+  TriggerEditorSelector,
   EffectVariantPause,
   setPauseDuration,
-} from '../../features/triggers/editorSlice';
+} from '../../features/triggers/triggerEditorSlice';
 import EffectWithOptions from './EffectWithOptions';
 
 const DEBOUNCE_WAIT_MILLIS = 300;
 
 const EditPauseEffect: React.FC<{
-  selector: EditorSelector<EffectVariantPause>;
+  selector: TriggerEditorSelector<EffectVariantPause>;
   onDelete: () => void;
 }> = ({ selector, onDelete }) => {
   const dispatch = useDispatch();
-  const { value: millis } = useSelector(editorSelector(selector));
+  const { value: millis } = useSelector(triggerEditorSelector(selector));
 
   const triggerChange = (seconds: number) => {
     dispatch(setPauseDuration({ millis: seconds * 1000, selector }));

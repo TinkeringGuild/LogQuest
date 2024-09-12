@@ -312,6 +312,16 @@ impl LogQuestConfig {
   pub fn delete_trigger_file(&self, trigger_id: &UUID) -> io::Result<()> {
     let path = id_file_in(self.triggers_dir_path(), trigger_id);
     if path.is_file() {
+      info!("Deleting Trigger file: {}", path.display());
+      fs::remove_file(path)?;
+    }
+    Ok(())
+  }
+
+  pub fn delete_trigger_group_file(&self, group_id: &UUID) -> io::Result<()> {
+    let path = id_file_in(self.trigger_groups_dir_path(), group_id);
+    if path.is_file() {
+      info!("Deleting Trigger Group file: {}", path.display());
       fs::remove_file(path)?;
     }
     Ok(())
@@ -320,6 +330,7 @@ impl LogQuestConfig {
   pub fn delete_trigger_tag_file(&self, trigger_tag_id: &UUID) -> io::Result<()> {
     let path = id_file_in(self.trigger_tags_dir_path(), trigger_tag_id);
     if path.is_file() {
+      info!("Deleting Trigger Tag file: {}", path.display());
       fs::remove_file(path)?;
     }
     Ok(())

@@ -1,7 +1,7 @@
 use super::{Trigger, TriggerGroup};
 use crate::common::{LogQuestVersion, UUID};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::iter::once;
 use std::{cmp::min, collections::HashSet};
 use tracing::error;
@@ -12,7 +12,7 @@ fn is_compatible_triggers_import_version(_version: &LogQuestVersion) -> bool {
 
 pub type MutationResult = Result<Vec<DataDelta>, DataMutationError>;
 
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, ts_rs::TS)]
 pub struct TriggerTag {
   pub id: UUID,
   name: String,
@@ -45,6 +45,7 @@ pub enum Mutation {
     trigger_group: TriggerGroup,
     parent_position: usize,
   },
+  DeleteTriggerGroup(UUID),
   CreateTriggerTag(String),
   DeleteTriggerTag(UUID),
   TagTrigger {
@@ -64,6 +65,7 @@ pub enum DataDelta {
   TriggerSaved(Trigger),
   TriggerDeleted(UUID),
   TriggerGroupCreated(TriggerGroup),
+  TriggerGroupDeleted(UUID),
   TriggerGroupChildrenChanged {
     trigger_group_id: UUID,
     children: Vec<TriggerGroupDescendant>,
@@ -229,44 +231,130 @@ impl TriggerIndex {
         Ok(vec![DataDelta::TriggerSaved(trigger)])
       }
       Mutation::DeleteTrigger(trigger_id) => {
-        if let Some(trigger) = self.triggers.remove(&trigger_id) {
-          let parent_delta = if let Some(parent_id) = trigger.parent_id {
-            if let Some(parent) = self.groups.get_mut(&parent_id) {
-              remove_trigger_from_descendants(&trigger_id, &mut parent.children);
-              Some(DataDelta::TriggerGroupChildrenChanged {
-                trigger_group_id: parent.id.clone(),
-                children: parent.children.clone(),
-              })
-            } else {
-              remove_trigger_from_descendants(&trigger_id, &mut self.top_level);
-              Some(DataDelta::TopLevelChanged(self.top_level.clone()))
-            }
-          } else {
-            error!("Deleting Trigger[{trigger_id}] but its parent was not found!");
-            None
-          };
-
-          let trigger_tag_deltas: Vec<DataDelta> = self
-            .mut_trigger_tags_with_trigger(&trigger_id)
-            .into_iter()
-            .map(|tag| {
-              tag.triggers.remove(&trigger_id);
-              DataDelta::TriggerTagTriggersChanged {
-                trigger_tag_id: trigger_id.clone(),
-                triggers: tag.triggers.iter().cloned().collect(),
-              }
+        let Some(trigger) = self.triggers.remove(&trigger_id) else {
+          return Err(DataMutationError::TriggerNotFound(trigger_id));
+        };
+        let parent_delta = if let Some(parent_id) = trigger.parent_id {
+          if let Some(parent) = self.groups.get_mut(&parent_id) {
+            remove_trigger_from_descendants(&trigger_id, &mut parent.children);
+            Some(DataDelta::TriggerGroupChildrenChanged {
+              trigger_group_id: parent.id.clone(),
+              children: parent.children.clone(),
             })
-            .collect();
-
-          let deltas = once(DataDelta::TriggerDeleted(trigger_id))
-            .chain(parent_delta.into_iter())
-            .chain(trigger_tag_deltas.into_iter())
-            .collect();
-
-          Ok(deltas)
+          } else {
+            remove_trigger_from_descendants(&trigger_id, &mut self.top_level);
+            Some(DataDelta::TopLevelChanged(self.top_level.clone()))
+          }
         } else {
-          Err(DataMutationError::TriggerNotFound(trigger_id))
+          error!("Deleting Trigger[{trigger_id}] but its parent was not found!");
+          None
+        };
+
+        let trigger_tag_deltas: Vec<DataDelta> = self
+          .mut_trigger_tags_with_trigger(&trigger_id)
+          .into_iter()
+          .map(|tag| {
+            tag.triggers.remove(&trigger_id);
+            DataDelta::TriggerTagTriggersChanged {
+              trigger_tag_id: trigger_id.clone(),
+              triggers: tag.triggers.iter().cloned().collect(),
+            }
+          })
+          .collect();
+
+        let deltas = once(DataDelta::TriggerDeleted(trigger_id))
+          .chain(parent_delta.into_iter())
+          .chain(trigger_tag_deltas.into_iter())
+          .collect();
+
+        Ok(deltas)
+      }
+      Mutation::DeleteTriggerGroup(group_id) => {
+        let Some(group) = self.groups.remove(&group_id) else {
+          return Err(DataMutationError::TriggerGroupNotFound(group_id));
+        };
+
+        let parent_delta = if let Some(parent_id) = group.parent_id {
+          if let Some(parent) = self.groups.get_mut(&parent_id) {
+            remove_group_from_descendants(&group_id, &mut parent.children);
+            Some(DataDelta::TriggerGroupChildrenChanged {
+              trigger_group_id: parent.id.clone(),
+              children: parent.children.clone(),
+            })
+          } else {
+            error!("Deleting TriggerGroup[{group_id}] but its parent was not found!");
+            None
+          }
+        } else {
+          remove_group_from_descendants(&group_id, &mut self.top_level);
+          Some(DataDelta::TopLevelChanged(self.top_level.clone()))
+        };
+
+        let mut descendants: VecDeque<TriggerGroupDescendant> = group.children.into();
+        let mut nested_triggers = VecDeque::<Trigger>::new();
+        let mut nested_groups = VecDeque::<TriggerGroup>::new();
+
+        while let Some(descendant) = descendants.pop_front() {
+          match descendant {
+            TriggerGroupDescendant::G(descendant_group_id) => {
+              if let Some(mut descendant_group) = self.groups.remove(&descendant_group_id) {
+                descendants.append(&mut VecDeque::from_iter(
+                  descendant_group.children.drain(..).into_iter(),
+                ));
+                nested_groups.push_back(descendant_group);
+              }
+            }
+            TriggerGroupDescendant::T(descendant_trigger_id) => {
+              if let Some(descendant_trigger) = self.triggers.remove(&descendant_trigger_id) {
+                nested_triggers.push_back(descendant_trigger);
+              }
+            }
+          }
         }
+
+        let updated_trigger_tags: HashSet<UUID> = nested_triggers
+          .iter()
+          .flat_map(|trigger| {
+            self
+              .trigger_tags_with_trigger(&trigger.id)
+              .into_iter()
+              .map(|tag| tag.id.clone())
+          })
+          .collect();
+
+        let removed_trigger_ids: HashSet<&UUID> = nested_triggers.iter().map(|t| &t.id).collect();
+        let trigger_tag_deltas: Vec<DataDelta> = updated_trigger_tags
+          .into_iter()
+          .map(|tag_id| {
+            let tag = self.trigger_tags.get_mut(&tag_id).unwrap();
+            tag
+              .triggers
+              .retain(|trigger_id| !removed_trigger_ids.contains(trigger_id));
+            DataDelta::TriggerTagTriggersChanged {
+              trigger_tag_id: tag.id.clone(),
+              triggers: tag.triggers.iter().cloned().collect(),
+            }
+          })
+          .collect();
+
+        let trigger_deltas: Vec<DataDelta> = nested_triggers
+          .into_iter()
+          .map(|trigger| DataDelta::TriggerDeleted(trigger.id))
+          .collect();
+
+        let trigger_group_deltas: Vec<DataDelta> = nested_groups
+          .into_iter()
+          .map(|group| DataDelta::TriggerGroupDeleted(group.id))
+          .collect();
+
+        let deltas: Vec<DataDelta> = once(DataDelta::TriggerGroupDeleted(group_id))
+          .chain(parent_delta.into_iter())
+          .chain(trigger_deltas.into_iter())
+          .chain(trigger_group_deltas.into_iter())
+          .chain(trigger_tag_deltas.into_iter())
+          .collect();
+
+        Ok(deltas)
       }
       Mutation::TagTrigger {
         trigger_id,
@@ -354,6 +442,20 @@ impl TriggerIndex {
     Ok(vec![group_delta, parent_delta])
   }
 
+  fn trigger_tags_with_trigger(&self, trigger_id: &UUID) -> Vec<&TriggerTag> {
+    self
+      .trigger_tags
+      .iter()
+      .filter_map(|(_, tag)| {
+        if tag.triggers.contains(trigger_id) {
+          Some(tag)
+        } else {
+          None
+        }
+      })
+      .collect()
+  }
+
   fn mut_trigger_tags_with_trigger(&mut self, trigger_id: &UUID) -> Vec<&mut TriggerTag> {
     self
       .trigger_tags
@@ -379,12 +481,24 @@ impl TriggerTag {
   }
 }
 
+impl std::hash::Hash for TriggerTag {
+  fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+    self.id.hash(state)
+  }
+}
+
+impl PartialEq for TriggerTag {
+  fn eq(&self, other: &Self) -> bool {
+    self.id == other.id
+  }
+}
+
 fn remove_trigger_from_descendants(
   trigger_id: &UUID,
   descendants: &mut Vec<TriggerGroupDescendant>,
 ) {
-  let trigger_index = descendants.iter().position(|tgd| {
-    if let TriggerGroupDescendant::T(tgd_id) = tgd {
+  let trigger_index = descendants.iter().position(|tgd_trigger_id| {
+    if let TriggerGroupDescendant::T(tgd_id) = tgd_trigger_id {
       tgd_id == trigger_id
     } else {
       false
@@ -392,5 +506,18 @@ fn remove_trigger_from_descendants(
   });
   if let Some(trigger_index) = trigger_index {
     descendants.remove(trigger_index);
+  }
+}
+
+fn remove_group_from_descendants(group_id: &UUID, descendants: &mut Vec<TriggerGroupDescendant>) {
+  let group_index = descendants.iter().position(|tgd| {
+    if let TriggerGroupDescendant::G(tgd_group_id) = tgd {
+      tgd_group_id == group_id
+    } else {
+      false
+    }
+  });
+  if let Some(group_index) = group_index {
+    descendants.remove(group_index);
   }
 }

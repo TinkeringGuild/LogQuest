@@ -6,19 +6,19 @@ import TextField from '@mui/material/TextField';
 import { useSelector, useDispatch } from 'react-redux';
 
 import {
-  editorSelector,
-  EditorSelector,
+  triggerEditorSelector,
+  TriggerEditorSelector,
   EffectVariantCopyToClipboard,
   setCopyToClipboardTemplate,
-} from '../../features/triggers/editorSlice';
+} from '../../features/triggers/triggerEditorSlice';
 import { EffectHeader, EffectTitle } from './widgets/EffectHeader';
 
 const EditCopyToClipboardEffect: React.FC<{
-  selector: EditorSelector<EffectVariantCopyToClipboard>;
+  selector: TriggerEditorSelector<EffectVariantCopyToClipboard>;
   onDelete: () => void;
 }> = ({ selector, onDelete }) => {
   const dispatch = useDispatch();
-  const { value: tmpl } = useSelector(editorSelector(selector));
+  const { value: tmpl } = useSelector(triggerEditorSelector(selector));
   return (
     <Card elevation={10}>
       <CardHeader

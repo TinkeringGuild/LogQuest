@@ -12,10 +12,10 @@ import { uniqueId } from 'lodash';
 import {
   appendNewMatcher,
   deleteFilterMatcher,
-  editorSelector,
-  EditorSelector,
+  triggerEditorSelector,
+  TriggerEditorSelector,
   setMatcherValue,
-} from '../../../features/triggers/editorSlice';
+} from '../../../features/triggers/triggerEditorSlice';
 import { Filter } from '../../../generated/Filter';
 import { FilterWithContext } from '../../../generated/FilterWithContext';
 import { Matcher } from '../../../generated/Matcher';
@@ -61,10 +61,10 @@ const MatcherInputField: React.FC<{
 function EditFilter<T extends Filter | FilterWithContext>({
   selector,
 }: {
-  selector: EditorSelector<T>;
+  selector: TriggerEditorSelector<T>;
 }): JSX.Element {
   const dispatch = useDispatch();
-  const filter = useSelector(editorSelector(selector));
+  const filter = useSelector(triggerEditorSelector(selector));
 
   return (
     <Stack spacing={2}>

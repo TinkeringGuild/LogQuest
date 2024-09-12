@@ -9,6 +9,7 @@ export type DataDelta =
   | { variant: 'TriggerSaved'; value: Trigger }
   | { variant: 'TriggerDeleted'; value: UUID }
   | { variant: 'TriggerGroupCreated'; value: TriggerGroup }
+  | { variant: 'TriggerGroupDeleted'; value: UUID }
   | {
       variant: 'TriggerGroupChildrenChanged';
       value: {

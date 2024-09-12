@@ -14,7 +14,7 @@ import {
   deleteEffect,
   setTriggerComment,
   setTriggerName,
-} from '../../features/triggers/editorSlice';
+} from '../../features/triggers/triggerEditorSlice';
 import { EffectWithID } from '../../generated/EffectWithID';
 import EditEffect from './EditEffect';
 import EditFilter from './widgets/EditFilter';

@@ -36,6 +36,10 @@ export async function deleteTrigger(triggerID: UUID): Promise<DataDelta[]> {
   return mutate([{ variant: 'DeleteTrigger', value: triggerID }]);
 }
 
+export async function deleteTriggerGroup(groupID: UUID): Promise<DataDelta[]> {
+  return mutate([{ variant: 'DeleteTriggerGroup', value: groupID }]);
+}
+
 export async function createTriggerTag(name: string): Promise<DataDelta[]> {
   return mutate([{ variant: 'CreateTriggerTag', value: name }]);
 }

@@ -12,9 +12,9 @@ import { useSelector, useDispatch } from 'react-redux';
 
 import {
   deleteEffect,
-  EditorSelector,
-  editorSelector,
-} from '../../features/triggers/editorSlice';
+  TriggerEditorSelector,
+  triggerEditorSelector,
+} from '../../features/triggers/triggerEditorSlice';
 import { EffectWithID } from '../../generated/EffectWithID';
 import { UUID } from '../../generated/UUID';
 import EditEffect from './EditEffect';
@@ -22,11 +22,11 @@ import { EffectHeader, EffectTitle } from './widgets/EffectHeader';
 
 const EditSequenceEffect: React.FC<{
   triggerID: UUID;
-  seqSelector: EditorSelector<EffectWithID[]>;
+  seqSelector: TriggerEditorSelector<EffectWithID[]>;
   onDelete: () => void;
 }> = ({ triggerID, seqSelector, onDelete }) => {
   const dispatch = useDispatch();
-  const seq = useSelector(editorSelector(seqSelector));
+  const seq = useSelector(triggerEditorSelector(seqSelector));
 
   const helpText =
     'Sequences execute effects in-order, waiting until each is done before continuing.';

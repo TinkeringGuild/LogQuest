@@ -62,6 +62,8 @@ const triggersSlice = createSlice({
           deltas[variant](state.index, value);
         } else if (variant === 'TriggerTagTriggersChanged') {
           deltas[variant](state.index, value);
+        } else if (variant === 'TriggerGroupDeleted') {
+          deltas[variant](state.index, value);
         } else {
           throw new Error('UNIMPLEMENTED DELTA TYPE: ' + variant);
         }
@@ -95,6 +97,13 @@ export const $triggerGroup = (groupID: UUID) => {
     const triggers = state[TRIGGERS_SLICE];
     return triggers.index.groups[groupID];
   };
+};
+
+export const $triggerGroupMaybe = (groupID: UUID | null) => {
+  if (!groupID) {
+    return () => undefined;
+  }
+  return $triggerGroup(groupID);
 };
 
 export const $triggerGroups = ({
