@@ -4,6 +4,7 @@ import { DataDelta } from '../../generated/DataDelta';
 import { TriggerIndex } from '../../generated/TriggerIndex';
 import { UUID } from '../../generated/UUID';
 import * as deltas from './deltas';
+import { MainRootState } from '../../MainStore';
 
 export const TRIGGERS_SLICE = 'triggers';
 
@@ -11,6 +12,8 @@ interface TriggersState {
   index: TriggerIndex;
   activeTriggerTagID: UUID | null;
 }
+
+export type TriggersSelector<T> = (slice: TriggersState) => T;
 
 const INITIAL_TRIGGERS_STATE: TriggersState = {
   index: {
@@ -77,26 +80,22 @@ export const { initTriggers, activateTriggerTagID, applyDeltas } =
 
 export default triggersSlice.reducer;
 
-export const $topLevel = ({
-  [TRIGGERS_SLICE]: {
-    index: { top_level },
-  },
-}: {
-  [TRIGGERS_SLICE]: TriggersState;
-}) => top_level;
+export function triggersSelector<T>(
+  selector: TriggersSelector<T>
+): (state: MainRootState) => T {
+  return (state: MainRootState) => selector(state[TRIGGERS_SLICE]);
+}
+
+export const $topLevel = triggersSelector(
+  ({ index: { top_level } }) => top_level
+);
 
 export const $trigger = (triggerID: UUID) => {
-  return (state: { [TRIGGERS_SLICE]: TriggersState }) => {
-    const triggers = state[TRIGGERS_SLICE];
-    return triggers.index.triggers[triggerID];
-  };
+  return triggersSelector(({ index: { triggers } }) => triggers[triggerID]);
 };
 
 export const $triggerGroup = (groupID: UUID) => {
-  return (state: { [TRIGGERS_SLICE]: TriggersState }) => {
-    const triggers = state[TRIGGERS_SLICE];
-    return triggers.index.groups[groupID];
-  };
+  return triggersSelector((slice) => slice.index.groups[groupID]);
 };
 
 export const $triggerGroupMaybe = (groupID: UUID | null) => {
@@ -106,29 +105,31 @@ export const $triggerGroupMaybe = (groupID: UUID | null) => {
   return $triggerGroup(groupID);
 };
 
-export const $triggerGroups = ({
-  [TRIGGERS_SLICE]: triggers,
-}: {
-  [TRIGGERS_SLICE]: TriggersState;
-}) => triggers.index.groups;
+export const $triggerGroups = triggersSelector(
+  ({ index: { groups } }) => groups
+);
 
-export const $triggerTags = ({
-  [TRIGGERS_SLICE]: triggers,
-}: {
-  [TRIGGERS_SLICE]: TriggersState;
-}) => triggers.index.trigger_tags;
+export const $triggerTags = triggersSelector(
+  ({ index: { trigger_tags } }) => trigger_tags
+);
 
-export const $activeTriggerTagID = ({
-  [TRIGGERS_SLICE]: { activeTriggerTagID },
-}: {
-  [TRIGGERS_SLICE]: TriggersState;
-}) => activeTriggerTagID;
+export const $activeTriggerTagID = triggersSelector(
+  ({ activeTriggerTagID }) => activeTriggerTagID
+);
 
-export const $activeTriggerTag = ({
-  [TRIGGERS_SLICE]: triggers,
-}: {
-  [TRIGGERS_SLICE]: TriggersState;
-}) =>
-  triggers.activeTriggerTagID
-    ? triggers.index.trigger_tags[triggers.activeTriggerTagID]
-    : null;
+export const $activeTriggerTag = triggersSelector(
+  ({ activeTriggerTagID, index: { trigger_tags } }) =>
+    activeTriggerTagID ? trigger_tags[activeTriggerTagID] : null
+);
+
+export const $$triggerTagsHavingTrigger = (triggerID: UUID) => {
+  return ({ index: { trigger_tags } }: TriggersState) => {
+    return Object.values(trigger_tags).filter((tag) =>
+      tag.triggers.includes(triggerID)
+    );
+  };
+};
+
+export const $triggerTagsHavingTrigger = (triggerID: UUID) => {
+  return triggersSelector($$triggerTagsHavingTrigger(triggerID));
+};

@@ -1,31 +1,4 @@
-import {
-  ControlPointDuplicateOutlined,
-  Edit,
-  VerticalAlignBottom,
-  VerticalAlignTop,
-} from '@mui/icons-material';
-import AddBoxOutlinedIcon from '@mui/icons-material/AddBoxOutlined';
-import DeleteForeverOutlined from '@mui/icons-material/DeleteForeverOutlined';
-import DownloadingIcon from '@mui/icons-material/Downloading';
-import {
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogContentText,
-  DialogTitle,
-  Divider,
-  FormControl,
-  InputLabel,
-  ListItemIcon,
-  Menu,
-  MenuItem,
-  Select,
-  SelectChangeEvent,
-  Switch,
-  TextField,
-} from '@mui/material';
-import Button from '@mui/material/Button';
-import { clone, cloneDeep, sortBy, values } from 'lodash';
+import { cloneDeep } from 'lodash';
 import React, {
   createContext,
   CSSProperties,
@@ -35,9 +8,32 @@ import React, {
 } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 
+import {
+  ControlPointDuplicateOutlined,
+  Edit,
+  VerticalAlignBottom,
+  VerticalAlignTop,
+} from '@mui/icons-material';
+import DeleteForeverOutlined from '@mui/icons-material/DeleteForeverOutlined';
+import DownloadingIcon from '@mui/icons-material/Downloading';
+import {
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
+  Divider,
+  ListItemIcon,
+  Menu,
+  MenuItem,
+  Switch,
+  TextField,
+} from '@mui/material';
+import Button from '@mui/material/Button';
+
 import openGINATriggerFileDialog from '../dialogs/importGINAFile';
 import {
-  $triggerDraft,
+  $draftTrigger,
   editTriggerDraft,
 } from '../features/triggers/triggerEditorSlice';
 import {
@@ -47,7 +43,7 @@ import {
   $trigger,
   $triggerGroup,
   $triggerGroupMaybe,
-  $triggerTags,
+  $triggerTagsHavingTrigger,
   activateTriggerTagID,
   applyDeltas,
 } from '../features/triggers/triggersSlice';
@@ -61,6 +57,8 @@ import {
   removeTriggerFromTag,
   saveTriggerGroup,
 } from '../ipc';
+import store from '../MainStore';
+import TriggerTagChanger from './TriggerTagChanger';
 
 import './TriggerTree.css';
 
@@ -94,19 +92,8 @@ const TriggerTree: React.FC<{}> = () => {
   const top: TriggerGroupDescendant[] = useSelector($topLevel);
   const activeTriggerTag = useSelector($activeTriggerTag);
 
-  const activeTriggers: Set<string> | null =
+  const activeTriggersSet: Set<string> | null =
     activeTriggerTag && new Set(activeTriggerTag.triggers);
-
-  // TODO: I should use a BTreeSet on the backend and serialize the tags as an Array
-  const triggerTags = sortBy(
-    clone(useSelector($triggerTags)),
-    (tag) => tag.name
-  );
-
-  const currentTriggerTagChanged = (event: SelectChangeEvent) => {
-    const value = event.target.value;
-    dispatch(activateTriggerTagID(value || null));
-  };
 
   const [triggerContextMenu, setTriggerContextMenu] =
     useState<TriggerContextMenuState>(null);
@@ -129,32 +116,19 @@ const TriggerTree: React.FC<{}> = () => {
             Import GINA Export
           </Button>
         </p>
-
-        <div>
-          {!!triggerTags.length && (
-            <>
-              <FormControl sx={{ minWidth: 175 }} size="small">
-                <InputLabel>Trigger Tag</InputLabel>
-                <Select
-                  size="small"
-                  label="Trigger Tag"
-                  onChange={currentTriggerTagChanged}
-                  value={activeTriggerTag?.id || ''}
-                >
-                  {triggerTags.map((tag) => (
-                    <MenuItem key={tag.id} value={tag.id}>
-                      {tag.name}
-                    </MenuItem>
-                  ))}
-                  <MenuItem key={'none'} value={''}>
-                    <em>None</em>
-                  </MenuItem>
-                </Select>
-              </FormControl>{' '}
-            </>
-          )}
-          <TagCreationButton />
-        </div>
+        <TriggerTagChanger
+          onChange={(tagIDMaybe) => dispatch(activateTriggerTagID(tagIDMaybe))}
+          onCreate={async (name) => {
+            const deltas = await createTriggerTag(name);
+            dispatch(applyDeltas(deltas));
+            const creation = deltas.find(
+              (delta) => delta.variant === 'TriggerTagCreated'
+            );
+            if (creation) {
+              dispatch(activateTriggerTagID(creation.value.id));
+            }
+          }}
+        />
         <TriggerMenuContext.Provider
           value={[triggerContextMenu?.triggerID || null, setTriggerContextMenu]}
         >
@@ -172,13 +146,13 @@ const TriggerTree: React.FC<{}> = () => {
                       <TriggerListItem
                         key={tgd.value}
                         triggerID={tgd.value}
-                        activeTriggers={activeTriggers}
+                        activeTriggers={activeTriggersSet}
                       />
                     ) : (
                       <TriggerGroupListItem
                         key={tgd.value}
                         groupID={tgd.value}
-                        activeTriggers={activeTriggers}
+                        activeTriggers={activeTriggersSet}
                       />
                     )
                   )}
@@ -430,99 +404,13 @@ const TriggerGroupEditorDialog: React.FC<{
   );
 };
 
-const TagCreationButton: React.FC<{}> = () => {
-  const dispatch = useDispatch();
-  const inputRef = useRef<HTMLInputElement>(null);
-  const triggerTags = useSelector($triggerTags);
-  const [open, setOpen] = useState(false);
-  const [waiting, setWaiting] = useState(false);
-  const [nameLength, setNameLength] = useState(0);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
-  if (!open) {
-    return (
-      <Button
-        variant="outlined"
-        onClick={() => setOpen(true)}
-        startIcon={<AddBoxOutlinedIcon />}
-      >
-        New Trigger Tag
-      </Button>
-    );
-  }
-
-  const saveClicked = () => {
-    if (inputRef.current) {
-      setWaiting(true);
-      const name = inputRef.current.value.trim();
-      createTriggerTag(name).then((deltas) => {
-        dispatch(applyDeltas(deltas));
-        setOpen(false);
-        setWaiting(false);
-        setNameLength(0);
-        const creation = deltas.find(
-          (delta) => delta.variant === 'TriggerTagCreated'
-        );
-        if (creation) {
-          dispatch(activateTriggerTagID(creation.value.id));
-        }
-      });
-    }
-  };
-
-  const nameChanged = () => {
-    if (inputRef.current) {
-      const name = inputRef.current.value.trim();
-      setNameLength(name.length);
-      if (values(triggerTags).find((tag) => tag.name === name)) {
-        setErrorMessage('A tag with this name already exists');
-      } else {
-        setErrorMessage(null);
-      }
-    }
-  };
-
-  return (
-    <div>
-      <TextField
-        label="Name"
-        autoFocus={true}
-        helperText={
-          errorMessage
-            ? errorMessage
-            : 'Specify the name of the new Trigger Tag'
-        }
-        error={!!errorMessage}
-        disabled={waiting}
-        inputRef={inputRef}
-        onChange={nameChanged}
-        size="small"
-      />{' '}
-      <Button
-        disabled={waiting || nameLength === 0 || !!errorMessage}
-        onClick={saveClicked}
-        variant="contained"
-      >
-        Save
-      </Button>{' '}
-      <Button
-        disabled={waiting}
-        onClick={() => setOpen(false)}
-        variant="outlined"
-      >
-        Cancel
-      </Button>
-    </div>
-  );
-};
-
 const TriggerListItem: React.FC<{
   triggerID: UUID;
   activeTriggers: Set<string> | null;
 }> = ({ triggerID, activeTriggers }) => {
   const dispatch = useDispatch();
   const trigger = useSelector($trigger(triggerID));
-  const editingTrigger = useSelector($triggerDraft);
+  const editingTrigger = useSelector($draftTrigger);
   const activeTriggerTagID = useSelector($activeTriggerTagID);
 
   const menuContext = useContext(TriggerMenuContext);
@@ -569,7 +457,16 @@ const TriggerListItem: React.FC<{
       )}
       <span
         onContextMenu={handleTriggerContextMenu}
-        onClick={() => dispatch(editTriggerDraft(cloneDeep(trigger)))}
+        onClick={() =>
+          dispatch(
+            editTriggerDraft({
+              trigger: cloneDeep(trigger),
+              triggerTags: $triggerTagsHavingTrigger(trigger.id)(
+                store.getState()
+              ),
+            })
+          )
+        }
       >
         {trigger.name}
       </span>

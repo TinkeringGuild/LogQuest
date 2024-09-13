@@ -1,37 +1,47 @@
-import { CancelOutlined, Save } from '@mui/icons-material';
-import { Button, Stack, TextField, Tooltip } from '@mui/material';
 import { formatDistanceToNow } from 'date-fns/formatDistanceToNow';
 import { format } from 'date-fns/fp/format';
 import { parseISO } from 'date-fns/fp/parseISO';
 import React from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 
+import { CancelOutlined, Save } from '@mui/icons-material';
+import { Button, Stack, TextField, Tooltip } from '@mui/material';
+
 import {
   $$selectTriggerFilter,
   $$triggerDraftEffects,
-  $triggerDraft,
+  $draftTrigger,
+  $draftTriggerTags,
   cancelEditing,
   deleteEffect,
   setTriggerComment,
   setTriggerName,
+  setTriggerTags,
 } from '../../features/triggers/triggerEditorSlice';
+import {
+  $triggerTags,
+  applyDeltas,
+} from '../../features/triggers/triggersSlice';
 import { EffectWithID } from '../../generated/EffectWithID';
-import EditEffect from './EditEffect';
-import EditFilter from './widgets/EditFilter';
 import { saveTrigger } from '../../ipc';
-import { applyDeltas } from '../../features/triggers/triggersSlice';
+import EditEffect from './EditEffect';
+import TriggerTagsEditor from './TriggerTagsEditor';
+import EditFilter from './widgets/EditFilter';
 
 import './TriggerEditor.css';
 
 const TriggerEditor: React.FC<{}> = () => {
   const dispatch = useDispatch();
-  const trigger = useSelector($triggerDraft);
+  const trigger = useSelector($draftTrigger);
 
   if (!trigger) {
     throw new Error(
       'Attempted to render TriggerEditor while not currently editing a Trigger!'
     );
   }
+
+  const triggerTagsOfTrigger = useSelector($draftTriggerTags);
+  const allTriggerTags = useSelector($triggerTags);
 
   const updatedAt = parseISO(trigger.updated_at);
   const updatedAgo = formatDistanceToNow(updatedAt);
@@ -86,6 +96,14 @@ const TriggerEditor: React.FC<{}> = () => {
           placeholder="Comments"
           defaultValue={trigger.comment || ''}
           onBlur={(e) => dispatch(setTriggerComment(e.target.value))}
+        />
+      </div>
+      <div style={{ marginTop: 10, marginBottom: 20 }}>
+        <h3>Trigger Tags</h3>
+        <TriggerTagsEditor
+          tagsOfTrigger={triggerTagsOfTrigger}
+          allTriggerTags={Object.values(allTriggerTags)}
+          setTriggerTags={(tags) => dispatch(setTriggerTags(tags))}
         />
       </div>
       <h3>Filters</h3>

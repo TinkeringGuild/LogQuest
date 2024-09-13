@@ -1,5 +1,5 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { pullAt, remove } from 'lodash';
+import { pullAt, remove, sortBy } from 'lodash';
 
 import { Duration } from '../../generated/Duration';
 import { Effect } from '../../generated/Effect';
@@ -11,6 +11,7 @@ import { MatcherWithContext } from '../../generated/MatcherWithContext';
 import { Timer } from '../../generated/Timer';
 import { TimerEffect } from '../../generated/TimerEffect';
 import { Trigger } from '../../generated/Trigger';
+import { TriggerTag } from '../../generated/TriggerTag';
 import { UUID } from '../../generated/UUID';
 import { MainRootState } from '../../MainStore';
 
@@ -18,12 +19,12 @@ export const TRIGGER_EDITOR_SLICE = 'trigger-editor';
 
 export type TriggerEditorState = {
   draft: Trigger | null;
-  disabled: boolean;
+  draftTriggerTags: TriggerTag[];
 };
 
 const INITIAL_TRIGGER_EDITOR_STATE = {
   draft: null,
-  disabled: false,
+  draftTriggerTags: [],
 } satisfies TriggerEditorState;
 
 export type TriggerEditorSelector<T> = (slice: TriggerEditorState) => T;
@@ -66,14 +67,18 @@ const triggerEditorSlice = createSlice({
 
   reducers: {
     editTriggerDraft(
-      state: TriggerEditorState,
-      { payload: trigger }: PayloadAction<Trigger>
+      slice: TriggerEditorState,
+      {
+        payload: { trigger, triggerTags },
+      }: PayloadAction<{ trigger: Trigger; triggerTags: TriggerTag[] }>
     ) {
-      state.draft = trigger;
+      slice.draft = trigger;
+      slice.draftTriggerTags = sortBy(triggerTags, (tag) => tag.name);
     },
 
-    cancelEditing(state: TriggerEditorState) {
-      state.draft = null;
+    cancelEditing(slice: TriggerEditorState) {
+      slice.draft = null;
+      slice.draftTriggerTags = [];
     },
 
     setTriggerName(
@@ -84,14 +89,14 @@ const triggerEditorSlice = createSlice({
     },
 
     setTriggerComment(
-      state: TriggerEditorState,
+      slice: TriggerEditorState,
       { payload: comment }: PayloadAction<string>
     ) {
-      state.draft!.comment = comment;
+      slice.draft!.comment = comment;
     },
 
     deleteEffect(
-      state: TriggerEditorState,
+      slice: TriggerEditorState,
       {
         payload: { effectID, selector },
       }: PayloadAction<{
@@ -99,12 +104,12 @@ const triggerEditorSlice = createSlice({
         selector: TriggerEditorSelector<EffectWithID[]>;
       }>
     ) {
-      const effects: EffectWithID[] = selector(state);
+      const effects: EffectWithID[] = selector(slice);
       remove(effects, (effect) => effect.id === effectID);
     },
 
     setMatcherValue(
-      state: TriggerEditorState,
+      slice: TriggerEditorState,
       {
         payload: { value, selector },
       }: PayloadAction<{
@@ -112,7 +117,7 @@ const triggerEditorSlice = createSlice({
         selector: TriggerEditorSelector<Matcher | MatcherWithContext>;
       }>
     ) {
-      const matcher = selector(state);
+      const matcher = selector(slice);
       matcher.value = value;
     },
 
@@ -217,6 +222,13 @@ const triggerEditorSlice = createSlice({
       const pause = selector(slice);
       pause.value = millis;
     },
+
+    setTriggerTags(
+      slice: TriggerEditorState,
+      { payload: triggerTags }: PayloadAction<TriggerTag[]>
+    ) {
+      slice.draftTriggerTags = sortBy(triggerTags, (tag) => tag.name);
+    },
   },
 });
 
@@ -234,6 +246,7 @@ export const {
   setTimerField,
   setTriggerComment,
   setTriggerName,
+  setTriggerTags,
   setWaitUntilFilterMatchesDuration,
 } = triggerEditorSlice.actions;
 
@@ -245,8 +258,12 @@ export function triggerEditorSelector<T>(
   return (state: MainRootState) => selector(state[TRIGGER_EDITOR_SLICE]);
 }
 
-export const $triggerDraft = triggerEditorSelector(
+export const $draftTrigger = triggerEditorSelector(
   (slice: TriggerEditorState) => slice.draft
+);
+
+export const $draftTriggerTags = triggerEditorSelector(
+  ({ draftTriggerTags }) => draftTriggerTags
 );
 
 export const $$triggerDraftEffects = (slice: TriggerEditorState) =>
@@ -257,8 +274,4 @@ export const $$selectTriggerFilter = (slice: TriggerEditorState) =>
 
 export const $selectTriggerFilter = triggerEditorSelector(
   $$selectTriggerFilter
-);
-
-export const $editingDisabled = triggerEditorSelector(
-  (slice: TriggerEditorState) => slice.disabled
 );

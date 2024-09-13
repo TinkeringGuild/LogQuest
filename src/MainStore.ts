@@ -11,9 +11,6 @@ import triggersReducer, {
   TRIGGERS_SLICE,
 } from './features/triggers/triggersSlice';
 import { initOverlayStateListeners } from './tauriEventListeners';
-import triggerGroupEditorReducer, {
-  TRIGGER_GROUP_EDITOR_SLICE,
-} from './features/triggers/triggerGroupEditorSlice';
 
 const store = configureStore({
   reducer: {
@@ -21,7 +18,6 @@ const store = configureStore({
     [CONFIG_SLICE]: configReducer,
     [TRIGGERS_SLICE]: triggersReducer,
     [TRIGGER_EDITOR_SLICE]: triggerEditorReducer,
-    [TRIGGER_GROUP_EDITOR_SLICE]: triggerGroupEditorReducer,
     [OVERLAY_SLICE]: overlayReducer,
   },
   middleware: (getDefaultMiddleware) =>
