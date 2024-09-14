@@ -15,9 +15,9 @@ import TextField from '@mui/material/TextField';
 import {
   $activeTriggerTag,
   $triggerTags,
-} from '../features/triggers/triggersSlice';
-import { TriggerTag } from '../generated/TriggerTag';
-import { UUID } from '../generated/UUID';
+} from '../../features/triggers/triggersSlice';
+import { TriggerTag } from '../../generated/TriggerTag';
+import { UUID } from '../../generated/UUID';
 
 type OnCreateCallback = (triggerTagName: string) => void;
 type OnChangeCallback = (triggerTagID: UUID | null) => void;

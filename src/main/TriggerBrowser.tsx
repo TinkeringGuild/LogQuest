@@ -2,7 +2,7 @@ import React from 'react';
 import { useSelector } from 'react-redux';
 
 import { $draftTrigger } from '../features/triggers/triggerEditorSlice';
-import TriggerTree from './TriggerTree';
+import TriggerTree from './trigger-tree/TriggerTree';
 import TriggerEditor from './editor/TriggerEditor';
 
 import './TriggerBrowser.css';

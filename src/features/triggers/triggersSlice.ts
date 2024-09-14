@@ -6,7 +6,6 @@ import { UUID } from '../../generated/UUID';
 import * as deltas from './deltas';
 import { MainRootState } from '../../MainStore';
 import { Trigger } from '../../generated/Trigger';
-import { TriggerGroupDescendant } from '../../generated/TriggerGroupDescendant';
 import { TriggerGroup } from '../../generated/TriggerGroup';
 
 export const TRIGGERS_SLICE = 'triggers';
@@ -99,13 +98,6 @@ export const $trigger = (triggerID: UUID) => {
 
 export const $triggerGroup = (groupID: UUID) => {
   return triggersSelector((slice) => slice.index.groups[groupID]);
-};
-
-export const $triggerGroupMaybe = (groupID: UUID | null) => {
-  if (!groupID) {
-    return () => undefined;
-  }
-  return $triggerGroup(groupID);
 };
 
 export const $triggerGroups = triggersSelector(
