@@ -59,7 +59,7 @@ const EditSpeakEffect: React.FC<{
         />
         <FormGroup>
           <FormControlLabel
-            label="Interrupt other Text-to-Speech playback"
+            label="Interrupts other Text-to-Speech playback"
             control={
               <Checkbox
                 inputRef={interruptRef}

@@ -412,7 +412,6 @@ const TriggerListItem: React.FC<{
 
   const menuContext = useContext(TriggerMenuContext);
 
-  const currentlyEditing = editingTrigger?.id === triggerID;
   const enabled = !!activeTriggers && activeTriggers.has(triggerID);
   const hasContextMenuOpened = menuContext && menuContext[0] === triggerID;
 
@@ -430,7 +429,7 @@ const TriggerListItem: React.FC<{
 
   return (
     <li
-      className={`view-trigger-list-item ${currentlyEditing ? 'view-trigger-list-item-currently-editing' : ''} ${hasContextMenuOpened ? 'view-trigger-list-item-context-menu-open' : ''}`}
+      className={`view-trigger-list-item ${hasContextMenuOpened ? 'view-trigger-list-item-context-menu-open' : ''}`}
     >
       {!!activeTriggerTagID && (
         <>

@@ -263,7 +263,7 @@ export function triggerEditorSelector<T>(
 }
 
 export const $draftTrigger = triggerEditorSelector(
-  (slice: TriggerEditorState) => slice.draft
+  (slice: TriggerEditorState) => slice.draft!
 );
 
 export const $draftTriggerTags = triggerEditorSelector(

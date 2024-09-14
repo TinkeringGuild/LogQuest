@@ -24,14 +24,13 @@ li.view-trigger-list-item {
   color: black;
 }
 
-.view-trigger-list-item-name:active {
+.view-trigger-list-item-name:hover {
   text-decoration: underline;
   cursor: pointer;
 }
 
-li.view-trigger-list-item-currently-editing {
-  background-color: #eee;
-  font-weight: bold;
+.view-trigger-list-item-name:active {
+  color: rgb(23, 108, 200);
 }
 
 li.view-trigger-list-item-context-menu-open {

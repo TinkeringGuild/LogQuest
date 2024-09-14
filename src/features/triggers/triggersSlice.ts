@@ -5,6 +5,9 @@ import { TriggerIndex } from '../../generated/TriggerIndex';
 import { UUID } from '../../generated/UUID';
 import * as deltas from './deltas';
 import { MainRootState } from '../../MainStore';
+import { Trigger } from '../../generated/Trigger';
+import { TriggerGroupDescendant } from '../../generated/TriggerGroupDescendant';
+import { TriggerGroup } from '../../generated/TriggerGroup';
 
 export const TRIGGERS_SLICE = 'triggers';
 
@@ -133,3 +136,16 @@ export const $$triggerTagsHavingTrigger = (triggerID: UUID) => {
 export const $triggerTagsHavingTrigger = (triggerID: UUID) => {
   return triggersSelector($$triggerTagsHavingTrigger(triggerID));
 };
+
+export const $ancestorGroupsForTriggerID = (triggerID: UUID) =>
+  triggersSelector((slice) => {
+    const trigger: Trigger = slice.index.triggers[triggerID];
+    let parent_id: UUID | null = trigger.parent_id;
+    const ancestors: TriggerGroup[] = [];
+    while (parent_id) {
+      const parent = slice.index.groups[parent_id];
+      parent_id = parent.parent_id;
+      ancestors.unshift(parent);
+    }
+    return ancestors;
+  });
