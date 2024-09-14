@@ -33,16 +33,9 @@ li.view-trigger-list-item {
   color: rgb(23, 108, 200);
 }
 
-li.view-trigger-list-item-context-menu-open {
+.view-trigger-list-item-context-menu-open .view-trigger-list-item-name {
   font-style: italic;
   border-bottom: 1px dotted black;
-  /* text-decoration: underline;
-  text-decoration-style: dotted; */
-}
-
-li.view-trigger-list-item span {
-  cursor: context-menu;
-}
-
-.toggle-trigger-tag-inclusion-switch {
+  color: rgb(23, 108, 200);
+  text-decoration: none;
 }
