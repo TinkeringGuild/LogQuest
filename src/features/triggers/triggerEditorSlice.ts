@@ -73,7 +73,9 @@ const triggerEditorSlice = createSlice({
       }: PayloadAction<{ trigger: Trigger; triggerTags: TriggerTag[] }>
     ) {
       slice.draft = trigger;
-      slice.draftTriggerTags = sortBy(triggerTags, (tag) => tag.name);
+      slice.draftTriggerTags = sortBy(triggerTags, (tag) =>
+        tag.name.toUpperCase()
+      );
     },
 
     cancelEditing(slice: TriggerEditorState) {
@@ -227,7 +229,9 @@ const triggerEditorSlice = createSlice({
       slice: TriggerEditorState,
       { payload: triggerTags }: PayloadAction<TriggerTag[]>
     ) {
-      slice.draftTriggerTags = sortBy(triggerTags, (tag) => tag.name);
+      slice.draftTriggerTags = sortBy(triggerTags, (tag) =>
+        tag.name.toUpperCase()
+      );
     },
   },
 });

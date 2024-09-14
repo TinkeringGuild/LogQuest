@@ -9,20 +9,22 @@ const SelectEQFolderFooter: React.FC<{}> = () => {
   const dispatch = useDispatch();
   return (
     <footer style={styleFooter}>
-      <Button
-        size="large"
-        variant="contained"
-        startIcon={<CreateNewFolderOutlinedIcon />}
-        className="footer-cta"
-        onClick={() => openEQFolderSelectionDialog(dispatch)}
-        sx={{
-          color: 'black',
-          backgroundColor: 'yellow',
-          '&:hover': { backgroundColor: 'white' },
-        }}
-      >
-        Select EverQuest Folder
-      </Button>
+      <div style={{ display: 'inline-block' }}>
+        <Button
+          size="large"
+          variant="contained"
+          startIcon={<CreateNewFolderOutlinedIcon />}
+          className="footer-cta"
+          onClick={() => openEQFolderSelectionDialog(dispatch)}
+          sx={{
+            color: 'black',
+            backgroundColor: 'yellow',
+            '&:hover': { backgroundColor: 'white' },
+          }}
+        >
+          Select EverQuest Folder
+        </Button>
+      </div>
       <p style={{ margin: '3px 0 0', padding: 0 }}>
         To use LogQuest, select the folder where EverQuest is installed.
       </p>
@@ -31,8 +33,7 @@ const SelectEQFolderFooter: React.FC<{}> = () => {
 };
 
 const styleFooter: CSSProperties = {
-  flex: 0,
-  alignItems: 'center',
+  flexShrink: 0,
   textAlign: 'center',
   backgroundColor: 'black',
   color: 'white',

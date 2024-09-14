@@ -1,16 +1,33 @@
-#main-scrollable::-webkit-scrollbar {
+.central-content {
+  padding: 15px 15px 30px;
+}
+
+.scrollable-content {
+  overflow-y: scroll;
+  overflow-x: hidden;
+}
+
+.scrollable-content::-webkit-scrollbar {
   width: 12px;
 }
 
-#main-scrollable::-webkit-scrollbar-track {
+.scrollable-content::-webkit-scrollbar-track {
   background: #fefefe;
 }
 
-#main-scrollable::-webkit-scrollbar-thumb {
+.scrollable-content::-webkit-scrollbar-thumb {
   background-color: black;
   border-radius: 0;
 }
 
-#main-scrollable::-webkit-scrollbar-thumb:hover {
+.scrollable-content::-webkit-scrollbar-thumb:hover {
   background: #555;
+}
+
+.overview-mode,
+.overlay-mode,
+.help-mode,
+.about-mode,
+.settings-mode {
+  flex-grow: 1;
 }

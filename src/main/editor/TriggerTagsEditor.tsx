@@ -12,6 +12,8 @@ import Stack from '@mui/material/Stack';
 import { TriggerTag } from '../../generated/TriggerTag';
 import { UUID } from '../../generated/UUID';
 
+import './TriggerTagsEditor.css';
+
 const TriggerTagsEditor: React.FC<{
   tagsOfTrigger: TriggerTag[];
   allTriggerTags: TriggerTag[];
@@ -36,7 +38,7 @@ const TriggerTagsEditor: React.FC<{
           const selectedTags = [...ids].map(
             (id) => allTriggerTags.find((tag) => tag.id == id)!
           );
-          setTriggerTags(sortBy(selectedTags, (tag) => tag.name));
+          setTriggerTags(sortBy(selectedTags, (tag) => tag.name.toUpperCase()));
           setInEditMode(false);
         }}
         onCancel={() => setInEditMode(false)}
@@ -50,14 +52,16 @@ const TriggerTagsEditor: React.FC<{
             <p>This Trigger has no Trigger Tags</p>
           ) : (
             tagsOfTrigger.map((tag) => (
-              <span key={tag.id}>
-                <Chip variant={'filled'} label={tag.name} />{' '}
+              <span className="trigger-tag-chip" key={tag.id}>
+                <Chip color="primary" variant="filled" label={tag.name} />
               </span>
             ))
           )}
-        </div>{' '}
-        <div>
-          <Button onClick={() => setInEditMode(true)}>Edit Trigger Tags</Button>
+        </div>
+        <div className="edit-trigger-tags-button-container">
+          <Button variant="outlined" onClick={() => setInEditMode(true)}>
+            Edit Trigger Tags
+          </Button>
         </div>
       </div>
     );
@@ -82,20 +86,22 @@ const EditMode: React.FC<{
     setSelectedIDs(new Set(without([...selectedIDs], id)));
   };
 
+  const allSorted = sortBy(all, (tag) => tag.name.toUpperCase());
+
   return (
     <Stack gap={2}>
       <div>
-        {all.map((tag) => {
+        {allSorted.map((tag) => {
           const isSelected = selectedIDs.has(tag.id);
           return (
-            <span key={tag.id}>
+            <span key={tag.id} className="trigger-tag-chip">
               {isSelected ? (
                 <Chip
                   label={tag.name}
                   variant="filled"
+                  color="primary"
                   onClick={() => unselectID(tag.id)}
                   icon={<CheckCircleOutline />}
-                  sx={sxRippleColor('white')}
                 />
               ) : (
                 <Chip
@@ -103,12 +109,11 @@ const EditMode: React.FC<{
                   variant="outlined"
                   onClick={() => selectID(tag.id)}
                   icon={<RadioButtonUnchecked />}
-                  sx={sxRippleColor(DEFAULT_CHIP_BACKGROUND_COLOR)}
                 />
-              )}{' '}
+              )}
             </span>
           );
-        })}{' '}
+        })}
       </div>
       <div>
         <Button
@@ -131,11 +136,5 @@ const EditMode: React.FC<{
     </Stack>
   );
 };
-
-const DEFAULT_CHIP_BACKGROUND_COLOR = 'rgba(0, 0, 0, 0.08)';
-
-const sxRippleColor = (color: string) => ({
-  '& .MuiTouchRipple-root': { color },
-});
 
 export default TriggerTagsEditor;

@@ -19,6 +19,16 @@ li.view-trigger-list-item {
   border-bottom: 1px solid transparent;
 }
 
+.view-trigger-list-item-name {
+  text-decoration: none;
+  color: black;
+}
+
+.view-trigger-list-item-name:active {
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 li.view-trigger-list-item-currently-editing {
   background-color: #eee;
   font-weight: bold;

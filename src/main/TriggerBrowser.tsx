@@ -11,8 +11,7 @@ const TriggerBrowser: React.FC<{}> = () => {
   const currentTrigger = useSelector($draftTrigger);
   return (
     <div className="trigger-browser">
-      <TriggerTree />
-      {currentTrigger && <TriggerEditor />}
+      {currentTrigger ? <TriggerEditor /> : <TriggerTree />}
     </div>
   );
 };

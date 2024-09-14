@@ -1,12 +1,18 @@
 .trigger-browser {
   display: flex;
-  flex-direction: row;
+  flex-grow: 1;
 }
 
-.trigger-browser .trigger-tree {
-  flex: 1;
-  display: flex;
-  justify-content: stretch;
-  overflow: hidden;
-  height: 100vh;
+.trigger-browser-scrollable-container {
+  position: relative;
+  flex-grow: 1;
+}
+
+.trigger-browser-scrollable-content {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  padding-right: 10px;
 }

@@ -20,11 +20,9 @@ const Layout: React.FC<{ children: ReactNode }> = ({ children }) => {
 
   return (
     <div id="layout" style={styleLayout}>
-      <div id="central" style={styleCentral}>
+      <div id="central-row" style={styleCentral}>
         <NavSidebar />
-        <div id="main-flex-container" style={styleMainFlexContainer}>
-          {children}
-        </div>
+        {children}
       </div>
       {bootstrapped && needsEQDir && <SelectEQFolderFooter />}
     </div>
@@ -100,14 +98,13 @@ const NavButton: React.FC<{
 
 const styleLayout: CSSProperties = {
   display: 'flex',
-  flex: 1,
   flexDirection: 'column',
   height: '100vh',
 };
 
 const styleCentral: CSSProperties = {
   display: 'flex',
-  flex: 1,
+  flexGrow: 1,
   flexDirection: 'row',
 };
 
@@ -118,12 +115,6 @@ const styleNavSidebar: CSSProperties = {
   flexDirection: 'column',
   justifyContent: 'space-between',
   backgroundColor: '#eee',
-  // padding: '15px',
-  marginRight: '15px',
-};
-
-const styleMainFlexContainer: CSSProperties = {
-  flex: 1,
 };
 
 export default Layout;

@@ -1,5 +1,8 @@
 .pattern-input .MuiInputAdornment-root {
   display: none;
+  margin-top: -10px;
+  margin-bottom: -10px;
+  margin-left: -10px;
 }
 
 .pattern-input:hover .MuiInputAdornment-root {

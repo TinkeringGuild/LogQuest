@@ -26,38 +26,6 @@ import './EditFilter.css';
 
 type MatcherVariant = (Matcher & MatcherWithContext)['variant'];
 
-const MatcherInputField: React.FC<{
-  variant: MatcherVariant;
-  defaultValue: string;
-  onDelete: () => void;
-  onBlur: (value: string) => void;
-}> = ({ defaultValue, variant, onDelete, onBlur }) => {
-  const variantHumanized = humanizeMatcherVariant(variant);
-  return (
-    <FormControl sx={{ m: 1 }} variant="outlined">
-      <InputLabel>{variantHumanized}</InputLabel>
-      <OutlinedInput
-        label={variantHumanized}
-        defaultValue={defaultValue}
-        className="pattern-input"
-        type="text"
-        fullWidth
-        multiline
-        onBlur={(e) => onBlur(e.target.value)}
-        endAdornment={
-          <InputAdornment position="end">
-            <StandardTooltip help="Delete this pattern">
-              <IconButton edge="end" onClick={onDelete}>
-                <DeleteForeverOutlined />
-              </IconButton>
-            </StandardTooltip>
-          </InputAdornment>
-        }
-      />
-    </FormControl>
-  );
-};
-
 function EditFilter<T extends Filter | FilterWithContext>({
   selector,
 }: {
@@ -78,7 +46,7 @@ function EditFilter<T extends Filter | FilterWithContext>({
           defaultValue={matcher.value}
           variant="GINA"
           onDelete={() => dispatch(deleteFilterMatcher({ index, selector }))}
-          onBlur={(value) =>
+          onChange={(value) =>
             dispatch(
               setMatcherValue({
                 value,
@@ -101,6 +69,38 @@ function EditFilter<T extends Filter | FilterWithContext>({
     </Stack>
   );
 }
+
+const MatcherInputField: React.FC<{
+  variant: MatcherVariant;
+  defaultValue: string;
+  onDelete: () => void;
+  onChange: (value: string) => void;
+}> = ({ defaultValue, variant, onDelete, onChange }) => {
+  const variantHumanized = humanizeMatcherVariant(variant);
+  return (
+    <FormControl sx={{ m: 1 }} variant="outlined">
+      <InputLabel>{variantHumanized}</InputLabel>
+      <OutlinedInput
+        label={variantHumanized}
+        defaultValue={defaultValue}
+        className="pattern-input"
+        type="text"
+        fullWidth
+        multiline
+        onBlur={(e) => onChange(e.target.value)}
+        endAdornment={
+          <InputAdornment position="end">
+            <StandardTooltip help="Delete this pattern">
+              <IconButton edge="end" onClick={onDelete}>
+                <DeleteForeverOutlined />
+              </IconButton>
+            </StandardTooltip>
+          </InputAdornment>
+        }
+      />
+    </FormControl>
+  );
+};
 
 const humanizeMatcherVariant = (variant: MatcherVariant) => {
   if (variant === 'WholeLine') {

@@ -1,11 +1,5 @@
 import { cloneDeep } from 'lodash';
-import React, {
-  createContext,
-  CSSProperties,
-  useContext,
-  useRef,
-  useState,
-} from 'react';
+import React, { createContext, useContext, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 
 import {
@@ -17,6 +11,7 @@ import {
 import DeleteForeverOutlined from '@mui/icons-material/DeleteForeverOutlined';
 import DownloadingIcon from '@mui/icons-material/Downloading';
 import {
+  Box,
   Dialog,
   DialogActions,
   DialogContent,
@@ -104,18 +99,20 @@ const TriggerTree: React.FC<{}> = () => {
   const closeTriggerContextMenu = () => setTriggerContextMenu(null);
 
   return (
-    <div className="trigger-tree">
-      <div id="main-scrollable" style={styleMainScrollable}>
-        <p style={{ textAlign: 'right' }}>
-          <Button
-            size="small"
-            variant="contained"
-            startIcon={<DownloadingIcon />}
-            onClick={() => openGINATriggerFileDialog(dispatch)}
-          >
-            Import GINA Export
-          </Button>
-        </p>
+    <div className="trigger-tree trigger-browser-scrollable-container">
+      <div className="trigger-browser-scrollable-content scrollable-content central-content">
+        <Box justifyItems="right">
+          <div style={{ textAlign: 'right' }}>
+            <Button
+              size="small"
+              variant="contained"
+              startIcon={<DownloadingIcon />}
+              onClick={() => openGINATriggerFileDialog(dispatch)}
+            >
+              Import GINA Export
+            </Button>
+          </div>
+        </Box>
         <TriggerTagChanger
           onChange={(tagIDMaybe) => dispatch(activateTriggerTagID(tagIDMaybe))}
           onCreate={async (name) => {
@@ -455,7 +452,9 @@ const TriggerListItem: React.FC<{
           />{' '}
         </>
       )}
-      <span
+      <a
+        href="javascript:void"
+        className="view-trigger-list-item-name"
         onContextMenu={handleTriggerContextMenu}
         onClick={() =>
           dispatch(
@@ -469,7 +468,7 @@ const TriggerListItem: React.FC<{
         }
       >
         {trigger.name}
-      </span>
+      </a>
     </li>
   );
 };
@@ -529,17 +528,6 @@ const TriggerGroupListItem: React.FC<{
       )}
     </li>
   );
-};
-
-const styleMainScrollable: CSSProperties = {
-  // position: 'absolute',
-  // top: 0,
-  // right: 0,
-  // left: 0,
-  // bottom: 0,
-  overflowY: 'scroll',
-  overflowX: 'hidden',
-  // scrollbarGutter: 'stable',
 };
 
 export default TriggerTree;

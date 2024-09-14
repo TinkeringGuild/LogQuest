@@ -1,12 +1,5 @@
 .trigger-editor {
-  flex: 1 0 auto;
-  border-left: 9px #444 solid;
-  padding: 10px 10px 30px;
-  background-color: white;
-  height: 100vh;
-  overflow-y: scroll;
-  overflow-x: hidden;
-  box-sizing: border-box;
+  padding: 10px 10px 30px 10px;
 }
 
 .effect-delete-button {
@@ -47,4 +40,8 @@ p.trigger-editor-info {
   color: #555;
   margin-top: 0;
   margin-bottom: 25px;
+}
+
+.trigger-tags-header {
+  margin-bottom: 5px;
 }

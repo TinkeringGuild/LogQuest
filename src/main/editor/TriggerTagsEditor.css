@@ -1,0 +1,10 @@
+.trigger-tag-chip {
+  display: inline-block;
+  margin-right: 8px;
+  margin-top: 8px;
+  font-weight: bold;
+}
+
+.edit-trigger-tags-button-container {
+  margin-top: 10px;
+}

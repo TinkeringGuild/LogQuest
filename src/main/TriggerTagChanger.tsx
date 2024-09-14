@@ -30,9 +30,8 @@ const TriggerTagChanger: React.FC<{
   const [mode, setMode] = useState<'select' | 'create'>('select');
   const unsortedTriggerTags = useSelector($triggerTags);
 
-  const triggerTags: TriggerTag[] = sortBy(
-    clone(unsortedTriggerTags),
-    (tag) => tag.name
+  const triggerTags: TriggerTag[] = sortBy(clone(unsortedTriggerTags), (tag) =>
+    tag.name.toUpperCase()
   );
 
   return mode === 'select' ? (

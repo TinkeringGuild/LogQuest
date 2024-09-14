@@ -17,7 +17,7 @@ const OverlayMode: React.FC<{}> = () => {
 
   const dispatch = useDispatch();
   return (
-    <div>
+    <div className="overlay-mode central-content">
       <h1>Overlay</h1>
 
       <div>

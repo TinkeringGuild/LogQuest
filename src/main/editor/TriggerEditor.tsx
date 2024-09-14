@@ -48,99 +48,102 @@ const TriggerEditor: React.FC<{}> = () => {
   const updatedExact = format('PPpp', updatedAt);
 
   return (
-    <div className="trigger-editor">
-      <div style={{ marginBottom: 10 }}>
-        <Button
-          variant="contained"
-          size="large"
-          startIcon={<Save />}
-          onClick={() => {
-            // TODO: I need to handle CreateTrigger for when the Trigger is new
-            saveTrigger(trigger).then((deltas) => {
-              console.log('DELTAS:', deltas);
-              dispatch(applyDeltas(deltas));
-              dispatch(cancelEditing());
-            });
-          }}
-        >
-          Save
-        </Button>{' '}
-        <Button
-          variant="outlined"
-          size="large"
-          startIcon={<CancelOutlined />}
-          onClick={() => dispatch(cancelEditing())}
-        >
-          Cancel
-        </Button>{' '}
-      </div>
-      <p className="trigger-editor-info">
-        Last updated:{' '}
-        <Tooltip arrow title={updatedExact}>
-          <span>{updatedAgo} ago</span>
-        </Tooltip>
-      </p>
-      <div>
-        <TextField
-          label="Trigger Name"
-          fullWidth
-          defaultValue={trigger.name}
-          className="trigger-editor-name"
-          onBlur={(e) => dispatch(setTriggerName(e.target.value))}
-        />
-      </div>
-      <div style={{ marginTop: 5 }}>
-        <TextField
-          multiline
-          fullWidth
-          placeholder="Comments"
-          defaultValue={trigger.comment || ''}
-          onBlur={(e) => dispatch(setTriggerComment(e.target.value))}
-        />
-      </div>
-      <div style={{ marginTop: 10, marginBottom: 20 }}>
-        <h3>Trigger Tags</h3>
-        <TriggerTagsEditor
-          tagsOfTrigger={triggerTagsOfTrigger}
-          allTriggerTags={Object.values(allTriggerTags)}
-          setTriggerTags={(tags) => dispatch(setTriggerTags(tags))}
-        />
-      </div>
-      <h3>Filters</h3>
-      {trigger.filter.length > 1 && (
+    <div className="trigger-editor trigger-browser-scrollable-container">
+      <div className="trigger-browser-scrollable-content scrollable-content central-content">
+        <div style={{ marginBottom: 10 }}>
+          <Button
+            variant="contained"
+            size="large"
+            startIcon={<Save />}
+            onClick={() => {
+              // TODO: I need to handle CreateTrigger for when the Trigger is new
+              saveTrigger(trigger).then((deltas) => {
+                console.log('DELTAS:', deltas);
+                dispatch(applyDeltas(deltas));
+                dispatch(cancelEditing());
+              });
+            }}
+          >
+            Save
+          </Button>{' '}
+          <Button
+            variant="outlined"
+            size="large"
+            startIcon={<CancelOutlined />}
+            onClick={() => dispatch(cancelEditing())}
+          >
+            Cancel
+          </Button>{' '}
+        </div>
         <p className="trigger-editor-info">
-          The Trigger will fire if <em>any</em> of the following patterns match.
+          Last updated:{' '}
+          <Tooltip arrow title={updatedExact}>
+            <span>{updatedAgo} ago</span>
+          </Tooltip>
         </p>
-      )}
-      <div>
-        <EditFilter selector={$$selectTriggerFilter} />
+        <div>
+          <TextField
+            label="Trigger Name"
+            fullWidth
+            defaultValue={trigger.name}
+            className="trigger-editor-name"
+            onBlur={(e) => dispatch(setTriggerName(e.target.value))}
+          />
+        </div>
+        <div style={{ marginTop: 5 }}>
+          <TextField
+            multiline
+            fullWidth
+            placeholder="Comments"
+            defaultValue={trigger.comment || ''}
+            onBlur={(e) => dispatch(setTriggerComment(e.target.value))}
+          />
+        </div>
+        <div style={{ marginTop: 10, marginBottom: 20 }}>
+          <h3 className="trigger-tags-header">Trigger Tags</h3>
+          <TriggerTagsEditor
+            tagsOfTrigger={triggerTagsOfTrigger}
+            allTriggerTags={Object.values(allTriggerTags)}
+            setTriggerTags={(tags) => dispatch(setTriggerTags(tags))}
+          />
+        </div>
+        <h3>Filters</h3>
+        {trigger.filter.length > 1 && (
+          <p className="trigger-editor-info">
+            The Trigger will fire if <em>any</em> of the following patterns
+            match.
+          </p>
+        )}
+        <div>
+          <EditFilter selector={$$selectTriggerFilter} />
+        </div>
+        <h3>Effects</h3>
+        <Stack gap={2}>
+          {trigger.effects.map((effect) => {
+            return (
+              <EditEffect
+                key={effect.id}
+                triggerID={trigger.id}
+                onDelete={() =>
+                  dispatch(
+                    deleteEffect({
+                      effectID: effect.id,
+                      selector: $$triggerDraftEffects,
+                    })
+                  )
+                }
+                effectSelector={(slice) => {
+                  const draft = slice.draft!;
+                  const draftEffect = draft.effects.find(
+                    ({ id }) => id === effect.id
+                  ) as EffectWithID;
+                  return draftEffect!;
+                }}
+              />
+            );
+          })}
+        </Stack>
       </div>
-      <h3>Effects</h3>
-      <Stack gap={2}>
-        {trigger.effects.map((effect) => {
-          return (
-            <EditEffect
-              key={effect.id}
-              triggerID={trigger.id}
-              onDelete={() =>
-                dispatch(
-                  deleteEffect({
-                    effectID: effect.id,
-                    selector: $$triggerDraftEffects,
-                  })
-                )
-              }
-              effectSelector={(slice) => {
-                const draft = slice.draft!;
-                const draftEffect = draft.effects.find(
-                  ({ id }) => id === effect.id
-                ) as EffectWithID;
-                return draftEffect!;
-              }}
-            />
-          );
-        })}
-      </Stack>
     </div>
   );
 };

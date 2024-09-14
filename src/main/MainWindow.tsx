@@ -58,11 +58,26 @@ const MainWindow: React.FC<{}> = () => {
       case 'overlay':
         return <OverlayMode />;
       case 'help':
-        return <h1>Help</h1>;
+        return (
+          <div className="help-mode central-content">
+            <h1>Help</h1>
+            <p>Help section coming soon!</p>
+          </div>
+        );
       case 'about':
-        return <h1>About</h1>;
+        return (
+          <div className="about-mode central-content">
+            <h1>About</h1>
+            <p>About section coming soon!</p>
+          </div>
+        );
       case 'settings':
-        return <h1>Settings</h1>;
+        return (
+          <div className="settings-mode central-content">
+            <h1>Settings</h1>
+            <p>Settings coming soon!</p>
+          </div>
+        );
       default:
         throw new Error(`UNHANDLED MODE: ${currentMode}`);
     }
