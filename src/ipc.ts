@@ -28,8 +28,26 @@ export async function startTimersSync(): Promise<TimerLifetime[]> {
   return await invoke<TimerLifetime[]>('start_timers_sync');
 }
 
-export async function saveTrigger(trigger: Trigger): Promise<DataDelta[]> {
-  return mutate([{ variant: 'SaveTrigger', value: trigger }]);
+export async function createTrigger(
+  trigger: Trigger,
+  trigger_tag_ids: UUID[],
+  parent_position: number
+): Promise<DataDelta[]> {
+  return mutate([
+    {
+      variant: 'CreateTrigger',
+      value: { trigger, trigger_tag_ids, parent_position },
+    },
+  ]);
+}
+
+export async function saveTrigger(
+  trigger: Trigger,
+  trigger_tag_ids: UUID[]
+): Promise<DataDelta[]> {
+  return mutate([
+    { variant: 'SaveTrigger', value: { trigger, trigger_tag_ids } },
+  ]);
 }
 
 export async function deleteTrigger(triggerID: UUID): Promise<DataDelta[]> {

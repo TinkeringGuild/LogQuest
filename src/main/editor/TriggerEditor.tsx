@@ -1,7 +1,8 @@
 import { formatDistanceToNow } from 'date-fns/formatDistanceToNow';
 import { format } from 'date-fns/fp/format';
 import { parseISO } from 'date-fns/fp/parseISO';
-import React from 'react';
+import { map as pluck } from 'lodash';
+import React, { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 
 import { CancelOutlined, NavigateNext, Save } from '@mui/icons-material';
@@ -10,6 +11,7 @@ import { Button, Stack, TextField, Tooltip, Typography } from '@mui/material';
 import {
   $$selectTriggerFilter,
   $$triggerDraftEffects,
+  $draftParentPosition,
   $draftTrigger,
   $draftTriggerTags,
   cancelEditing,
@@ -19,12 +21,12 @@ import {
   setTriggerTags,
 } from '../../features/triggers/triggerEditorSlice';
 import {
-  $ancestorGroupsForTriggerID,
+  $groupsUptoGroup,
   $triggerTags,
   applyDeltas,
 } from '../../features/triggers/triggersSlice';
 import { EffectWithID } from '../../generated/EffectWithID';
-import { saveTrigger } from '../../ipc';
+import { createTrigger, saveTrigger } from '../../ipc';
 import EditEffect from './EditEffect';
 import TriggerTagsEditor from './TriggerTagsEditor';
 import EditFilter from './widgets/EditFilter';
@@ -35,20 +37,31 @@ const TriggerEditor: React.FC<{}> = () => {
   const dispatch = useDispatch();
   const trigger = useSelector($draftTrigger);
 
-  const ancestors = useSelector($ancestorGroupsForTriggerID(trigger.id));
-
-  if (!trigger) {
-    throw new Error(
-      'Attempted to render TriggerEditor while not currently editing a Trigger!'
-    );
-  }
+  const ancestors = useSelector($groupsUptoGroup(trigger.parent_id));
 
   const triggerTagsOfTrigger = useSelector($draftTriggerTags);
   const allTriggerTags = useSelector($triggerTags);
+  const parentPosition = useSelector($draftParentPosition);
+
+  const [nameError, setNameError] = useState<string | undefined>(undefined);
+  const hasError = !!nameError;
+
+  // parentPosition is only needed to be given when creating, so it is also used to signal
+  // whether this Trigger is being newly created.
+  const isNew = parentPosition !== null;
 
   const updatedAt = parseISO(trigger.updated_at);
   const updatedAgo = formatDistanceToNow(updatedAt);
   const updatedExact = format('PPpp', updatedAt);
+
+  const submit = async () => {
+    const triggerTagIDs = pluck(triggerTagsOfTrigger, 'id');
+    const deltas = isNew
+      ? await createTrigger(trigger, triggerTagIDs, parentPosition)
+      : await saveTrigger(trigger, triggerTagIDs);
+    dispatch(applyDeltas(deltas));
+    dispatch(cancelEditing());
+  };
 
   return (
     <div className="trigger-editor trigger-browser-scrollable-container">
@@ -72,15 +85,9 @@ const TriggerEditor: React.FC<{}> = () => {
           <Button
             variant="contained"
             size="large"
+            disabled={hasError}
             startIcon={<Save />}
-            onClick={() => {
-              // TODO: I need to handle CreateTrigger for when the Trigger is new
-              saveTrigger(trigger).then((deltas) => {
-                console.log('DELTAS:', deltas);
-                dispatch(applyDeltas(deltas));
-                dispatch(cancelEditing());
-              });
-            }}
+            onClick={submit}
           >
             Save
           </Button>{' '}
@@ -104,7 +111,15 @@ const TriggerEditor: React.FC<{}> = () => {
             label="Trigger Name"
             fullWidth
             defaultValue={trigger.name}
+            error={!!nameError}
+            helperText={nameError}
             className="trigger-editor-name"
+            onChange={(e) =>
+              // Managing the error state here is a performance optimization
+              !!e.target.value.trim().length
+                ? nameError !== undefined && setNameError(undefined)
+                : setNameError('Name cannot be blank')
+            }
             onBlur={(e) => dispatch(setTriggerName(e.target.value))}
           />
         </div>
@@ -122,7 +137,7 @@ const TriggerEditor: React.FC<{}> = () => {
           <TriggerTagsEditor
             tagsOfTrigger={triggerTagsOfTrigger}
             allTriggerTags={Object.values(allTriggerTags)}
-            setTriggerTags={(tags) => dispatch(setTriggerTags(tags))}
+            onSave={(tags) => dispatch(setTriggerTags(tags))}
           />
         </div>
         <h3>Filters</h3>

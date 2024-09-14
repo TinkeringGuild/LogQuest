@@ -1,5 +1,6 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { pullAt, remove, sortBy } from 'lodash';
+import { v4 as uuid } from 'uuid';
 
 import { Duration } from '../../generated/Duration';
 import { Effect } from '../../generated/Effect';
@@ -11,20 +12,31 @@ import { MatcherWithContext } from '../../generated/MatcherWithContext';
 import { Timer } from '../../generated/Timer';
 import { TimerEffect } from '../../generated/TimerEffect';
 import { Trigger } from '../../generated/Trigger';
+import { TriggerGroup } from '../../generated/TriggerGroup';
 import { TriggerTag } from '../../generated/TriggerTag';
 import { UUID } from '../../generated/UUID';
 import { MainRootState } from '../../MainStore';
+import { nowTimestamp } from '../../util';
 
 export const TRIGGER_EDITOR_SLICE = 'trigger-editor';
 
 export type TriggerEditorState = {
   draft: Trigger | null;
   draftTriggerTags: TriggerTag[];
+  draftAncestors: TriggerGroup[];
+
+  /// The presence of draftParentPosition indicates the Trigger being
+  /// edited is a new Trigger. (When saving rather than creating, we
+  /// don't need to send the parent position because it's not modified
+  /// at save-time.)
+  draftParentPosition: number | null;
 };
 
 const INITIAL_TRIGGER_EDITOR_STATE = {
   draft: null,
   draftTriggerTags: [],
+  draftParentPosition: null,
+  draftAncestors: [],
 } satisfies TriggerEditorState;
 
 export type TriggerEditorSelector<T> = (slice: TriggerEditorState) => T;
@@ -66,6 +78,33 @@ const triggerEditorSlice = createSlice({
   initialState: INITIAL_TRIGGER_EDITOR_STATE,
 
   reducers: {
+    editNewTrigger(
+      slice: TriggerEditorState,
+      {
+        payload: { parentID, parentPosition, ancestorGroups },
+      }: PayloadAction<{
+        parentID: UUID | null;
+        parentPosition: number;
+        ancestorGroups: TriggerGroup[];
+      }>
+    ) {
+      const now = nowTimestamp();
+      slice.draft = {
+        id: uuid(),
+        parent_id: parentID,
+        name: '',
+        comment: null,
+        effects: [],
+        created_at: now,
+        updated_at: now,
+        filter: [],
+        enabled: false, // TODO: REMOVE THIS FROM RUST CODE
+      };
+      slice.draftParentPosition = parentPosition;
+      slice.draftTriggerTags = [];
+      slice.draftAncestors = ancestorGroups;
+    },
+
     editTriggerDraft(
       slice: TriggerEditorState,
       {
@@ -79,8 +118,7 @@ const triggerEditorSlice = createSlice({
     },
 
     cancelEditing(slice: TriggerEditorState) {
-      slice.draft = null;
-      slice.draftTriggerTags = [];
+      Object.assign(slice, INITIAL_TRIGGER_EDITOR_STATE);
     },
 
     setTriggerName(
@@ -241,6 +279,7 @@ export const {
   cancelEditing,
   deleteEffect,
   deleteFilterMatcher,
+  editNewTrigger,
   editTriggerDraft,
   setCopyToClipboardTemplate,
   setMatcherValue,
@@ -268,6 +307,10 @@ export const $draftTrigger = triggerEditorSelector(
 
 export const $draftTriggerTags = triggerEditorSelector(
   ({ draftTriggerTags }) => draftTriggerTags
+);
+
+export const $draftParentPosition = triggerEditorSelector(
+  ({ draftParentPosition }) => draftParentPosition
 );
 
 export const $$triggerDraftEffects = (slice: TriggerEditorState) =>

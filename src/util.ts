@@ -1,5 +1,15 @@
 import { invoke } from '@tauri-apps/api/tauri';
+import { formatRFC3339 } from 'date-fns/formatRFC3339';
+
 import { ProgressUpdate } from './generated/ProgressUpdate';
+import { Timestamp } from './generated/Timestamp';
+
+export function nowTimestamp(): Timestamp {
+  // Example: "2024-09-18T19:00:52.234Z"
+  return formatRFC3339(new Date(), {
+    fractionDigits: 3,
+  });
+}
 
 export function println(message: any) {
   console.log('PRINTLN:', message);

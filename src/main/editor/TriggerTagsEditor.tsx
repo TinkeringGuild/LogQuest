@@ -17,8 +17,8 @@ import './TriggerTagsEditor.css';
 const TriggerTagsEditor: React.FC<{
   tagsOfTrigger: TriggerTag[];
   allTriggerTags: TriggerTag[];
-  setTriggerTags: (tags: TriggerTag[]) => void;
-}> = ({ tagsOfTrigger, allTriggerTags, setTriggerTags }) => {
+  onSave: (tags: TriggerTag[]) => void;
+}> = ({ tagsOfTrigger, allTriggerTags, onSave }) => {
   const [inEditMode, setInEditMode] = useState(false);
 
   if (allTriggerTags.length === 0) {
@@ -38,7 +38,7 @@ const TriggerTagsEditor: React.FC<{
           const selectedTags = [...ids].map(
             (id) => allTriggerTags.find((tag) => tag.id == id)!
           );
-          setTriggerTags(sortBy(selectedTags, (tag) => tag.name.toUpperCase()));
+          onSave(sortBy(selectedTags, (tag) => tag.name.toUpperCase()));
           setInEditMode(false);
         }}
         onCancel={() => setInEditMode(false)}

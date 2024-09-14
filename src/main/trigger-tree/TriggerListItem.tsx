@@ -4,8 +4,13 @@ import { useDispatch, useSelector } from 'react-redux';
 
 import Switch from '@mui/material/Switch';
 
-import { editTriggerDraft } from '../../features/triggers/triggerEditorSlice';
 import {
+  editNewTrigger,
+  editTriggerDraft,
+} from '../../features/triggers/triggerEditorSlice';
+import {
+  $groupsUptoGroup,
+  $positionOfTrigger,
   $trigger,
   $triggerTagsHavingTrigger,
   applyDeltas,
@@ -64,6 +69,23 @@ const TriggerListItem: React.FC<{
       </a>
       {contextMenuPosition && (
         <TriggerContextMenu
+          onInsertTrigger={(offset) => {
+            const storeState = store.getState();
+            const ancestorGroups = $groupsUptoGroup(trigger.parent_id)(
+              storeState
+            );
+            const positionOfTrigger = $positionOfTrigger(trigger.id)(
+              storeState
+            );
+            const parentPosition = positionOfTrigger + offset;
+            dispatch(
+              editNewTrigger({
+                parentID: trigger.parent_id,
+                parentPosition,
+                ancestorGroups,
+              })
+            );
+          }}
           onDelete={async () => {
             const deltas = await deleteTrigger(triggerID);
             dispatch(applyDeltas(deltas));

@@ -6,9 +6,16 @@ import type { UUID } from './UUID';
 export type Mutation =
   | {
       variant: 'CreateTrigger';
-      value: { trigger: Trigger; parent_position: number };
+      value: {
+        trigger: Trigger;
+        trigger_tag_ids: Array<UUID>;
+        parent_position: number;
+      };
     }
-  | { variant: 'SaveTrigger'; value: Trigger }
+  | {
+      variant: 'SaveTrigger';
+      value: { trigger: Trigger; trigger_tag_ids: Array<UUID> };
+    }
   | { variant: 'DeleteTrigger'; value: UUID }
   | {
       variant: 'CreateTriggerGroup';

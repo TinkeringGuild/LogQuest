@@ -10,9 +10,10 @@ import MenuItem from '@mui/material/MenuItem';
 export const TriggerContextMenu: React.FC<{
   top: number;
   left: number;
+  onInsertTrigger: (offset: 0 | 1) => void;
   onDelete: () => void;
   close: () => void;
-}> = ({ top, left, onDelete, close }) => (
+}> = ({ top, left, onInsertTrigger, onDelete, close }) => (
   <Menu
     open={true}
     onClose={close}
@@ -37,13 +38,13 @@ export const TriggerContextMenu: React.FC<{
       Duplicate Trigger
     </MenuItem>
     <Divider />
-    <MenuItem>
+    <MenuItem onClick={() => onInsertTrigger(0)}>
       <ListItemIcon>
         <VerticalAlignTop />
       </ListItemIcon>
       Create new Trigger above
     </MenuItem>
-    <MenuItem>
+    <MenuItem onClick={() => onInsertTrigger(1)}>
       <ListItemIcon>
         <VerticalAlignBottom />
       </ListItemIcon>

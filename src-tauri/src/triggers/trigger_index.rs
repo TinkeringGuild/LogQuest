@@ -37,9 +37,13 @@ pub enum TriggerGroupDescendant {
 pub enum Mutation {
   CreateTrigger {
     trigger: Trigger,
+    trigger_tag_ids: Vec<UUID>,
     parent_position: usize,
   },
-  SaveTrigger(Trigger),
+  SaveTrigger {
+    trigger: Trigger,
+    trigger_tag_ids: Vec<UUID>,
+  },
   DeleteTrigger(UUID),
   CreateTriggerGroup {
     trigger_group: TriggerGroup,
@@ -204,14 +208,20 @@ impl TriggerIndex {
     match mutation {
       Mutation::CreateTrigger {
         mut trigger,
+        trigger_tag_ids,
         parent_position,
       } => {
-        let id = trigger.id.clone();
+        trigger.updated_now();
+
+        let trigger_id = trigger.id.clone();
+        self.triggers.insert(trigger_id.clone(), trigger.clone());
+
         let parent_delta = if let Some(parent_id) = &trigger.parent_id {
           if let Some(parent) = self.groups.get_mut(parent_id) {
-            parent
-              .children
-              .insert(parent_position, TriggerGroupDescendant::T(id.clone()));
+            parent.children.insert(
+              parent_position,
+              TriggerGroupDescendant::T(trigger_id.clone()),
+            );
             DataDelta::TriggerGroupChildrenChanged {
               trigger_group_id: parent_id.to_owned(),
               children: parent.children.clone(),
@@ -220,24 +230,93 @@ impl TriggerIndex {
             error!(
               "Tried to save a Trigger with an unknown parent! Appending to top-level instead"
             );
-            self.top_level.push(TriggerGroupDescendant::T(id.clone()));
+            self
+              .top_level
+              .push(TriggerGroupDescendant::T(trigger_id.clone()));
             DataDelta::TopLevelChanged(self.top_level.clone())
           }
         } else {
-          self
-            .top_level
-            .insert(parent_position, TriggerGroupDescendant::T(id.clone()));
+          self.top_level.insert(
+            parent_position,
+            TriggerGroupDescendant::T(trigger_id.clone()),
+          );
           DataDelta::TopLevelChanged(self.top_level.clone())
         };
-        trigger.updated_now();
-        self.triggers.insert(id, trigger.clone());
-        Ok(vec![DataDelta::TriggerSaved(trigger), parent_delta])
+
+        let mut deltas = vec![DataDelta::TriggerSaved(trigger), parent_delta];
+        for tag_id in trigger_tag_ids.into_iter() {
+          if let Some(trigger_tag) = self.trigger_tags.get_mut(&tag_id) {
+            trigger_tag.triggers.insert(trigger_id.clone());
+            deltas.push(DataDelta::TriggerTagged {
+              trigger_id: trigger_id.clone(),
+              trigger_tag_id: tag_id,
+            });
+          }
+        }
+
+        Ok(deltas)
       }
-      Mutation::SaveTrigger(mut trigger) => {
+      Mutation::SaveTrigger {
+        mut trigger,
+        trigger_tag_ids,
+      } => {
         _ = self.try_get_mutable_trigger(&trigger.id)?;
         trigger.updated_now();
-        self.triggers.insert(trigger.id.clone(), trigger.clone());
-        Ok(vec![DataDelta::TriggerSaved(trigger)])
+
+        let trigger_id = trigger.id.clone();
+
+        let replaced_trigger_maybe = self.triggers.insert(trigger.id.clone(), trigger.clone());
+        let parent_delta_maybe: Option<DataDelta> =
+          replaced_trigger_maybe.and_then(|replaced_trigger| {
+            if replaced_trigger.parent_id == trigger.parent_id {
+              return None;
+            }
+            let different_tgd = |tgd: &TriggerGroupDescendant| match tgd {
+              TriggerGroupDescendant::T(tgd_id) => tgd_id != &trigger.id,
+              _ => true,
+            };
+            if let Some(previous_parent_id) = replaced_trigger.parent_id {
+              let Some(parent_group) = self.groups.get_mut(&previous_parent_id) else {
+                return None;
+              };
+              parent_group.children.retain(different_tgd);
+              Some(DataDelta::TriggerGroupChildrenChanged {
+                trigger_group_id: parent_group.id.clone(),
+                children: parent_group.children.clone(),
+              })
+            } else {
+              self.top_level.retain(different_tgd);
+              Some(DataDelta::TopLevelChanged(self.top_level.clone()))
+            }
+          });
+
+        let mut deltas = vec![DataDelta::TriggerSaved(trigger)];
+
+        if let Some(parent_delta) = parent_delta_maybe {
+          deltas.push(parent_delta);
+        }
+
+        let new_trigger_tag_ids: HashSet<UUID> = HashSet::from_iter(trigger_tag_ids.into_iter());
+
+        for each_trigger_tag in self.trigger_tags.values_mut() {
+          if each_trigger_tag.triggers.contains(&trigger_id) {
+            if !new_trigger_tag_ids.contains(&each_trigger_tag.id) {
+              each_trigger_tag.triggers.remove(&trigger_id);
+              deltas.push(DataDelta::TriggerUntagged {
+                trigger_id: trigger_id.clone(),
+                trigger_tag_id: each_trigger_tag.id.clone(),
+              });
+            }
+          } else if new_trigger_tag_ids.contains(&each_trigger_tag.id) {
+            each_trigger_tag.triggers.insert(trigger_id.clone());
+            deltas.push(DataDelta::TriggerTagged {
+              trigger_id: trigger_id.clone(),
+              trigger_tag_id: each_trigger_tag.id.clone(),
+            });
+          }
+        }
+
+        Ok(deltas)
       }
       Mutation::DeleteTrigger(trigger_id) => {
         let Some(trigger) = self.triggers.remove(&trigger_id) else {

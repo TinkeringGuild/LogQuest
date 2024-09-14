@@ -1,12 +1,12 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
+import { MainRootState } from '../../MainStore';
 import { DataDelta } from '../../generated/DataDelta';
+import { TriggerGroup } from '../../generated/TriggerGroup';
+import { TriggerGroupDescendant } from '../../generated/TriggerGroupDescendant';
 import { TriggerIndex } from '../../generated/TriggerIndex';
 import { UUID } from '../../generated/UUID';
 import * as deltas from './deltas';
-import { MainRootState } from '../../MainStore';
-import { Trigger } from '../../generated/Trigger';
-import { TriggerGroup } from '../../generated/TriggerGroup';
 
 export const TRIGGERS_SLICE = 'triggers';
 
@@ -129,15 +129,30 @@ export const $triggerTagsHavingTrigger = (triggerID: UUID) => {
   return triggersSelector($$triggerTagsHavingTrigger(triggerID));
 };
 
-export const $ancestorGroupsForTriggerID = (triggerID: UUID) =>
+export const $groupsUptoGroup = (groupID: UUID | null) =>
   triggersSelector((slice) => {
-    const trigger: Trigger = slice.index.triggers[triggerID];
-    let parent_id: UUID | null = trigger.parent_id;
-    const ancestors: TriggerGroup[] = [];
-    while (parent_id) {
-      const parent = slice.index.groups[parent_id];
-      parent_id = parent.parent_id;
-      ancestors.unshift(parent);
+    if (!groupID) {
+      return [];
     }
-    return ancestors;
+    const groups = slice.index.groups;
+    const deepest: TriggerGroup = groups[groupID];
+    let parent_id: UUID | null = deepest.parent_id;
+    const path: TriggerGroup[] = [deepest];
+    while (parent_id) {
+      const parent = groups[parent_id];
+      parent_id = parent.parent_id;
+      path.unshift(parent);
+    }
+    return path;
+  });
+
+export const $positionOfTrigger = (triggerID: UUID) =>
+  triggersSelector((slice) => {
+    const trigger = slice.index.triggers[triggerID];
+    const peers: TriggerGroupDescendant[] = trigger.parent_id
+      ? slice.index.groups[trigger.parent_id].children
+      : slice.index.top_level;
+    return peers.findIndex(
+      (tgd) => tgd.variant === 'T' && tgd.value === triggerID
+    );
   });
