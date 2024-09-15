@@ -1,6 +1,7 @@
-import { cloneDeep } from 'lodash';
+import { cloneDeep, map as pluck } from 'lodash';
 import React, { useContext, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import { v4 as uuid } from 'uuid';
 
 import Switch from '@mui/material/Switch';
 
@@ -18,11 +19,13 @@ import {
 import { UUID } from '../../generated/UUID';
 import {
   addTriggerToTag,
+  createTrigger,
   createTriggerGroup,
   deleteTrigger,
   removeTriggerFromTag,
 } from '../../ipc';
 import store from '../../MainStore';
+import { nowTimestamp } from '../../util';
 import TriggerGroupEditorDialog from './dialogs/TriggerGroupEditorDialog';
 import TriggerContextMenu from './menus/TriggerContextMenu';
 import TriggerIDsInSelectedTriggerTagContext from './TriggerIDsInSelectedTriggerTagContext';
@@ -75,6 +78,25 @@ const TriggerListItem: React.FC<{
       </a>
       {contextMenuPosition && (
         <TriggerContextMenu
+          onDuplicate={async () => {
+            const state = store.getState();
+            const tags = $triggerTagsHavingTrigger(trigger.id)(state);
+            const thisPosition = $positionOf({ trigger: trigger.id })(state);
+            const now = nowTimestamp();
+            const duplicate = {
+              ...trigger,
+              id: uuid(),
+              name: trigger.name + ' (DUPLICATE)',
+              created_at: now,
+              updated_at: now,
+            };
+            const deltas = await createTrigger(
+              duplicate,
+              pluck(tags, 'id'),
+              thisPosition + 1
+            );
+            dispatch(applyDeltas(deltas));
+          }}
           onInsertTrigger={(offset) => {
             const state = store.getState();
             const ancestorGroups = $groupsUptoGroup(trigger.parent_id)(state);
