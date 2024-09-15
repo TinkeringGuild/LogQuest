@@ -19,7 +19,7 @@ import TriggerGroupEditorDialog from './dialogs/TriggerGroupEditorDialog';
 import TriggerGroupContextMenu from './menus/TriggerGroupContextMenu';
 import TriggerListItem from './TriggerListItem';
 
-type GroupEditorCreateState = { position: number };
+type GroupEditorCreateState = { parentID: UUID | null; parentPosition: number };
 
 const TriggerGroupListItem: React.FC<{
   groupID: UUID;
@@ -45,8 +45,17 @@ const TriggerGroupListItem: React.FC<{
   };
 
   return (
-    <li>
-      <span className="view-trigger-group-name" onContextMenu={openContextMenu}>
+    <li
+      className={
+        contextMenuPosition
+          ? 'view-trigger-group-list-item-context-menu-open'
+          : ''
+      }
+    >
+      <span
+        className="view-trigger-group-list-item-name"
+        onContextMenu={openContextMenu}
+      >
         {group.name}
       </span>
       {!!group.children.length && (
@@ -65,21 +74,32 @@ const TriggerGroupListItem: React.FC<{
           triggerGroup={group}
           onEdit={() => setEditDialogState('edit')}
           onInsertGroup={(offset) => {
-            const thisPosition = $positionOf({ group: group.id })(
-              store.getState()
-            );
+            const [parentID, parentPosition] =
+              offset === 'inside'
+                ? [group.id, 0]
+                : [
+                    group.parent_id,
+                    $positionOf({ group: group.id })(store.getState()),
+                  ];
             setEditDialogState({
-              position: offset + thisPosition,
+              parentID,
+              parentPosition,
             });
           }}
           onInsertTrigger={(offset) => {
             const state = store.getState();
-            const thisPosition = $positionOf({ group: group.id })(state);
-            const ancestorGroups = $groupsUptoGroup(group.parent_id)(state);
+            const [parentID, parentPosition] =
+              offset === 'inside'
+                ? [group.id, 0]
+                : [
+                    group.parent_id,
+                    offset + $positionOf({ group: group.id })(state),
+                  ];
+            const ancestorGroups = $groupsUptoGroup(parentID)(state);
             dispatch(
               editNewTrigger({
-                parentID: group.parent_id,
-                parentPosition: thisPosition + offset,
+                parentID,
+                parentPosition,
                 ancestorGroups,
               })
             );
@@ -103,8 +123,8 @@ const TriggerGroupListItem: React.FC<{
                 : createTriggerGroup(
                     name,
                     comment,
-                    group.parent_id,
-                    editDialogState.position
+                    editDialogState.parentID,
+                    editDialogState.parentPosition
                   );
             dispatch(applyDeltas(await deltas));
           }}

@@ -10,6 +10,7 @@ import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import { TriggerGroup } from '../../../generated/TriggerGroup';
 import TriggerGroupDeleteConfirmationDialog from '../dialogs/TriggerGroupDeleteConfirmationDialog';
+import SubdirectoryArrowRight from '@mui/icons-material/SubdirectoryArrowRight';
 
 const TriggerGroupContextMenu: React.FC<{
   triggerGroup: TriggerGroup;
@@ -17,8 +18,8 @@ const TriggerGroupContextMenu: React.FC<{
   left: number;
   onEdit: () => void;
   onDelete: () => void;
-  onInsertTrigger: (offset: 0 | 1) => void;
-  onInsertGroup: (offset: 0 | 1) => void;
+  onInsertTrigger: (offset: 0 | 1 | 'inside') => void;
+  onInsertGroup: (offset: 0 | 1 | 'inside') => void;
   close: () => void;
 }> = ({
   triggerGroup,
@@ -70,6 +71,32 @@ const TriggerGroupContextMenu: React.FC<{
           <DeleteForeverOutlined />
         </ListItemIcon>
         Delete Trigger Group
+      </MenuItem>
+
+      <Divider />
+
+      <MenuItem
+        onClick={() => {
+          onInsertTrigger('inside');
+          close();
+        }}
+      >
+        <ListItemIcon>
+          <SubdirectoryArrowRight />
+        </ListItemIcon>
+        Create new Trigger inside
+      </MenuItem>
+
+      <MenuItem
+        onClick={() => {
+          onInsertGroup('inside');
+          close();
+        }}
+      >
+        <ListItemIcon>
+          <SubdirectoryArrowRight />
+        </ListItemIcon>
+        Create new Trigger Group inside
       </MenuItem>
 
       <Divider />

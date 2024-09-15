@@ -1,4 +1,4 @@
-.view-trigger-group-name {
+.view-trigger-group-list-item-name {
   font-weight: bold;
   text-overflow: ellipsis;
   overflow: hidden;
@@ -33,9 +33,10 @@ li.view-trigger-list-item {
   color: rgb(23, 108, 200);
 }
 
-.view-trigger-list-item-context-menu-open .view-trigger-list-item-name {
+.view-trigger-list-item-context-menu-open .view-trigger-list-item-name,
+.view-trigger-group-list-item-context-menu-open
+  > .view-trigger-group-list-item-name {
   font-style: italic;
-  border-bottom: 1px dotted black;
   color: rgb(23, 108, 200);
   text-decoration: none;
 }
