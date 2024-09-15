@@ -146,13 +146,18 @@ export const $groupsUptoGroup = (groupID: UUID | null) =>
     return path;
   });
 
-export const $positionOfTrigger = (triggerID: UUID) =>
+export const $positionOf = (typeAndID: { trigger: UUID } | { group: UUID }) =>
   triggersSelector((slice) => {
-    const trigger = slice.index.triggers[triggerID];
-    const peers: TriggerGroupDescendant[] = trigger.parent_id
-      ? slice.index.groups[trigger.parent_id].children
+    const [tgdVariant, triggerOrGroup] =
+      'trigger' in typeAndID
+        ? ['T', slice.index.triggers[typeAndID.trigger]]
+        : ['G', slice.index.groups[typeAndID.group]];
+
+    const peers: TriggerGroupDescendant[] = triggerOrGroup.parent_id
+      ? slice.index.groups[triggerOrGroup.parent_id].children
       : slice.index.top_level;
+
     return peers.findIndex(
-      (tgd) => tgd.variant === 'T' && tgd.value === triggerID
+      (tgd) => tgd.variant === tgdVariant && tgd.value === triggerOrGroup.id
     );
   });

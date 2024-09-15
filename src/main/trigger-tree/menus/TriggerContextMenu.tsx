@@ -11,9 +11,10 @@ export const TriggerContextMenu: React.FC<{
   top: number;
   left: number;
   onInsertTrigger: (offset: 0 | 1) => void;
+  onInsertGroup: (offset: 0 | 1) => void;
   onDelete: () => void;
   close: () => void;
-}> = ({ top, left, onInsertTrigger, onDelete, close }) => (
+}> = ({ top, left, onInsertTrigger, onInsertGroup, onDelete, close }) => (
   <Menu
     open={true}
     onClose={close}
@@ -31,33 +32,60 @@ export const TriggerContextMenu: React.FC<{
       </ListItemIcon>
       Delete Trigger
     </MenuItem>
+
     <MenuItem>
       <ListItemIcon>
         <ControlPointDuplicateOutlined />
       </ListItemIcon>
       Duplicate Trigger
     </MenuItem>
+
     <Divider />
-    <MenuItem onClick={() => onInsertTrigger(0)}>
+
+    <MenuItem
+      onClick={() => {
+        onInsertTrigger(0);
+        close();
+      }}
+    >
       <ListItemIcon>
         <VerticalAlignTop />
       </ListItemIcon>
       Create new Trigger above
     </MenuItem>
-    <MenuItem onClick={() => onInsertTrigger(1)}>
+
+    <MenuItem
+      onClick={() => {
+        onInsertTrigger(1);
+        close();
+      }}
+    >
       <ListItemIcon>
         <VerticalAlignBottom />
       </ListItemIcon>
       Create new Trigger below
     </MenuItem>
+
     <Divider />
-    <MenuItem>
+
+    <MenuItem
+      onClick={() => {
+        onInsertGroup(0);
+        close();
+      }}
+    >
       <ListItemIcon>
         <VerticalAlignTop />
       </ListItemIcon>
       Create new Trigger Group above
     </MenuItem>
-    <MenuItem>
+
+    <MenuItem
+      onClick={() => {
+        onInsertGroup(1);
+        close();
+      }}
+    >
       <ListItemIcon>
         <VerticalAlignBottom />
       </ListItemIcon>

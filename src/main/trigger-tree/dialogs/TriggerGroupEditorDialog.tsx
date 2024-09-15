@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { useDispatch } from 'react-redux';
 
 import Button from '@mui/material/Button';
 import Dialog from '@mui/material/Dialog';
@@ -8,30 +7,19 @@ import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
 import TextField from '@mui/material/TextField';
 
-import { applyDeltas } from '../../../features/triggers/triggersSlice';
-import { TriggerGroup } from '../../../generated/TriggerGroup';
-import { saveTriggerGroup } from '../../../ipc';
-
 const TriggerGroupEditorDialog: React.FC<{
-  triggerGroup: TriggerGroup;
+  name: string;
+  comment: string | null;
+  onSave: (name: string, comment: string | null) => void;
   close: () => void;
-}> = ({ triggerGroup, close }) => {
-  const dispatch = useDispatch();
-
-  const [nameInput, setNameInput] = useState(triggerGroup.name);
-  const [commentInput, setCommentInput] = useState(triggerGroup.comment);
+}> = ({ name, comment, onSave, close }) => {
+  const [nameInput, setNameInput] = useState(name);
+  const [commentInput, setCommentInput] = useState(comment);
 
   const save = async () => {
     const name = nameInput.trim();
-    const comment = commentInput?.trim();
-
-    const deltas = await saveTriggerGroup(
-      triggerGroup.id,
-      name,
-      comment ? comment : null
-    );
-    dispatch(applyDeltas(deltas));
-
+    const comment = commentInput?.trim() || null;
+    onSave(name, comment);
     close();
   };
 
@@ -39,7 +27,7 @@ const TriggerGroupEditorDialog: React.FC<{
 
   return (
     <Dialog open={true}>
-      <DialogTitle>Editing Trigger Group "{triggerGroup.name}"</DialogTitle>
+      <DialogTitle>Editing Trigger Group "{name}"</DialogTitle>
       <DialogContent>
         <TextField
           label="Trigger Group Name"
@@ -50,11 +38,12 @@ const TriggerGroupEditorDialog: React.FC<{
           onChange={(e) => setNameInput(e.target.value)}
           sx={{ mt: 1, mb: 1 }}
           fullWidth
+          autoFocus
         />
         <TextField
           label="Comment (Optional)"
           variant="outlined"
-          defaultValue={commentInput}
+          defaultValue={commentInput || ''}
           onChange={(e) => setCommentInput(e.target.value)}
           sx={{ mt: 1, mb: 1 }}
           fullWidth

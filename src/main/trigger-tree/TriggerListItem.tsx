@@ -10,7 +10,7 @@ import {
 } from '../../features/triggers/triggerEditorSlice';
 import {
   $groupsUptoGroup,
-  $positionOfTrigger,
+  $positionOf,
   $trigger,
   $triggerTagsHavingTrigger,
   applyDeltas,
@@ -18,10 +18,12 @@ import {
 import { UUID } from '../../generated/UUID';
 import {
   addTriggerToTag,
+  createTriggerGroup,
   deleteTrigger,
   removeTriggerFromTag,
 } from '../../ipc';
 import store from '../../MainStore';
+import TriggerGroupEditorDialog from './dialogs/TriggerGroupEditorDialog';
 import TriggerContextMenu from './menus/TriggerContextMenu';
 import TriggerIDsInSelectedTriggerTagContext from './TriggerIDsInSelectedTriggerTagContext';
 
@@ -35,6 +37,10 @@ const TriggerListItem: React.FC<{
     top: number;
     left: number;
   } | null>(null);
+
+  // If the value is null, then the dialog is not open
+  const [createGroupDialogPositionParam, setCreateGroupDialogPositionParam] =
+    useState<number | null>(null);
 
   const openContextMenu = (e: React.MouseEvent<HTMLSpanElement>) => {
     e.preventDefault();
@@ -70,13 +76,11 @@ const TriggerListItem: React.FC<{
       {contextMenuPosition && (
         <TriggerContextMenu
           onInsertTrigger={(offset) => {
-            const storeState = store.getState();
-            const ancestorGroups = $groupsUptoGroup(trigger.parent_id)(
-              storeState
-            );
-            const positionOfTrigger = $positionOfTrigger(trigger.id)(
-              storeState
-            );
+            const state = store.getState();
+            const ancestorGroups = $groupsUptoGroup(trigger.parent_id)(state);
+            const positionOfTrigger = $positionOf({
+              trigger: trigger.id,
+            })(state);
             const parentPosition = positionOfTrigger + offset;
             dispatch(
               editNewTrigger({
@@ -86,12 +90,34 @@ const TriggerListItem: React.FC<{
               })
             );
           }}
+          onInsertGroup={(offset) => {
+            const thisPosition = $positionOf({ trigger: trigger.id })(
+              store.getState()
+            );
+            setCreateGroupDialogPositionParam(thisPosition + offset);
+          }}
           onDelete={async () => {
             const deltas = await deleteTrigger(triggerID);
             dispatch(applyDeltas(deltas));
           }}
           close={() => setContextMenuPosition(null)}
           {...contextMenuPosition}
+        />
+      )}
+      {createGroupDialogPositionParam !== null && (
+        <TriggerGroupEditorDialog
+          name=""
+          comment={null}
+          onSave={async (name, comment) => {
+            const deltas = createTriggerGroup(
+              name,
+              comment,
+              trigger.parent_id,
+              createGroupDialogPositionParam
+            );
+            dispatch(applyDeltas(await deltas));
+          }}
+          close={() => setCreateGroupDialogPositionParam(null)}
         />
       )}
     </li>

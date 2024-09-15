@@ -1,15 +1,25 @@
 import React, { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 
+import { editNewTrigger } from '../../features/triggers/triggerEditorSlice';
 import {
+  $groupsUptoGroup,
+  $positionOf,
   $triggerGroup,
   applyDeltas,
 } from '../../features/triggers/triggersSlice';
 import { UUID } from '../../generated/UUID';
+import {
+  createTriggerGroup,
+  deleteTriggerGroup,
+  saveTriggerGroup,
+} from '../../ipc';
+import store from '../../MainStore';
 import TriggerGroupEditorDialog from './dialogs/TriggerGroupEditorDialog';
-import TriggerListItem from './TriggerListItem';
 import TriggerGroupContextMenu from './menus/TriggerGroupContextMenu';
-import { deleteTriggerGroup } from '../../ipc';
+import TriggerListItem from './TriggerListItem';
+
+type GroupEditorCreateState = { position: number };
 
 const TriggerGroupListItem: React.FC<{
   groupID: UUID;
@@ -17,7 +27,9 @@ const TriggerGroupListItem: React.FC<{
   const dispatch = useDispatch();
   const group = useSelector($triggerGroup(groupID));
 
-  const [editDialogIsOpen, setEditDialogIsOpen] = useState(false);
+  const [editDialogState, setEditDialogState] = useState<
+    'closed' | 'edit' | GroupEditorCreateState
+  >('closed');
 
   const [contextMenuPosition, setContextMenuPosition] = useState<{
     top: number;
@@ -51,18 +63,52 @@ const TriggerGroupListItem: React.FC<{
       {contextMenuPosition && (
         <TriggerGroupContextMenu
           triggerGroup={group}
-          onEdit={() => setEditDialogIsOpen(true)}
-          onDelete={async () =>
-            dispatch(applyDeltas(await deleteTriggerGroup(group.id)))
-          }
+          onEdit={() => setEditDialogState('edit')}
+          onInsertGroup={(offset) => {
+            const thisPosition = $positionOf({ group: group.id })(
+              store.getState()
+            );
+            setEditDialogState({
+              position: offset + thisPosition,
+            });
+          }}
+          onInsertTrigger={(offset) => {
+            const state = store.getState();
+            const thisPosition = $positionOf({ group: group.id })(state);
+            const ancestorGroups = $groupsUptoGroup(group.parent_id)(state);
+            dispatch(
+              editNewTrigger({
+                parentID: group.parent_id,
+                parentPosition: thisPosition + offset,
+                ancestorGroups,
+              })
+            );
+          }}
+          onDelete={async () => {
+            dispatch(applyDeltas(await deleteTriggerGroup(group.id)));
+          }}
           close={() => setContextMenuPosition(null)}
           {...contextMenuPosition}
         />
       )}
-      {editDialogIsOpen && (
+      {editDialogState !== 'closed' && (
         <TriggerGroupEditorDialog
-          triggerGroup={group}
-          close={() => setEditDialogIsOpen(false)}
+          {...(editDialogState === 'edit'
+            ? { name: group.name, comment: group.comment }
+            : { name: '', comment: null })}
+          onSave={async (name, comment) => {
+            const deltas =
+              editDialogState === 'edit'
+                ? saveTriggerGroup(groupID, name, comment)
+                : createTriggerGroup(
+                    name,
+                    comment,
+                    group.parent_id,
+                    editDialogState.position
+                  );
+            dispatch(applyDeltas(await deltas));
+          }}
+          close={() => setEditDialogState('closed')}
         />
       )}
     </li>

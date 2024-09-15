@@ -1,6 +1,7 @@
 import { Action } from '@reduxjs/toolkit';
 import { invoke } from '@tauri-apps/api/tauri';
 import { clamp } from 'lodash';
+import { v4 as uuid } from 'uuid';
 
 import { Bootstrap } from './generated/Bootstrap';
 import { DataDelta } from './generated/DataDelta';
@@ -11,6 +12,8 @@ import { TimerLifetime } from './generated/TimerLifetime';
 import { TriggerIndex } from './generated/TriggerIndex';
 import { UUID } from './generated/UUID';
 import { Trigger } from './generated/Trigger';
+import { TriggerGroup } from './generated/TriggerGroup';
+import { nowTimestamp } from './util';
 
 export async function getBootstrap(): Promise<Bootstrap> {
   return await invoke<Bootstrap>('bootstrap');
@@ -52,6 +55,35 @@ export async function saveTrigger(
 
 export async function deleteTrigger(triggerID: UUID): Promise<DataDelta[]> {
   return mutate([{ variant: 'DeleteTrigger', value: triggerID }]);
+}
+
+export async function createTriggerGroup(
+  name: string,
+  comment: string | null,
+  parent_id: UUID | null,
+  parent_position: number
+): Promise<DataDelta[]> {
+  const now = nowTimestamp();
+
+  const trigger_group: TriggerGroup = {
+    id: uuid(),
+    name,
+    comment,
+    parent_id,
+    created_at: now,
+    updated_at: now,
+    children: [],
+  };
+
+  return mutate([
+    {
+      variant: 'CreateTriggerGroup',
+      value: {
+        trigger_group,
+        parent_position,
+      },
+    },
+  ]);
 }
 
 export async function saveTriggerGroup(
