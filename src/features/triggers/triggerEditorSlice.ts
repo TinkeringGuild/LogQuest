@@ -135,6 +135,25 @@ const triggerEditorSlice = createSlice({
       slice.draft!.comment = comment;
     },
 
+    insertEffect(
+      slice: TriggerEditorState,
+      {
+        payload: { variant, index, triggerID, seqSelector },
+      }: PayloadAction<{
+        variant: Effect['variant'];
+        index: number;
+        triggerID: UUID;
+        seqSelector: TriggerEditorSelector<EffectWithID[]>;
+      }>
+    ) {
+      const seq = seqSelector(slice);
+      let effect: EffectWithID = {
+        id: uuid(),
+        inner: newEffect(variant, triggerID),
+      };
+      seq.splice(index, 0, effect);
+    },
+
     deleteEffect(
       slice: TriggerEditorState,
       {
@@ -281,6 +300,7 @@ export const {
   deleteFilterMatcher,
   editNewTrigger,
   editTriggerDraft,
+  insertEffect,
   setCopyToClipboardTemplate,
   setMatcherValue,
   setOverlayMessageTemplate,
@@ -322,3 +342,48 @@ export const $$selectTriggerFilter = (slice: TriggerEditorState) =>
 export const $selectTriggerFilter = triggerEditorSelector(
   $$selectTriggerFilter
 );
+
+function newEffect(variant: Effect['variant'], triggerID: UUID): Effect {
+  switch (variant) {
+    case 'SpeakStop':
+    case 'DoNothing':
+      return { variant };
+    case 'OverlayMessage':
+    case 'CopyToClipboard':
+      return { variant, value: '' };
+    case 'Parallel':
+    case 'Sequence':
+      return { variant, value: [] };
+    case 'Pause':
+      return { variant, value: 0 };
+    case 'PlayAudioFile':
+      return { variant, value: null };
+    case 'Speak':
+      return { variant, value: { tmpl: '', interrupt: false } };
+    case 'StartTimer':
+      return {
+        variant,
+        value: {
+          trigger_id: triggerID,
+          name_tmpl: '',
+          tags: [],
+          duration: 0,
+          start_policy: 'AlwaysStartNewTimer',
+          repeats: false,
+          effects: [],
+        },
+      };
+    case 'StartStopwatch':
+      return { variant, value: { name: '', tags: [], effects: [] } };
+    case 'RunSystemCommand':
+      return {
+        variant,
+        value: {
+          variant: 'Unapproved',
+          value: { command: '', params: [], write_to_stdin: null },
+        },
+      };
+    case 'ScopedTimerEffect':
+      throw new Error('Tried to create a ScopedTimerEffect via newEffect');
+  }
+}

@@ -1,24 +1,28 @@
-import {
-  ArrowDownward,
-  KeyboardDoubleArrowDownOutlined,
-} from '@mui/icons-material';
+import React from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+
+import { Add, KeyboardDoubleArrowDownOutlined } from '@mui/icons-material';
+import ArrowDownward from '@mui/icons-material/ArrowDownward';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import CardHeader from '@mui/material/CardHeader';
-import Divider from '@mui/material/Divider';
 import Stack from '@mui/material/Stack';
-import Tooltip from '@mui/material/Tooltip';
-import { useSelector, useDispatch } from 'react-redux';
 
 import {
   deleteEffect,
+  insertEffect,
   TriggerEditorSelector,
   triggerEditorSelector,
 } from '../../features/triggers/triggerEditorSlice';
+import { Effect } from '../../generated/Effect';
 import { EffectWithID } from '../../generated/EffectWithID';
 import { UUID } from '../../generated/UUID';
 import EditEffect from './EditEffect';
 import { EffectHeader, EffectTitle } from './widgets/EffectHeader';
+import InsertEffectDivider from './widgets/InsertEffectDivider';
+
+const HELP_TEXT =
+  'Sequences execute effects in-order, waiting until each is done before continuing.';
 
 const EditSequenceEffect: React.FC<{
   triggerID: UUID;
@@ -28,8 +32,13 @@ const EditSequenceEffect: React.FC<{
   const dispatch = useDispatch();
   const seq = useSelector(triggerEditorSelector(seqSelector));
 
-  const helpText =
-    'Sequences execute effects in-order, waiting until each is done before continuing.';
+  const insertEffectAtIndex: (
+    variant: Effect['variant'],
+    index: number
+  ) => void = (variant, index) => {
+    dispatch(insertEffect({ variant, index, triggerID, seqSelector }));
+  };
+
   return (
     <Card elevation={10}>
       <CardHeader
@@ -37,34 +46,44 @@ const EditSequenceEffect: React.FC<{
           <EffectHeader onDelete={onDelete}>
             <EffectTitle
               title="Sequence"
-              help={helpText}
+              help={HELP_TEXT}
               icon={<KeyboardDoubleArrowDownOutlined />}
             />
           </EffectHeader>
         }
+        sx={{ pb: 0 }}
       />
-      <CardContent>
-        <Stack
-          direction="column"
-          divider={
-            <Divider sx={{ marginTop: 1, marginBottom: 1 }}>
-              <Tooltip arrow followCursor placement="top" title={helpText}>
-                <ArrowDownward />
-              </Tooltip>
-            </Divider>
-          }
-        >
+      <CardContent sx={{ pt: 0 }}>
+        <InsertEffectDivider
+          index={0}
+          onInsertEffect={insertEffectAtIndex}
+          defaultIcon={<Add />}
+        />
+        <Stack direction="column">
           {seq.map((effect, index) => (
-            <EditEffect
-              key={effect.id}
-              triggerID={triggerID}
-              effectSelector={(slice) => seqSelector(slice)[index]}
-              onDelete={() =>
-                dispatch(
-                  deleteEffect({ effectID: effect.id, selector: seqSelector })
-                )
-              }
-            />
+            <React.Fragment key={effect.id}>
+              <EditEffect
+                key={effect.id}
+                triggerID={triggerID}
+                effectSelector={(slice) => seqSelector(slice)[index]}
+                onDelete={() =>
+                  dispatch(
+                    deleteEffect({ effectID: effect.id, selector: seqSelector })
+                  )
+                }
+              />
+              <InsertEffectDivider
+                index={index + 1}
+                onInsertEffect={insertEffectAtIndex}
+                defaultIcon={
+                  index === seq.length - 1 ? (
+                    <Add />
+                  ) : (
+                    <ArrowDownward sx={{ color: 'black' }} />
+                  )
+                }
+              />
+            </React.Fragment>
           ))}
         </Stack>
       </CardContent>

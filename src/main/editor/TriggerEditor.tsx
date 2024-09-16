@@ -5,7 +5,7 @@ import { map as pluck } from 'lodash';
 import React, { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 
-import { CancelOutlined, NavigateNext, Save } from '@mui/icons-material';
+import { Add, CancelOutlined, NavigateNext, Save } from '@mui/icons-material';
 import { Button, Stack, TextField, Tooltip, Typography } from '@mui/material';
 
 import {
@@ -16,6 +16,7 @@ import {
   $draftTriggerTags,
   cancelEditing,
   deleteEffect,
+  insertEffect,
   setTriggerComment,
   setTriggerName,
   setTriggerTags,
@@ -25,10 +26,11 @@ import {
   $triggerTags,
   applyDeltas,
 } from '../../features/triggers/triggersSlice';
-import { EffectWithID } from '../../generated/EffectWithID';
+import { UUID } from '../../generated/UUID';
 import { createTrigger, saveTrigger } from '../../ipc';
 import EditEffect from './EditEffect';
 import TriggerTagsEditor from './TriggerTagsEditor';
+import AutocompleteEffect from './widgets/AutocompleteEffect';
 import EditFilter from './widgets/EditFilter';
 
 import './TriggerEditor.css';
@@ -44,6 +46,7 @@ const TriggerEditor: React.FC<{}> = () => {
   const parentPosition = useSelector($draftParentPosition);
 
   const [nameError, setNameError] = useState<string | undefined>(undefined);
+
   const hasError = !!nameError;
 
   // parentPosition is only needed to be given when creating, so it is also used to signal
@@ -112,15 +115,16 @@ const TriggerEditor: React.FC<{}> = () => {
             fullWidth
             defaultValue={trigger.name}
             error={!!nameError}
+            slotProps={{ htmlInput: { sx: { fontSize: 30 } } }}
             helperText={nameError}
             className="trigger-editor-name"
-            onChange={(e) =>
-              // Managing the error state here is a performance optimization
-              !!e.target.value.trim().length
+            onChange={(e) => {
+              e.target.value.trim()
                 ? nameError !== undefined && setNameError(undefined)
-                : setNameError('Name cannot be blank')
-            }
+                : setNameError('Name cannot be blank');
+            }}
             onBlur={(e) => dispatch(setTriggerName(e.target.value))}
+            autoFocus={trigger.name.trim() === ''}
           />
         </div>
         <div style={{ marginTop: 5 }}>
@@ -150,34 +154,72 @@ const TriggerEditor: React.FC<{}> = () => {
         <div>
           <EditFilter selector={$$selectTriggerFilter} />
         </div>
-        <h3>Effects</h3>
-        <Stack gap={2}>
-          {trigger.effects.map((effect) => {
-            return (
-              <EditEffect
-                key={effect.id}
-                triggerID={trigger.id}
-                onDelete={() =>
-                  dispatch(
-                    deleteEffect({
-                      effectID: effect.id,
-                      selector: $$triggerDraftEffects,
-                    })
-                  )
-                }
-                effectSelector={(slice) => {
-                  const draft = slice.draft!;
-                  const draftEffect = draft.effects.find(
-                    ({ id }) => id === effect.id
-                  ) as EffectWithID;
-                  return draftEffect!;
-                }}
-              />
-            );
-          })}
-        </Stack>
+        <h3 style={{ marginBottom: 10 }}>Effects</h3>
+        <div style={{ height: 45, marginBottom: 15 }}>
+          <CreateEffectButton triggerID={trigger.id} />
+        </div>
+        {!!trigger.effects.length ? (
+          <Stack gap={2}>
+            {trigger.effects.map((effect) => {
+              return (
+                <EditEffect
+                  key={effect.id}
+                  triggerID={trigger.id}
+                  onDelete={() =>
+                    dispatch(
+                      deleteEffect({
+                        effectID: effect.id,
+                        selector: $$triggerDraftEffects,
+                      })
+                    )
+                  }
+                  effectSelector={({ draft }) =>
+                    draft!.effects.find(({ id }) => id === effect.id)!
+                  }
+                />
+              );
+            })}
+          </Stack>
+        ) : (
+          <p>Create a new Effect to execute when one of the Filters matches.</p>
+        )}
       </div>
     </div>
+  );
+};
+
+const CreateEffectButton: React.FC<{ triggerID: UUID }> = ({ triggerID }) => {
+  const dispatch = useDispatch();
+  const [isOpen, setIsOpen] = useState(false);
+
+  if (!isOpen) {
+    return (
+      <Button
+        variant="contained"
+        size="large"
+        startIcon={<Add />}
+        onClick={() => setIsOpen(true)}
+        sx={{ width: 200 }}
+      >
+        Add New Effect
+      </Button>
+    );
+  }
+
+  return (
+    <AutocompleteEffect
+      close={() => setIsOpen(false)}
+      onSelect={(variant) => {
+        dispatch(
+          insertEffect({
+            variant,
+            index: 0,
+            triggerID: triggerID,
+            seqSelector: $$triggerDraftEffects,
+          })
+        );
+      }}
+    />
   );
 };
 

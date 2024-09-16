@@ -11,6 +11,8 @@ pub struct CommandTemplate {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
+#[serde(tag = "variant", content = "value")]
+#[ts(tag = "variant", content = "value")]
 pub enum CommandTemplateSecurityCheck {
   Unapproved(CommandTemplate),
   Approved(String, CommandTemplate),

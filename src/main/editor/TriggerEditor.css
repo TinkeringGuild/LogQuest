@@ -10,6 +10,10 @@
   font-weight: bold;
 }
 
+.trigger-editor-name label:not(.Mui-focused):not(.MuiInputLabel-shrink) {
+  font-size: 30px;
+}
+
 .effect-header:hover .effect-delete-button {
   visibility: visible;
 }

@@ -2,5 +2,5 @@
 import type { CommandTemplate } from './CommandTemplate';
 
 export type CommandTemplateSecurityCheck =
-  | { Unapproved: CommandTemplate }
-  | { Approved: [string, CommandTemplate] };
+  | { variant: 'Unapproved'; value: CommandTemplate }
+  | { variant: 'Approved'; value: [string, CommandTemplate] };

@@ -66,7 +66,7 @@ const EditDuration: React.FC<{
         defaultValue={seconds}
         inputRef={secondsField}
         onChange={triggerChangeDebounced}
-        sx={{ maxWidth: 80 }}
+        sx={{ maxWidth: 100 }}
       />
     </div>
   );
