@@ -21,7 +21,7 @@ import EditPauseEffect from './EditPauseEffect';
 import EditPlayAudioFileEffect from './EditPlayAudioFileEffect';
 import EditRunSystemCommandEffect from './EditRunSystemCommandEffect';
 import EditScopedTimerEffect from './EditScopedTimerEffect';
-import EditSequenceEffect from './EditSequenceEffect';
+import { EditSequenceEffect, EditParallelEffect } from './EditCompositeEffects';
 import EditSpeakEffect from './EditSpeakEffect';
 import EditSpeakStopEffect from './EditSpeakStopEffect';
 import EditStartTimerEffect from './EditStartTimerEffect';
@@ -33,6 +33,8 @@ type EffectVariantScopedTimer = Extract<
 >;
 
 type EffectVariantSequence = Extract<Effect, { variant: 'Sequence' }>;
+
+type EffectVariantParallel = Extract<Effect, { variant: 'Parallel' }>;
 
 type EffectVariantStartTimer = Extract<Effect, { variant: 'StartTimer' }>;
 
@@ -76,6 +78,18 @@ const EditEffect: React.FC<{
           seqSelector={(slice: TriggerEditorState) => {
             const sequenceEffect =
               $$innerAs<EffectVariantSequence>(effectSelector)(slice);
+            return sequenceEffect.value;
+          }}
+          onDelete={onDelete}
+        />
+      );
+    case 'Parallel':
+      return (
+        <EditParallelEffect
+          triggerID={triggerID}
+          seqSelector={(slice: TriggerEditorState) => {
+            const sequenceEffect =
+              $$innerAs<EffectVariantParallel>(effectSelector)(slice);
             return sequenceEffect.value;
           }}
           onDelete={onDelete}
@@ -137,7 +151,6 @@ const EditEffect: React.FC<{
       return <EditSpeakStopEffect onDelete={onDelete} />;
     case 'DoNothing':
       return <EditDoNothingEffect onDelete={onDelete} />;
-    case 'Parallel':
     case 'StartStopwatch':
     default:
       return (

@@ -26,7 +26,10 @@ const InsertEffectDivider: React.FC<{
     >
       {filterModeActive ? (
         <AutocompleteEffect
-          onSelect={(variant) => onInsertEffect(variant, index)}
+          onSelect={(variant) => {
+            setHovered(false);
+            onInsertEffect(variant, index);
+          }}
           close={() => setFilterModeActive(false)}
         />
       ) : hovered ? (

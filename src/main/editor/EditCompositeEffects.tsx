@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { ReactElement } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 
 import { Add } from '@mui/icons-material';
@@ -20,23 +20,53 @@ import { UUID } from '../../generated/UUID';
 import EditEffect from './EditEffect';
 import { EffectHeader, EffectTitle } from './widgets/EffectHeader';
 import InsertEffectDivider from './widgets/InsertEffectDivider';
+import Typography from '@mui/material/Typography';
+import { EffectVariant } from './effect-utils';
 
-const HELP_TEXT =
-  'Sequences execute effects in-order, waiting until each is done before continuing.';
-
-const EditSequenceEffect: React.FC<{
+export const EditSequenceEffect: React.FC<{
   triggerID: UUID;
   seqSelector: TriggerEditorSelector<EffectWithID[]>;
   onDelete: () => void;
-}> = ({ triggerID, seqSelector, onDelete }) => {
+}> = (props) => (
+  <EditCompositeEffect
+    variant="Sequence"
+    help="Sequences execute effects in-order, waiting until each is done before continuing."
+    seqIcon={<ArrowDownward sx={{ color: 'black' }} />}
+    {...props}
+  />
+);
+
+export const EditParallelEffect: React.FC<{
+  triggerID: UUID;
+  seqSelector: TriggerEditorSelector<EffectWithID[]>;
+  onDelete: () => void;
+}> = (props) => (
+  <EditCompositeEffect
+    variant="Parallel"
+    help="Executes effects in Parallel. You can embed Sequences inside this Parallel to run multiple sequences concurrently."
+    seqIcon={<AmpersandIcon />}
+    {...props}
+  />
+);
+
+const EditCompositeEffect: React.FC<{
+  variant: EffectVariant;
+  help: string;
+  triggerID: UUID;
+  seqSelector: TriggerEditorSelector<EffectWithID[]>;
+  seqIcon: ReactElement;
+  onDelete: () => void;
+}> = ({ variant, help, triggerID, seqSelector, seqIcon, onDelete }) => {
   const dispatch = useDispatch();
   const seq = useSelector(triggerEditorSelector(seqSelector));
 
   const insertEffectAtIndex: (
-    variant: Effect['variant'],
+    insertedVariant: Effect['variant'],
     index: number
-  ) => void = (variant, index) => {
-    dispatch(insertEffect({ variant, index, triggerID, seqSelector }));
+  ) => void = (insertedVariant, index) => {
+    dispatch(
+      insertEffect({ variant: insertedVariant, index, triggerID, seqSelector })
+    );
   };
 
   return (
@@ -44,7 +74,7 @@ const EditSequenceEffect: React.FC<{
       <CardHeader
         title={
           <EffectHeader onDelete={onDelete}>
-            <EffectTitle variant="Sequence" help={HELP_TEXT} />
+            <EffectTitle variant={variant} help={help} />
           </EffectHeader>
         }
         sx={{ pb: 0 }}
@@ -71,13 +101,7 @@ const EditSequenceEffect: React.FC<{
               <InsertEffectDivider
                 index={index + 1}
                 onInsertEffect={insertEffectAtIndex}
-                defaultIcon={
-                  index === seq.length - 1 ? (
-                    <Add />
-                  ) : (
-                    <ArrowDownward sx={{ color: 'black' }} />
-                  )
-                }
+                defaultIcon={index === seq.length - 1 ? <Add /> : seqIcon}
               />
             </React.Fragment>
           ))}
@@ -87,4 +111,8 @@ const EditSequenceEffect: React.FC<{
   );
 };
 
-export default EditSequenceEffect;
+const AmpersandIcon: React.FC<{}> = () => (
+  <Typography color="black" fontSize={20} fontWeight="bold" mt={-0.3}>
+    &amp;
+  </Typography>
+);
