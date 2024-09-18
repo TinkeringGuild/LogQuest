@@ -1,4 +1,5 @@
-import { AvTimer } from '@mui/icons-material';
+import { useDispatch, useSelector } from 'react-redux';
+
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import CardHeader from '@mui/material/CardHeader';
@@ -7,14 +8,13 @@ import FormControlLabel from '@mui/material/FormControlLabel';
 import Paper from '@mui/material/Paper';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
-import { useDispatch, useSelector } from 'react-redux';
 
 import {
   deleteEffect,
+  setTimerField,
   triggerEditorSelector,
   TriggerEditorSelector,
   TriggerEditorState,
-  setTimerField,
 } from '../../features/triggers/triggerEditorSlice';
 import { Timer } from '../../generated/Timer';
 import EditEffect from './EditEffect';
@@ -39,9 +39,8 @@ const EditStartTimerEffect: React.FC<{
         title={
           <EffectHeader onDelete={onDelete}>
             <EffectTitle
-              title="Start Timer"
+              variant="StartTimer"
               help="Immediately create a new Timer with the given parameters"
-              icon={<AvTimer />}
             />
           </EffectHeader>
         }

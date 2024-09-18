@@ -1,15 +1,15 @@
-import { ContentPasteOutlined } from '@mui/icons-material';
+import { useDispatch, useSelector } from 'react-redux';
+
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import CardHeader from '@mui/material/CardHeader';
 import TextField from '@mui/material/TextField';
-import { useSelector, useDispatch } from 'react-redux';
 
 import {
-  triggerEditorSelector,
-  TriggerEditorSelector,
   EffectVariantCopyToClipboard,
   setCopyToClipboardTemplate,
+  triggerEditorSelector,
+  TriggerEditorSelector,
 } from '../../features/triggers/triggerEditorSlice';
 import { EffectHeader, EffectTitle } from './widgets/EffectHeader';
 
@@ -25,9 +25,8 @@ const EditCopyToClipboardEffect: React.FC<{
         title={
           <EffectHeader onDelete={onDelete}>
             <EffectTitle
-              title="Copy to Clipboard"
+              variant="CopyToClipboard"
               help="Copies the text to the system clipboard"
-              icon={<ContentPasteOutlined />}
             />
           </EffectHeader>
         }

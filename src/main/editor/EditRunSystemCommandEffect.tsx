@@ -3,13 +3,12 @@ import { useEffect, useId, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 
 import FileOpenOutlined from '@mui/icons-material/FileOpenOutlined';
-import TerminalSharp from '@mui/icons-material/TerminalSharp';
 import Checkbox from '@mui/material/Checkbox';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import IconButton from '@mui/material/IconButton';
 import InputAdornment from '@mui/material/InputAdornment';
 import Stack from '@mui/material/Stack';
-import TextField from '@mui/material/TextField';
+import TextField, { TextFieldProps } from '@mui/material/TextField';
 import StandardTooltip from '../../widgets/StandardTooltip';
 
 import selectExecutableFile from '../../dialogs/selectExecutable';
@@ -27,6 +26,7 @@ import { CommandTemplateSecurityCheck } from '../../generated/CommandTemplateSec
 import { SystemCommandInfo } from '../../generated/SystemCommandInfo';
 import { getSystemCommandInfo, signCommandTemplate } from '../../ipc';
 import EffectWithOptions from './EffectWithOptions';
+import ControlledTextField from './widgets/ControlledTextField';
 
 // TODO: Command arguments should be treated as an Array, not split by whitespace
 // TODO: Check if crypto is enabled. Should be a global static config thing
@@ -36,14 +36,13 @@ const getSystemCommandInfoDebounced = debounce(
   (command: string, thenFn: (sysCmdInfo: SystemCommandInfo) => void) => {
     getSystemCommandInfo(command).then(thenFn);
   },
-  200
+  300
 );
 
 const EditRunSystemCommandEffect: React.FC<{
   selector: TriggerEditorSelector<EffectVariantRunSystemCommand>;
   onDelete: () => void;
 }> = ({ selector, onDelete }) => {
-  console.log('render');
   const dispatch = useDispatch();
   const fromStore = useSelector(triggerEditorSelector(selector));
 
@@ -89,7 +88,7 @@ const EditRunSystemCommandEffect: React.FC<{
           if (!isMounted) {
             return;
           }
-          const errorState = validateSystemCommandInfo(cmdInfo);
+          const errorState = validateSystemCommandInfo(commandInput, cmdInfo);
           const [hasError, helperText] = errorState;
           if (hasError) {
             setCommandPath(undefined);
@@ -171,12 +170,11 @@ const EditRunSystemCommandEffect: React.FC<{
 
   return (
     <EffectWithOptions
-      title="Run System Command"
+      variant="RunSystemCommand"
       help="Executes a specific command on your system. This effect will not finish until the command executed finishes."
-      icon={<TerminalSharp />}
       onDelete={onDelete}
     >
-      <Stack gap={2}>
+      <Stack gap={1.5}>
         {/* TODO: When the is_crypto_enabled check is supported client-side and it's not enabled
             this checkbox should be replaced with a notice that commands are not available. */}
         <FormControlLabel
@@ -222,11 +220,11 @@ const EditRunSystemCommandEffect: React.FC<{
             },
           }}
         />
-        <TextField
-          fullWidth
+        <ControlledTextField
           label="Command Arguments"
           value={paramsInput}
-          onChange={(e) => setParamsInput(e.target.value)}
+          onCommit={(input) => setParamsInput(input)}
+          fullWidth
         />
         <div>
           <FormControlLabel
@@ -239,12 +237,13 @@ const EditRunSystemCommandEffect: React.FC<{
             }
           />
           {stdinInput !== null && (
-            <TextField
+            <ControlledTextField
               fullWidth
               multiline
               label="Written to STDIN (Template)"
               value={stdinInput}
-              onChange={(e) => setStdinInput(e.target.value)}
+              onCommit={(input) => setStdinInput(input)}
+              sx={{ mt: 1 }}
             />
           )}
         </div>
@@ -254,6 +253,7 @@ const EditRunSystemCommandEffect: React.FC<{
 };
 
 function validateSystemCommandInfo(
+  command: string,
   cmdInfo: SystemCommandInfo
 ): [boolean, string] {
   if (cmdInfo.variant === 'Executable') {
@@ -262,7 +262,7 @@ function validateSystemCommandInfo(
   if (cmdInfo.variant === 'NotExecutable') {
     return [true, 'This file is not executable'];
   }
-  return [true, 'This command cannot be found']; // variant === 'NotFound'
+  return [true, `Cannot detect command "${command}" on your system`]; // variant === 'NotFound'
 }
 
 export default EditRunSystemCommandEffect;

@@ -1,23 +1,45 @@
+import { ReactElement } from 'react';
+
 import { DeleteForeverOutlined } from '@mui/icons-material';
 import Box from '@mui/material/Box';
 import IconButton from '@mui/material/IconButton';
 import Typography from '@mui/material/Typography';
-import { ReactElement } from 'react';
 
 import StandardTooltip from '../../../widgets/StandardTooltip';
+import {
+  EffectIcon,
+  EffectVariant,
+  humanizeEffectVariant,
+} from '../effect-utils';
 
 export const EffectTitle: React.FC<{
-  title: string;
+  variant: EffectVariant;
   help: string;
+}> = ({ variant, help }) => {
+  const VariantIcon = EffectIcon[variant];
+  return (
+    <ExplicitEffectTitle
+      title={humanizeEffectVariant(variant)}
+      help={help}
+      icon={<VariantIcon />}
+    />
+  );
+};
+
+export const ExplicitEffectTitle: React.FC<{
+  title: string;
   icon: ReactElement;
-}> = ({ title, help, icon }) => (
-  <Box display="flex" alignItems="center">
-    <StandardTooltip help={help}>{icon}</StandardTooltip>
-    <Typography variant="h6" sx={{ ml: 1 }}>
-      {title}
-    </Typography>
-  </Box>
-);
+  help: string;
+}> = ({ title, icon, help }) => {
+  return (
+    <Box display="flex" alignItems="center">
+      <StandardTooltip help={help}>{icon}</StandardTooltip>
+      <Typography variant="h6" sx={{ ml: 1 }}>
+        {title}
+      </Typography>
+    </Box>
+  );
+};
 
 export const EffectHeader: React.FC<{
   children: ReactElement;

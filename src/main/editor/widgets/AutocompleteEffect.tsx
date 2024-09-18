@@ -1,53 +1,12 @@
 import Autocomplete from '@mui/material/Autocomplete';
-
-import { Effect } from '../../../generated/Effect';
 import TextField from '@mui/material/TextField';
 
-type EffectVariant = Effect['variant'];
-
-const EFFECTS: EffectVariant[] = [
-  'StartTimer',
-  // "StartStopwatch"
-  'OverlayMessage',
-  'CopyToClipboard',
-  'PlayAudioFile',
-  'Speak',
-  'SpeakStop',
-  'RunSystemCommand',
-  'Pause',
-  'Sequence',
-  'Parallel',
-  'DoNothing',
-  // 'ScopedTimerEffect',
-];
-
-const humanizeEffectVariant: (name: EffectVariant) => string = (name) => {
-  switch (name) {
-    case 'Sequence':
-    case 'Parallel':
-    case 'Pause':
-    case 'Speak':
-      return name;
-    case 'StartTimer':
-      return 'Start Timer';
-    case 'CopyToClipboard':
-      return 'Copy to Clipboad';
-    case 'DoNothing':
-      return 'Do Nothing';
-    case 'OverlayMessage':
-      return 'Overlay Message';
-    case 'PlayAudioFile':
-      return 'Play Audio File';
-    case 'RunSystemCommand':
-      return 'Run System Command';
-    case 'ScopedTimerEffect':
-      return 'Timer Effect';
-    case 'SpeakStop':
-      return 'Stop Speaking';
-    case 'StartStopwatch':
-      return 'Start Stopwatch';
-  }
-};
+import {
+  EffectIcon,
+  EFFECTS,
+  EffectVariant,
+  humanizeEffectVariant,
+} from '../effect-utils';
 
 const AutocompleteEffect: React.FC<{
   includeTimerEffects?: boolean;
@@ -60,7 +19,16 @@ const AutocompleteEffect: React.FC<{
     autoHighlight
     size="small"
     options={EFFECTS}
-    getOptionLabel={humanizeEffectVariant}
+    renderOption={(props, option, { selected }) => {
+      const { key, ...optionProps } = props;
+      const VariantIcon = EffectIcon[option];
+      return (
+        <li key={key} {...optionProps}>
+          <VariantIcon />
+          &nbsp;&nbsp;{humanizeEffectVariant(option)}
+        </li>
+      );
+    }}
     onChange={(_, value) => {
       if (value) {
         onSelect(value);

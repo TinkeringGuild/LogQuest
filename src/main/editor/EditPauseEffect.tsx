@@ -1,8 +1,6 @@
 import { debounce } from 'lodash';
 import { useDispatch, useSelector } from 'react-redux';
 
-import { PauseCircleOutline } from '@mui/icons-material';
-
 import {
   EffectVariantPause,
   setPauseDuration,
@@ -29,9 +27,8 @@ const EditPauseEffect: React.FC<{
 
   return (
     <EffectWithOptions
-      title="Pause"
+      variant="Pause"
       help="Pauses an effect-chain for a specified duration (mostly useful in Sequences)"
-      icon={<PauseCircleOutline />}
       width={300}
       onDelete={onDelete}
     >

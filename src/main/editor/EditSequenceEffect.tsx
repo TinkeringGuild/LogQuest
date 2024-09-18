@@ -1,7 +1,7 @@
 import React from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 
-import { Add, KeyboardDoubleArrowDownOutlined } from '@mui/icons-material';
+import { Add } from '@mui/icons-material';
 import ArrowDownward from '@mui/icons-material/ArrowDownward';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
@@ -44,11 +44,7 @@ const EditSequenceEffect: React.FC<{
       <CardHeader
         title={
           <EffectHeader onDelete={onDelete}>
-            <EffectTitle
-              title="Sequence"
-              help={HELP_TEXT}
-              icon={<KeyboardDoubleArrowDownOutlined />}
-            />
+            <EffectTitle variant="Sequence" help={HELP_TEXT} />
           </EffectHeader>
         }
         sx={{ pb: 0 }}

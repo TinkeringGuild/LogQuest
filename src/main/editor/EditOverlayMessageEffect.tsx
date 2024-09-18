@@ -1,12 +1,12 @@
-import { InsertCommentOutlined } from '@mui/icons-material';
-import TextField from '@mui/material/TextField';
 import { useDispatch, useSelector } from 'react-redux';
 
+import TextField from '@mui/material/TextField';
+
 import {
-  triggerEditorSelector,
-  TriggerEditorSelector,
   EffectVariantOverlayMessage,
   setOverlayMessageTemplate,
+  triggerEditorSelector,
+  TriggerEditorSelector,
 } from '../../features/triggers/triggerEditorSlice';
 import EffectWithOptions from './EffectWithOptions';
 
@@ -18,9 +18,8 @@ const EditOverlayMessageEffect: React.FC<{
   const { value: tmpl } = useSelector(triggerEditorSelector(selector));
   return (
     <EffectWithOptions
-      title="Show Overlay Message"
+      variant="OverlayMessage"
       help="Shows a message on the Overlay."
-      icon={<InsertCommentOutlined />}
       onDelete={onDelete}
     >
       <TextField

@@ -1,3 +1,6 @@
+import React, { ReactElement, ReactNode } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+
 import {
   AlarmOnOutlined,
   HourglassBottomOutlined,
@@ -14,14 +17,12 @@ import CardContent from '@mui/material/CardContent';
 import CardHeader from '@mui/material/CardHeader';
 import Paper from '@mui/material/Paper';
 import TextField from '@mui/material/TextField';
-import React, { ReactElement, ReactNode } from 'react';
-import { useSelector, useDispatch } from 'react-redux';
 
 import {
-  triggerEditorSelector,
-  TriggerEditorSelector,
   setWaitUntilFilterMatchesDuration,
   TimerEffectWaitUntilFilterMatchesType,
+  triggerEditorSelector,
+  TriggerEditorSelector,
 } from '../../features/triggers/triggerEditorSlice';
 import { FilterWithContext } from '../../generated/FilterWithContext';
 import { TimerEffect } from '../../generated/TimerEffect';
@@ -29,7 +30,7 @@ import { TimerTag } from '../../generated/TimerTag';
 import { UUID } from '../../generated/UUID';
 import EditDuration from './widgets/EditDuration';
 import EditFilter from './widgets/EditFilter';
-import { EffectHeader, EffectTitle } from './widgets/EffectHeader';
+import { EffectHeader, ExplicitEffectTitle } from './widgets/EffectHeader';
 
 const TIMER_EFFECT_COMPONENTS = {
   WaitUntilFilterMatches(
@@ -213,7 +214,7 @@ const SimpleTimerEffect: React.FC<{
 }> = ({ title, help, icon, onDelete }) => (
   <EffectHeader onDelete={onDelete}>
     <Paper elevation={10} sx={{ margin: '0 auto', padding: '10px 15px' }}>
-      <EffectTitle title={title} help={help} icon={icon} />
+      <ExplicitEffectTitle title={title} help={help} icon={icon} />
     </Paper>
   </EffectHeader>
 );
@@ -230,7 +231,7 @@ const TimerEffectWithOptions: React.FC<{
       <CardHeader
         title={
           <EffectHeader onDelete={onDelete}>
-            <EffectTitle title={title} help={help} icon={icon} />
+            <ExplicitEffectTitle title={title} help={help} icon={icon} />
           </EffectHeader>
         }
       />

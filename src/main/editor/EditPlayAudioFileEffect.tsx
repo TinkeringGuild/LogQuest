@@ -1,17 +1,14 @@
-import {
-  AudioFileOutlined,
-  PlayCircleOutline,
-  VolumeUpOutlined,
-} from '@mui/icons-material';
 import { useSelector } from 'react-redux';
 
+import { AudioFileOutlined, PlayCircleOutline } from '@mui/icons-material';
+import Button from '@mui/material/Button';
+
 import {
+  EffectVariantPlayAudioFile,
   triggerEditorSelector,
   TriggerEditorSelector,
-  EffectVariantPlayAudioFile,
 } from '../../features/triggers/triggerEditorSlice';
 import EffectWithOptions from './EffectWithOptions';
-import Button from '@mui/material/Button';
 
 const EditPlayAudioFileEffect: React.FC<{
   selector: TriggerEditorSelector<EffectVariantPlayAudioFile>;
@@ -20,9 +17,8 @@ const EditPlayAudioFileEffect: React.FC<{
   const { value: filePath } = useSelector(triggerEditorSelector(selector));
   return (
     <EffectWithOptions
-      title="Play Audio File"
+      variant="PlayAudioFile"
       help="Plays an sound file located in your LogQuest configuration directory"
-      icon={<VolumeUpOutlined />}
       onDelete={onDelete}
     >
       <p>{filePath ? <code>{filePath}</code> : 'No audio file selected'}</p>

@@ -1,7 +1,6 @@
 import { useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 
-import { RecordVoiceOverOutlined } from '@mui/icons-material';
 import Checkbox from '@mui/material/Checkbox';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import FormGroup from '@mui/material/FormGroup';
@@ -36,9 +35,8 @@ const EditSpeakEffect: React.FC<{
 
   return (
     <EffectWithOptions
-      title="Speak"
+      variant="Speak"
       help="Uses the system Text-to-Speech engine to speak the (templated) text"
-      icon={<RecordVoiceOverOutlined />}
       onDelete={onDelete}
     >
       <TextField

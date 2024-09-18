@@ -1,4 +1,3 @@
-import { QuestionMarkOutlined } from '@mui/icons-material';
 import { useSelector } from 'react-redux';
 
 import {
@@ -16,6 +15,7 @@ import { Effect } from '../../generated/Effect';
 import { EffectWithID } from '../../generated/EffectWithID';
 import { UUID } from '../../generated/UUID';
 import EditCopyToClipboardEffect from './EditCopyToClipboardEffect';
+import EditDoNothingEffect from './EditDoNothingEffect';
 import EditOverlayMessageEffect from './EditOverlayMessageEffect';
 import EditPauseEffect from './EditPauseEffect';
 import EditPlayAudioFileEffect from './EditPlayAudioFileEffect';
@@ -135,15 +135,15 @@ const EditEffect: React.FC<{
       );
     case 'SpeakStop':
       return <EditSpeakStopEffect onDelete={onDelete} />;
-    case 'Parallel':
     case 'DoNothing':
+      return <EditDoNothingEffect onDelete={onDelete} />;
+    case 'Parallel':
     case 'StartStopwatch':
     default:
       return (
         <EffectWithOptions
-          title={effect.inner.variant}
+          variant={effect.inner.variant}
           help="TODO"
-          icon={<QuestionMarkOutlined />}
           onDelete={onDelete}
         >
           <h3>TODO!</h3>
