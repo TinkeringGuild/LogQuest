@@ -1,7 +1,8 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { pullAt, remove, sortBy } from 'lodash';
+import { pullAt, remove, some, sortBy } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
+import { CommandTemplateSecurityCheck } from '../../generated/CommandTemplateSecurityCheck';
 import { Duration } from '../../generated/Duration';
 import { Effect } from '../../generated/Effect';
 import { EffectWithID } from '../../generated/EffectWithID';
@@ -30,6 +31,8 @@ export type TriggerEditorState = {
   /// don't need to send the parent position because it's not modified
   /// at save-time.)
   draftParentPosition: number | null;
+
+  errors: { [key: string]: string };
 };
 
 const INITIAL_TRIGGER_EDITOR_STATE = {
@@ -37,6 +40,7 @@ const INITIAL_TRIGGER_EDITOR_STATE = {
   draftTriggerTags: [],
   draftParentPosition: null,
   draftAncestors: [],
+  errors: {},
 } satisfies TriggerEditorState;
 
 export type TriggerEditorSelector<T> = (slice: TriggerEditorState) => T;
@@ -69,6 +73,11 @@ export type EffectVariantOverlayMessage = Extract<
 export type EffectVariantPlayAudioFile = Extract<
   Effect,
   { variant: 'PlayAudioFile' }
+>;
+
+export type EffectVariantRunSystemCommand = Extract<
+  Effect,
+  { variant: 'RunSystemCommand' }
 >;
 
 export type EffectVariantPause = Extract<Effect, { variant: 'Pause' }>;
@@ -290,6 +299,33 @@ const triggerEditorSlice = createSlice({
         tag.name.toUpperCase()
       );
     },
+
+    setCommandTemplateSecurityCheck(
+      slice: TriggerEditorState,
+      {
+        payload: { selector, cmdTmplSecCheck },
+      }: PayloadAction<{
+        selector: TriggerEditorSelector<EffectVariantRunSystemCommand>;
+        cmdTmplSecCheck: CommandTemplateSecurityCheck;
+      }>
+    ) {
+      const effect = selector(slice);
+      effect.value = cmdTmplSecCheck;
+    },
+
+    setError(
+      slice: TriggerEditorState,
+      { payload: { id, error } }: PayloadAction<{ id: string; error: string }>
+    ) {
+      slice.errors[id] = error;
+    },
+
+    forgetError(
+      slice: TriggerEditorState,
+      { payload: id }: PayloadAction<string>
+    ) {
+      delete slice.errors[id];
+    },
   },
 });
 
@@ -300,8 +336,11 @@ export const {
   deleteFilterMatcher,
   editNewTrigger,
   editTriggerDraft,
+  forgetError,
   insertEffect,
+  setCommandTemplateSecurityCheck,
   setCopyToClipboardTemplate,
+  setError,
   setMatcherValue,
   setOverlayMessageTemplate,
   setPauseDuration,
@@ -342,6 +381,13 @@ export const $$selectTriggerFilter = (slice: TriggerEditorState) =>
 export const $selectTriggerFilter = triggerEditorSelector(
   $$selectTriggerFilter
 );
+
+export const $editorHasError = triggerEditorSelector((slice) =>
+  some(Object.values(slice.errors), (bool) => bool)
+);
+
+export const $errorForID = (id: string) =>
+  triggerEditorSelector((slice): string | undefined => slice.errors[id]);
 
 function newEffect(variant: Effect['variant'], triggerID: UUID): Effect {
   switch (variant) {

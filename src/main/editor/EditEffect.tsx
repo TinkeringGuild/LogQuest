@@ -10,6 +10,7 @@ import {
   EffectVariantPause,
   EffectVariantPlayAudioFile,
   EffectVariantSpeak,
+  EffectVariantRunSystemCommand,
 } from '../../features/triggers/triggerEditorSlice';
 import { Effect } from '../../generated/Effect';
 import { EffectWithID } from '../../generated/EffectWithID';
@@ -23,6 +24,7 @@ import EditSequenceEffect from './EditSequenceEffect';
 import EditSpeakEffect from './EditSpeakEffect';
 import EditStartTimerEffect from './EditStartTimerEffect';
 import EffectWithOptions from './EffectWithOptions';
+import EditRunSystemCommandEffect from './EditRunSystemCommandEffect';
 
 type EffectVariantScopedTimer = Extract<
   Effect,
@@ -123,9 +125,15 @@ const EditEffect: React.FC<{
           onDelete={onDelete}
         />
       );
+    case 'RunSystemCommand':
+      return (
+        <EditRunSystemCommandEffect
+          selector={$$innerAs<EffectVariantRunSystemCommand>(effectSelector)}
+          onDelete={onDelete}
+        />
+      );
     case 'Parallel':
     case 'DoNothing':
-    case 'RunSystemCommand':
     case 'SpeakStop':
     case 'StartStopwatch':
     default:

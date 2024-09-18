@@ -1,5 +1,5 @@
 use super::template_string::TemplateString;
-use crate::common::security::{is_crypto_available, verify};
+use crate::common::security::{is_crypto_available, sign, verify};
 use serde::{Deserialize, Serialize};
 use tracing::warn;
 
@@ -34,7 +34,7 @@ impl CommandTemplateSecurityCheck {
           Self::Unapproved(cmd_tmpl)
         }
       }
-      unapproved @ Self::Unapproved(_) => unapproved,
+      unapproved @ Self::Unapproved(..) => unapproved,
     }
   }
 }
@@ -54,5 +54,10 @@ impl CommandTemplate {
       .map_or_else(|| String::new(), |tmpl| format!("\n\n{}", tmpl.tmpl()));
 
     format!("{}\n\n{formatted_params}{formatted_input}", self.command)
+  }
+
+  pub fn approve(self) -> CommandTemplateSecurityCheck {
+    let sig = sign(&self.format_for_security_check());
+    CommandTemplateSecurityCheck::Approved(sig, self)
   }
 }

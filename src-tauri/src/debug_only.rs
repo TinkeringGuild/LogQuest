@@ -1,7 +1,7 @@
 //! This file contains only code that is available in debug builds of LogQuest.
 #![cfg(debug_assertions)]
 use crate::{
-  commands::Bootstrap,
+  commands::{Bootstrap, SystemCommandInfo},
   common::{
     self, fatal_error, fatal_if_err, progress_reporter::ProgressUpdate, timestamp::Timestamp,
     LogQuestVersion, LOG_QUEST_VERSION, UUID,
@@ -69,6 +69,7 @@ pub fn generate_typescript() -> Result<(), ts_rs::ExportError> {
   ReactorState::export_all_to(&out_dir)?;
   Character::export_all_to(&out_dir)?;
   LogQuestVersion::export_all_to(&out_dir)?;
+  SystemCommandInfo::export_all_to(&out_dir)?;
 
   #[allow(non_snake_case)]
   let LQ_VERSION: LogQuestVersion = LOG_QUEST_VERSION.clone();

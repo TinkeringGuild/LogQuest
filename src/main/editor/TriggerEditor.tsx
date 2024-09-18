@@ -14,6 +14,7 @@ import {
   $draftParentPosition,
   $draftTrigger,
   $draftTriggerTags,
+  $editorHasError,
   cancelEditing,
   deleteEffect,
   insertEffect,
@@ -45,9 +46,10 @@ const TriggerEditor: React.FC<{}> = () => {
   const allTriggerTags = useSelector($triggerTags);
   const parentPosition = useSelector($draftParentPosition);
 
+  const editorHasError = useSelector($editorHasError);
   const [nameError, setNameError] = useState<string | undefined>(undefined);
 
-  const hasError = !!nameError;
+  const hasError = editorHasError || !!nameError;
 
   // parentPosition is only needed to be given when creating, so it is also used to signal
   // whether this Trigger is being newly created.

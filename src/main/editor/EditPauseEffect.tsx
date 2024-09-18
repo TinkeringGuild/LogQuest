@@ -1,15 +1,16 @@
-import { PauseCircleOutline } from '@mui/icons-material';
-import TextField from '@mui/material/TextField';
 import { debounce } from 'lodash';
 import { useDispatch, useSelector } from 'react-redux';
 
+import { PauseCircleOutline } from '@mui/icons-material';
+
 import {
-  triggerEditorSelector,
-  TriggerEditorSelector,
   EffectVariantPause,
   setPauseDuration,
+  triggerEditorSelector,
+  TriggerEditorSelector,
 } from '../../features/triggers/triggerEditorSlice';
 import EffectWithOptions from './EffectWithOptions';
+import EditDuration from './widgets/EditDuration';
 
 const DEBOUNCE_WAIT_MILLIS = 300;
 
@@ -31,15 +32,13 @@ const EditPauseEffect: React.FC<{
       title="Pause"
       help="Pauses an effect-chain for a specified duration (mostly useful in Sequences)"
       icon={<PauseCircleOutline />}
+      width={300}
       onDelete={onDelete}
     >
-      <TextField
-        label="Seconds"
-        type="number"
-        defaultValue={millis / 1000}
-        onChange={(e) => triggerChangeDebounced(+e.target.value)}
-        sx={{ maxWidth: 100 }}
-      />{' '}
+      <EditDuration
+        millis={millis}
+        onChange={(value) => triggerChangeDebounced(value)}
+      />
     </EffectWithOptions>
   );
 };

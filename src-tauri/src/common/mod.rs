@@ -167,6 +167,44 @@ pub fn bytes_to_utf8_with_escaped_special_chars(bytes: &[u8]) -> String {
     .collect()
 }
 
+#[cfg(unix)]
+pub fn file_path_is_executable(path: &str) -> bool {
+  use std::fs::metadata;
+  use std::os::unix::fs::{MetadataExt as _, PermissionsExt};
+
+  let Ok(metadata) = metadata(path) else {
+    return false;
+  };
+
+  let permissions = metadata.permissions();
+  let mode = permissions.mode();
+
+  // Check if the file is executable by the owner
+  let user_uid = unsafe { libc::geteuid() };
+  let file_uid = metadata.uid();
+  if user_uid == file_uid && mode & 0o100 != 0 {
+    return true;
+  }
+
+  // Check if the file is executable by the group
+  let user_gid = unsafe { libc::getegid() };
+  let file_gid = metadata.gid();
+  if user_gid == file_gid && mode & 0o010 != 0 {
+    return true;
+  }
+
+  // Check if the file is executable by others
+  mode & 0o001 != 0
+}
+
+#[cfg(windows)]
+pub fn file_path_is_executable(path: &str) {
+  path.ends_with(".exe")
+    || path.ends_with(".bat")
+    || path.ends_with(".cmd")
+    || path.ends_with(".com")
+}
+
 mod tests {
 
   #[test]

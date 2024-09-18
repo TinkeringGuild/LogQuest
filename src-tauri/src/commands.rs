@@ -1,24 +1,39 @@
 use crate::{
-  common::{format_integer, progress_reporter::ProgressUpdate},
+  common::{
+    file_path_is_executable, format_integer, progress_reporter::ProgressUpdate,
+    security::is_crypto_available,
+  },
   gina::importer::import_from_gina_export_file,
   state::{
     config::LogQuestConfig, state_handle::StateHandle, state_tree::OverlayState,
     timer_manager::TimerLifetime,
   },
-  triggers::trigger_index::{DataDelta, Mutation, TriggerIndex},
+  triggers::{
+    command_template::{CommandTemplate, CommandTemplateSecurityCheck},
+    trigger_index::{DataDelta, Mutation, TriggerIndex},
+  },
   ui::{
     OverlayManagerState, OVERLAY_WINDOW_LABEL, PROGRESS_UPDATE_EVENT_NAME,
     PROGRESS_UPDATE_FINISHED_EVENT_NAME,
   },
 };
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::path::PathBuf;
 use tauri::{AppHandle, Manager, State, Window};
 use tracing::{debug, error, event, info};
 
 pub const CROSS_DISPATCH_EVENT_NAME: &str = "cross-dispatch";
 
-#[derive(Serialize, Deserialize, ts_rs::TS)]
+#[derive(Serialize, ts_rs::TS)]
+#[serde(tag = "variant", content = "value")]
+#[ts(tag = "variant", content = "value")]
+pub enum SystemCommandInfo {
+  Executable(String),
+  NotExecutable(String),
+  NotFound,
+}
+
+#[derive(Serialize, ts_rs::TS)]
 pub struct Bootstrap {
   config: LogQuestConfig,
   overlay: OverlayState,
@@ -50,7 +65,9 @@ pub fn handler() -> impl Fn(tauri::Invoke) {
     print_to_stdout,
     set_everquest_dir,
     set_overlay_opacity,
+    sign_command_template,
     start_timers_sync,
+    sys_command_info
   ]
 }
 
@@ -175,4 +192,34 @@ fn set_everquest_dir(state: State<StateHandle>, new_dir: String) -> Result<LogQu
       .map(|_| config.clone())
       .map_err(|e| e.to_string())
   })
+}
+
+#[tauri::command]
+fn sign_command_template(cmd_tmpl: CommandTemplate) -> CommandTemplateSecurityCheck {
+  if is_crypto_available() {
+    cmd_tmpl.approve()
+  } else {
+    CommandTemplateSecurityCheck::Unapproved(cmd_tmpl)
+  }
+}
+
+#[tauri::command]
+fn sys_command_info(command: String) -> Result<SystemCommandInfo, String> {
+  let as_path = PathBuf::from(&command);
+  if as_path.is_absolute() {
+    if !as_path.is_file() {
+      return Ok(SystemCommandInfo::NotFound);
+    }
+    if file_path_is_executable(&command) {
+      Ok(SystemCommandInfo::Executable(command))
+    } else {
+      Ok(SystemCommandInfo::NotExecutable(command))
+    }
+  } else {
+    match which::which(command) {
+      Ok(path) => Ok(SystemCommandInfo::Executable(path.display().to_string())),
+      Err(which::Error::CannotFindBinaryPath) => Ok(SystemCommandInfo::NotFound),
+      Err(e) => Err(e.to_string()),
+    }
+  }
 }

@@ -4,15 +4,18 @@ import { clamp } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
 import { Bootstrap } from './generated/Bootstrap';
+import { CommandTemplate } from './generated/CommandTemplate';
+import { CommandTemplateSecurityCheck } from './generated/CommandTemplateSecurityCheck';
 import { DataDelta } from './generated/DataDelta';
 import { LogQuestConfig } from './generated/LogQuestConfig';
 import { Mutation } from './generated/Mutation';
 import { OverlayState } from './generated/OverlayState';
+import { SystemCommandInfo } from './generated/SystemCommandInfo';
 import { TimerLifetime } from './generated/TimerLifetime';
-import { TriggerIndex } from './generated/TriggerIndex';
-import { UUID } from './generated/UUID';
 import { Trigger } from './generated/Trigger';
 import { TriggerGroup } from './generated/TriggerGroup';
+import { TriggerIndex } from './generated/TriggerIndex';
+import { UUID } from './generated/UUID';
 import { nowTimestamp } from './util';
 
 export async function getBootstrap(): Promise<Bootstrap> {
@@ -145,5 +148,19 @@ export async function importGinaTriggersFile(
 ): Promise<TriggerIndex> {
   return await invoke<TriggerIndex>('import_gina_triggers_file', {
     path: filePath,
+  });
+}
+
+export async function getSystemCommandInfo(
+  command: string
+): Promise<SystemCommandInfo> {
+  return await invoke<SystemCommandInfo>('sys_command_info', { command });
+}
+
+export async function signCommandTemplate(
+  cmdTmpl: CommandTemplate
+): Promise<CommandTemplateSecurityCheck> {
+  return await invoke<CommandTemplateSecurityCheck>('sign_command_template', {
+    cmdTmpl,
   });
 }

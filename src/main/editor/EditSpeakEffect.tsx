@@ -1,21 +1,19 @@
-import TextField from '@mui/material/TextField';
+import { useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import Card from '@mui/material/Card';
-import CardHeader from '@mui/material/CardHeader';
-import CardContent from '@mui/material/CardContent';
+
+import { RecordVoiceOverOutlined } from '@mui/icons-material';
+import Checkbox from '@mui/material/Checkbox';
+import FormControlLabel from '@mui/material/FormControlLabel';
+import FormGroup from '@mui/material/FormGroup';
+import TextField from '@mui/material/TextField';
 
 import {
-  triggerEditorSelector,
-  TriggerEditorSelector,
   EffectVariantSpeak,
   setSpeakTemplate,
+  triggerEditorSelector,
+  TriggerEditorSelector,
 } from '../../features/triggers/triggerEditorSlice';
-import { EffectHeader, EffectTitle } from './widgets/EffectHeader';
-import { RecordVoiceOverOutlined } from '@mui/icons-material';
-import { useRef } from 'react';
-import Checkbox from '@mui/material/Checkbox';
-import FormGroup from '@mui/material/FormGroup';
-import FormControlLabel from '@mui/material/FormControlLabel';
+import EffectWithOptions from './EffectWithOptions';
 
 const EditSpeakEffect: React.FC<{
   selector: TriggerEditorSelector<EffectVariantSpeak>;
@@ -37,40 +35,32 @@ const EditSpeakEffect: React.FC<{
   };
 
   return (
-    <Card elevation={10}>
-      <CardHeader
-        title={
-          <EffectHeader onDelete={onDelete}>
-            <EffectTitle
-              title="Speak"
-              help="Uses the system Text-to-Speech engine to speak the (templated) text"
-              icon={<RecordVoiceOverOutlined />}
-            />
-          </EffectHeader>
-        }
+    <EffectWithOptions
+      title="Speak"
+      help="Uses the system Text-to-Speech engine to speak the (templated) text"
+      icon={<RecordVoiceOverOutlined />}
+      onDelete={onDelete}
+    >
+      <TextField
+        label="Text-to-Speech Text (Template)"
+        defaultValue={tmpl}
+        fullWidth
+        inputRef={tmplRef}
+        onBlur={dispatchUpdate}
       />
-      <CardContent>
-        <TextField
-          label="Text-to-Speech Text (Template)"
-          defaultValue={tmpl}
-          fullWidth
-          inputRef={tmplRef}
-          onBlur={dispatchUpdate}
+      <FormGroup>
+        <FormControlLabel
+          label="Interrupts other Text-to-Speech playback"
+          control={
+            <Checkbox
+              inputRef={interruptRef}
+              defaultChecked={interrupt}
+              onChange={dispatchUpdate}
+            />
+          }
         />
-        <FormGroup>
-          <FormControlLabel
-            label="Interrupts other Text-to-Speech playback"
-            control={
-              <Checkbox
-                inputRef={interruptRef}
-                defaultChecked={interrupt}
-                onChange={dispatchUpdate}
-              />
-            }
-          />
-        </FormGroup>
-      </CardContent>
-    </Card>
+      </FormGroup>
+    </EffectWithOptions>
   );
 };
 
