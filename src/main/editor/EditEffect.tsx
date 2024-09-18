@@ -2,15 +2,15 @@ import { QuestionMarkOutlined } from '@mui/icons-material';
 import { useSelector } from 'react-redux';
 
 import {
-  triggerEditorSelector,
-  TriggerEditorSelector,
-  TriggerEditorState,
   EffectVariantCopyToClipboard,
   EffectVariantOverlayMessage,
   EffectVariantPause,
   EffectVariantPlayAudioFile,
-  EffectVariantSpeak,
   EffectVariantRunSystemCommand,
+  EffectVariantSpeak,
+  triggerEditorSelector,
+  TriggerEditorSelector,
+  TriggerEditorState,
 } from '../../features/triggers/triggerEditorSlice';
 import { Effect } from '../../generated/Effect';
 import { EffectWithID } from '../../generated/EffectWithID';
@@ -19,12 +19,13 @@ import EditCopyToClipboardEffect from './EditCopyToClipboardEffect';
 import EditOverlayMessageEffect from './EditOverlayMessageEffect';
 import EditPauseEffect from './EditPauseEffect';
 import EditPlayAudioFileEffect from './EditPlayAudioFileEffect';
+import EditRunSystemCommandEffect from './EditRunSystemCommandEffect';
 import EditScopedTimerEffect from './EditScopedTimerEffect';
 import EditSequenceEffect from './EditSequenceEffect';
 import EditSpeakEffect from './EditSpeakEffect';
+import EditSpeakStopEffect from './EditSpeakStopEffect';
 import EditStartTimerEffect from './EditStartTimerEffect';
 import EffectWithOptions from './EffectWithOptions';
-import EditRunSystemCommandEffect from './EditRunSystemCommandEffect';
 
 type EffectVariantScopedTimer = Extract<
   Effect,
@@ -132,9 +133,10 @@ const EditEffect: React.FC<{
           onDelete={onDelete}
         />
       );
+    case 'SpeakStop':
+      return <EditSpeakStopEffect onDelete={onDelete} />;
     case 'Parallel':
     case 'DoNothing':
-    case 'SpeakStop':
     case 'StartStopwatch':
     default:
       return (
