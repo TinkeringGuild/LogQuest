@@ -16,6 +16,11 @@ import { Trigger } from '../../generated/Trigger';
 import { TriggerGroup } from '../../generated/TriggerGroup';
 import { TriggerTag } from '../../generated/TriggerTag';
 import { UUID } from '../../generated/UUID';
+import {
+  EffectVariant,
+  isTimerEffectVariant,
+  TimerEffectVariant,
+} from '../../main/editor/effect-utils';
 import { MainRootState } from '../../MainStore';
 import { nowTimestamp } from '../../util';
 
@@ -144,12 +149,12 @@ const triggerEditorSlice = createSlice({
       slice.draft!.comment = comment;
     },
 
-    insertEffect(
+    insertNewEffect(
       slice: TriggerEditorState,
       {
         payload: { variant, index, triggerID, seqSelector },
       }: PayloadAction<{
-        variant: Effect['variant'];
+        variant: EffectVariant;
         index: number;
         triggerID: UUID;
         seqSelector: TriggerEditorSelector<EffectWithID[]>;
@@ -216,6 +221,31 @@ const triggerEditorSlice = createSlice({
     ) {
       const matchers = selector(slice);
       matchers.splice(index, 1);
+    },
+
+    insertNewEffectOrTimerEffect(
+      slice: TriggerEditorState,
+      {
+        payload: { triggerID, variant, index, seqSelector },
+      }: PayloadAction<{
+        variant: EffectVariant | TimerEffectVariant;
+        index: number;
+        triggerID: UUID;
+        seqSelector: TriggerEditorSelector<EffectWithID[]>;
+      }>
+    ) {
+      const effects = seqSelector(slice);
+      const id = uuid();
+      const effect: EffectWithID = {
+        id,
+        effect: isTimerEffectVariant(variant)
+          ? {
+              variant: 'ScopedTimerEffect',
+              value: newTimerEffect(variant),
+            }
+          : newEffect(variant, triggerID),
+      };
+      effects.splice(index, 0, effect);
     },
 
     setTimerField<T extends TimerField>(
@@ -340,7 +370,8 @@ export const {
   editNewTrigger,
   editTriggerDraft,
   forgetError,
-  insertEffect,
+  insertNewEffect,
+  insertNewEffectOrTimerEffect,
   setCommandTemplateSecurityCheck,
   setCopyToClipboardTemplate,
   setError,
@@ -392,7 +423,7 @@ export const $editorHasError = triggerEditorSelector((slice) =>
 export const $errorForID = (id: string) =>
   triggerEditorSelector((slice): string | undefined => slice.errors[id]);
 
-function newEffect(variant: Effect['variant'], triggerID: UUID): Effect {
+function newEffect(variant: EffectVariant, triggerID: UUID): Effect {
   switch (variant) {
     case 'SpeakStop':
     case 'DoNothing':
@@ -434,5 +465,28 @@ function newEffect(variant: Effect['variant'], triggerID: UUID): Effect {
       };
     case 'ScopedTimerEffect':
       throw new Error('Tried to create a ScopedTimerEffect via newEffect');
+  }
+}
+
+function newTimerEffect(variant: TimerEffectVariant): TimerEffect {
+  switch (variant) {
+    case 'ClearTimer':
+    case 'HideTimer':
+    case 'RestartTimer':
+    case 'UnhideTimer':
+    case 'WaitUntilFinished':
+    case 'IncrementCounter':
+    case 'DecrementCounter':
+    case 'ResetCounter':
+      return { variant };
+    case 'WaitUntilFilterMatches':
+      return { variant, value: [[], null] };
+    case 'WaitUntilSecondsRemain':
+      return { variant, value: 0 };
+    case 'AddTag':
+    case 'RemoveTag':
+      return { variant, value: '' };
+    default:
+      throw 'UNRECOGNIZED TIMER EFFECT VARIANT ' + variant;
   }
 }

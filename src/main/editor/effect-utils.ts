@@ -1,21 +1,34 @@
+import AlarmOnOutlined from '@mui/icons-material/AlarmOnOutlined';
 import AvTimer from '@mui/icons-material/AvTimer';
 import ContentPasteOutlined from '@mui/icons-material/ContentPasteOutlined';
 import FormatAlignLeft from '@mui/icons-material/FormatAlignLeft';
 import HideSourceOutlined from '@mui/icons-material/HideSourceOutlined';
+import HourglassBottomOutlined from '@mui/icons-material/HourglassBottomOutlined';
+import HourglassTopOutlined from '@mui/icons-material/HourglassTopOutlined';
 import InsertCommentOutlined from '@mui/icons-material/InsertCommentOutlined';
 import KeyboardDoubleArrowDownOutlined from '@mui/icons-material/KeyboardDoubleArrowDownOutlined';
+import LabelOffSharp from '@mui/icons-material/LabelOffSharp';
+import LabelSharp from '@mui/icons-material/LabelSharp';
 import PauseCircleOutline from '@mui/icons-material/PauseCircleOutline';
+import QuestionMark from '@mui/icons-material/QuestionMark';
 import RecordVoiceOverOutlined from '@mui/icons-material/RecordVoiceOverOutlined';
+import RestartAltOutlined from '@mui/icons-material/RestartAltOutlined';
 import TerminalSharp from '@mui/icons-material/TerminalSharp';
+import TimerOffOutlined from '@mui/icons-material/TimerOffOutlined';
+import VisibilityOffOutlined from '@mui/icons-material/VisibilityOffOutlined';
+import VisibilityOutlined from '@mui/icons-material/VisibilityOutlined';
 import VoiceOverOffOutlined from '@mui/icons-material/VoiceOverOffOutlined';
 import VolumeUpOutlined from '@mui/icons-material/VolumeUpOutlined';
 import WatchLater from '@mui/icons-material/WatchLater';
 
 import { Effect } from '../../generated/Effect';
+import { TimerEffect } from '../../generated/TimerEffect';
 
 export type EffectVariant = Effect['variant'];
 
-export const EFFECTS: EffectVariant[] = [
+export type TimerEffectVariant = TimerEffect['variant'];
+
+export const EFFECT_VARIANTS: EffectVariant[] = [
   'StartTimer',
   // "StartStopwatch"
   'OverlayMessage',
@@ -29,6 +42,22 @@ export const EFFECTS: EffectVariant[] = [
   'Pause',
   'DoNothing',
   // 'ScopedTimerEffect',
+];
+
+export const TIMER_EFFECT_VARIANTS: TimerEffectVariant[] = [
+  'ClearTimer',
+  'RestartTimer',
+  'HideTimer',
+  'UnhideTimer',
+  'WaitUntilFilterMatches',
+  'WaitUntilSecondsRemain',
+  'WaitUntilFinished',
+
+  'AddTag',
+  'RemoveTag',
+  'IncrementCounter',
+  'DecrementCounter',
+  'ResetCounter',
 ];
 
 export const EffectIcon: { [key in EffectVariant]: React.ComponentType } = {
@@ -47,33 +76,65 @@ export const EffectIcon: { [key in EffectVariant]: React.ComponentType } = {
 
   // ScopedTimerEffect isn't shown like normal Effects, so this icon isn't used
   // but it's included here because of the TypeScript completeness check on EffectIcon
-  ScopedTimerEffect: AvTimer,
+  ScopedTimerEffect: QuestionMark,
 };
 
-export function humanizeEffectVariant(name: EffectVariant): string {
-  switch (name) {
-    case 'Sequence':
-    case 'Parallel':
-    case 'Pause':
-    case 'Speak':
-      return name;
-    case 'StartTimer':
-      return 'Start Timer';
-    case 'CopyToClipboard':
-      return 'Copy to Clipboard';
-    case 'DoNothing':
-      return 'Do Nothing';
-    case 'OverlayMessage':
-      return 'Overlay Message';
-    case 'PlayAudioFile':
-      return 'Play Audio File';
-    case 'RunSystemCommand':
-      return 'System Command';
-    case 'ScopedTimerEffect':
-      return 'Timer Effect';
-    case 'SpeakStop':
-      return 'Stop Speaking';
-    case 'StartStopwatch':
-      return 'Start Stopwatch';
-  }
+export const TimerEffectIcon: {
+  [key in TimerEffectVariant]: React.ComponentType;
+} = {
+  AddTag: LabelSharp,
+  ClearTimer: TimerOffOutlined,
+  HideTimer: VisibilityOffOutlined,
+  RemoveTag: LabelOffSharp,
+  RestartTimer: RestartAltOutlined,
+  UnhideTimer: VisibilityOutlined,
+  WaitUntilFilterMatches: HourglassTopOutlined,
+  WaitUntilFinished: AlarmOnOutlined,
+  WaitUntilSecondsRemain: HourglassBottomOutlined,
+
+  // THESE ARE NOT YET IMPLEMENTED
+  IncrementCounter: QuestionMark,
+  DecrementCounter: QuestionMark,
+  ResetCounter: QuestionMark,
+};
+
+export const HUMANIZED_TIMER_EFFECT_NAMES: {
+  [key in TimerEffectVariant]: string;
+} = {
+  AddTag: 'Add Timer Tag',
+  ClearTimer: 'Clear this Timer',
+  HideTimer: 'Hide this Timer',
+  RemoveTag: 'Remove Timer Tag',
+  RestartTimer: 'Restart this Timer',
+  UnhideTimer: 'Un-Hide this Timer',
+  WaitUntilFilterMatches: 'Wait Until Filter Matches',
+  WaitUntilFinished: 'Wait until Finished',
+  WaitUntilSecondsRemain: 'Wait until Seconds Remain',
+
+  // THESE ARE NOT YET IMPLEMENTED
+  IncrementCounter: 'Increment Counter',
+  DecrementCounter: 'Decrement Counter',
+  ResetCounter: 'Reset Counter',
+};
+
+export const HUMANIZED_EFFECT_NAMES: { [key in EffectVariant]: string } = {
+  Sequence: 'Sequence',
+  Parallel: 'Parallel',
+  Pause: 'Pause',
+  Speak: 'Speak',
+  StartTimer: 'Start Timer',
+  CopyToClipboard: 'Copy to Clipboard',
+  DoNothing: 'Do Nothing',
+  OverlayMessage: 'Overlay Message',
+  PlayAudioFile: 'Play Audio File',
+  RunSystemCommand: 'System Command',
+  ScopedTimerEffect: 'Timer Effect',
+  SpeakStop: 'Stop Speaking',
+  StartStopwatch: 'Start Stopwatch',
+};
+
+export function isTimerEffectVariant(
+  variant: string
+): variant is TimerEffectVariant {
+  return TIMER_EFFECT_VARIANTS.includes(variant as TimerEffectVariant);
 }

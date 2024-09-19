@@ -14,9 +14,8 @@ import {
   $editorHasError,
   $errorForID,
   cancelEditing,
-  deleteEffect,
   forgetError,
-  insertEffect,
+  insertNewEffect,
   setError,
   setTriggerComment,
   setTriggerName,
@@ -28,15 +27,15 @@ import {
   applyDeltas,
 } from '../../features/triggers/triggersSlice';
 import { Timestamp } from '../../generated/Timestamp';
-import { UUID } from '../../generated/UUID';
 import { createTrigger, saveTrigger } from '../../ipc';
 import { calculateTimeAgo } from '../../util';
 import StandardTooltip from '../../widgets/StandardTooltip';
-import EditEffect from './EditEffect';
+import { EffectVariant } from './effect-utils';
 import TriggerTagsEditor from './TriggerTagsEditor';
-import AutocompleteEffect from './widgets/AutocompleteEffect';
+import { AutocompleteEffect } from './widgets/AutocompleteEffect';
 import ControlledTextField from './widgets/ControlledTextField';
 import EditFilter from './widgets/EditFilter';
+import EffectList from './widgets/EffectList';
 
 import './TriggerEditor.css';
 
@@ -165,70 +164,26 @@ const TriggerEditor: React.FC<{}> = () => {
 
         <h3 style={{ marginBottom: 10 }}>Effects</h3>
         <div style={{ height: 45, marginBottom: 15 }}>
-          <CreateEffectButton triggerID={trigger.id} />
-        </div>
-        {!!trigger.effects.length ? (
-          <Stack gap={2}>
-            {trigger.effects.map((effect) => {
-              return (
-                <EditEffect
-                  key={effect.id}
-                  triggerID={trigger.id}
-                  onDelete={() =>
-                    dispatch(
-                      deleteEffect({
-                        effectID: effect.id,
-                        selector: $$triggerDraftEffects,
-                      })
-                    )
-                  }
-                  effectSelector={({ draft }) =>
-                    draft!.effects.find(({ id }) => id === effect.id)!
-                  }
-                />
+          <CreateEffectButton
+            create={(variant) => {
+              dispatch(
+                insertNewEffect({
+                  variant,
+                  index: 0,
+                  triggerID: trigger.id,
+                  seqSelector: $$triggerDraftEffects,
+                })
               );
-            })}
-          </Stack>
+            }}
+          />
+        </div>
+        {trigger.effects.length ? (
+          <EffectList triggerID={trigger.id} selector={$$triggerDraftEffects} />
         ) : (
           <p>Create a new Effect to execute when one of the Filters matches.</p>
         )}
       </div>
     </div>
-  );
-};
-
-const CreateEffectButton: React.FC<{ triggerID: UUID }> = ({ triggerID }) => {
-  const dispatch = useDispatch();
-  const [isOpen, setIsOpen] = useState(false);
-
-  if (!isOpen) {
-    return (
-      <Button
-        variant="contained"
-        size="large"
-        startIcon={<Add />}
-        onClick={() => setIsOpen(true)}
-        sx={{ width: 200 }}
-      >
-        Add New Effect
-      </Button>
-    );
-  }
-
-  return (
-    <AutocompleteEffect
-      close={() => setIsOpen(false)}
-      onSelect={(variant) => {
-        dispatch(
-          insertEffect({
-            variant,
-            index: 0,
-            triggerID: triggerID,
-            seqSelector: $$triggerDraftEffects,
-          })
-        );
-      }}
-    />
   );
 };
 
@@ -252,6 +207,30 @@ const TimeAgo: React.FC<{ timestamp: Timestamp }> = ({ timestamp }) => {
     <StandardTooltip help={timeExact}>
       <span>{timeAgo} ago</span>
     </StandardTooltip>
+  );
+};
+
+const CreateEffectButton: React.FC<{
+  create: (variant: EffectVariant) => void;
+}> = ({ create }) => {
+  const [isOpen, setIsOpen] = useState(false);
+
+  if (!isOpen) {
+    return (
+      <Button
+        variant="contained"
+        size="large"
+        startIcon={<Add />}
+        onClick={() => setIsOpen(true)}
+        sx={{ width: 200 }}
+      >
+        Add New Effect
+      </Button>
+    );
+  }
+
+  return (
+    <AutocompleteEffect close={() => setIsOpen(false)} onSelect={create} />
   );
 };
 

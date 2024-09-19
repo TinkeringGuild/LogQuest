@@ -9,7 +9,7 @@ import StandardTooltip from '../../../widgets/StandardTooltip';
 import {
   EffectIcon,
   EffectVariant,
-  humanizeEffectVariant,
+  HUMANIZED_EFFECT_NAMES,
 } from '../effect-utils';
 
 export const EffectTitle: React.FC<{
@@ -19,7 +19,7 @@ export const EffectTitle: React.FC<{
   const VariantIcon = EffectIcon[variant];
   return (
     <ExplicitEffectTitle
-      title={humanizeEffectVariant(variant)}
+      title={HUMANIZED_EFFECT_NAMES[variant]}
       help={help}
       icon={<VariantIcon />}
     />

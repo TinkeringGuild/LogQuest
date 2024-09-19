@@ -1,50 +1,50 @@
-import { useEffect, useId, useState } from 'react';
+import React, { useEffect, useId, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 
+import { Add } from '@mui/icons-material';
 import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import CardHeader from '@mui/material/CardHeader';
 import Checkbox from '@mui/material/Checkbox';
 import FormControl from '@mui/material/FormControl';
 import FormControlLabel from '@mui/material/FormControlLabel';
-import Paper from '@mui/material/Paper';
 import Radio from '@mui/material/Radio';
 import RadioGroup from '@mui/material/RadioGroup';
-import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 
 import {
   $errorForID,
-  deleteEffect,
   forgetError,
+  insertNewEffectOrTimerEffect,
   setError,
   setTimerField,
   triggerEditorSelector,
   TriggerEditorSelector,
-  TriggerEditorState,
 } from '../../features/triggers/triggerEditorSlice';
+import { EffectWithID } from '../../generated/EffectWithID';
 import { Timer } from '../../generated/Timer';
 import { TimerStartPolicy } from '../../generated/TimerStartPolicy';
-import EditEffect from './EditEffect';
+import { UUID } from '../../generated/UUID';
+import { EffectVariant } from './effect-utils';
+import { TimerEffectVariant } from './effect-utils';
+import { AutocompleteEffectAndTimerEffect } from './widgets/AutocompleteEffect';
 import ControlledTextField from './widgets/ControlledTextField';
 import EditDuration from './widgets/EditDuration';
 import { EffectHeader, EffectTitle } from './widgets/EffectHeader';
+import EffectList from './widgets/EffectList';
 
 const VARIANT_WITH_VALUE: TimerStartPolicy['variant'] =
   'StartAndReplacesAnyTimerOfTriggerWithNameTemplateMatching';
 
 const EditStartTimerEffect: React.FC<{
+  triggerID: UUID;
   timerSelector: TriggerEditorSelector<Timer>;
   onDelete: () => void;
-}> = ({ timerSelector, onDelete }) => {
+}> = ({ triggerID, timerSelector, onDelete }) => {
   const dispatch = useDispatch();
   const timer = useSelector(triggerEditorSelector(timerSelector));
-
-  const $effects = (state: TriggerEditorState) => {
-    const timer: Timer = timerSelector(state);
-    return timer.effects;
-  };
 
   const [startPolicyVariant, setStartPolicyVariant] = useState<
     TimerStartPolicy['variant']
@@ -94,6 +94,10 @@ const EditStartTimerEffect: React.FC<{
       ? setError({ id: startPolicyValueFieldID, error })
       : forgetError(startPolicyValueFieldID);
     dispatch(action);
+  };
+
+  const $$effects: TriggerEditorSelector<EffectWithID[]> = (slice) => {
+    return timerSelector(slice).effects;
   };
 
   return (
@@ -220,23 +224,52 @@ const EditStartTimerEffect: React.FC<{
           )}
         </Box>
         <h3>Timer Effects</h3>
-        <Stack gap={2}>
-          {timer.effects.map((effect, index) => (
-            <Paper key={effect.id}>
-              <EditEffect
-                triggerID={timer.trigger_id}
-                effectSelector={(slice) => timerSelector(slice).effects[index]}
-                onDelete={() =>
-                  dispatch(
-                    deleteEffect({ effectID: effect.id, selector: $effects })
-                  )
-                }
-              />
-            </Paper>
-          ))}
-        </Stack>
+        <CreateEffectOrTimerEffectButton
+          create={(variant) => {
+            dispatch(
+              insertNewEffectOrTimerEffect({
+                variant,
+                index: 0,
+                triggerID: triggerID,
+                seqSelector: $$effects,
+              })
+            );
+          }}
+        />
+        {timer.effects.length ? (
+          <EffectList triggerID={triggerID} selector={$$effects} />
+        ) : (
+          <p>This Timer currently has no Effects. Do you want to create one?</p>
+        )}
       </CardContent>
     </Card>
+  );
+};
+
+const CreateEffectOrTimerEffectButton: React.FC<{
+  create: (variant: EffectVariant | TimerEffectVariant) => void;
+}> = ({ create }) => {
+  const [isOpen, setIsOpen] = useState(false);
+
+  if (!isOpen) {
+    return (
+      <Button
+        variant="contained"
+        size="large"
+        startIcon={<Add />}
+        onClick={() => setIsOpen(true)}
+        sx={{ width: 250 }}
+      >
+        Add New Timer Effect
+      </Button>
+    );
+  }
+
+  return (
+    <AutocompleteEffectAndTimerEffect
+      close={() => setIsOpen(false)}
+      onSelect={create}
+    />
   );
 };
 

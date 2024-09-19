@@ -98,6 +98,7 @@ const EditEffect: React.FC<{
     case 'StartTimer':
       return (
         <EditStartTimerEffect
+          triggerID={triggerID}
           timerSelector={(slice: TriggerEditorState) => {
             const startTimerEffect =
               $$innerAs<EffectVariantStartTimer>(effectSelector)(slice);

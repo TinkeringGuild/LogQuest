@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import TextField, { TextFieldProps } from '@mui/material/TextField';
+import { omit } from 'lodash';
 
 type ControlledTextFieldValidationProps = {
   validate: (value: string) => string | null;
@@ -57,7 +58,7 @@ const ControlledTextField: React.FC<ControlledTextFieldProps> = ({
 
   return (
     <TextField
-      {...props}
+      {...omit(props, ['validate', 'onValidateChange'])}
       label={label}
       value={input}
       onChange={(e) => setInput(e.target.value)}

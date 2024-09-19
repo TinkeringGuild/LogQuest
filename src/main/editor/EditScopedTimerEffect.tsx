@@ -1,17 +1,6 @@
-import React, { ReactElement, ReactNode } from 'react';
+import React, { ReactNode } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 
-import {
-  AlarmOnOutlined,
-  HourglassBottomOutlined,
-  HourglassTopOutlined,
-  LabelOffOutlined,
-  LabelOutlined,
-  RestartAltOutlined,
-  TimerOffOutlined,
-  VisibilityOffOutlined,
-  VisibilityOutlined,
-} from '@mui/icons-material';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import CardHeader from '@mui/material/CardHeader';
@@ -28,6 +17,11 @@ import { FilterWithContext } from '../../generated/FilterWithContext';
 import { TimerEffect } from '../../generated/TimerEffect';
 import { TimerTag } from '../../generated/TimerTag';
 import { UUID } from '../../generated/UUID';
+import {
+  HUMANIZED_TIMER_EFFECT_NAMES,
+  TimerEffectIcon,
+  TimerEffectVariant,
+} from './effect-utils';
 import EditDuration from './widgets/EditDuration';
 import EditFilter from './widgets/EditFilter';
 import { EffectHeader, ExplicitEffectTitle } from './widgets/EffectHeader';
@@ -44,9 +38,8 @@ const TIMER_EFFECT_COMPONENTS = {
       selector(state).value[0];
     return (
       <TimerEffectWithOptions
-        title="Wait Until Filter Matches"
+        variant="WaitUntilFilterMatches"
         help="Pause the execution of subsequent Effects until one of the given patterns matches"
-        icon={<HourglassTopOutlined />}
         onDelete={onDelete}
       >
         <EditFilter selector={filterSelector} />
@@ -69,9 +62,8 @@ const TIMER_EFFECT_COMPONENTS = {
   WaitUntilSecondsRemain(seconds: number, onDelete: () => void) {
     return (
       <TimerEffectWithOptions
-        title="Wait until Seconds Remain"
+        variant="WaitUntilSecondsRemain"
         help="Pause the execution of subsequent Effects until the Timer has the specified number of seconds remaining before completion."
-        icon={<HourglassBottomOutlined />}
         onDelete={onDelete}
       >
         <TextField
@@ -88,9 +80,8 @@ const TIMER_EFFECT_COMPONENTS = {
   AddTag(timerTag: TimerTag, onDelete: () => void) {
     return (
       <TimerEffectWithOptions
-        title="Add Timer Tag"
+        variant="AddTag"
         help="Adds a Timer Tag to this Timer. A Timer Tag can be used for filtering and styling of Timers in the Overlay."
-        icon={<LabelOutlined />}
         onDelete={onDelete}
       >
         <TextField
@@ -106,9 +97,8 @@ const TIMER_EFFECT_COMPONENTS = {
   RemoveTag(timerTag: TimerTag, onDelete: () => void) {
     return (
       <TimerEffectWithOptions
-        title="Remove Timer Tag"
+        variant="RemoveTag"
         help="Removes a Timer Tag from this Timer."
-        icon={<LabelOffOutlined />}
         onDelete={onDelete}
       >
         <TextField
@@ -124,9 +114,8 @@ const TIMER_EFFECT_COMPONENTS = {
   ClearTimer(onDelete: () => void) {
     return (
       <SimpleTimerEffect
-        title="Clear this Timer"
+        variant="ClearTimer"
         help="Kills this Timer when this Effect is ran."
-        icon={<TimerOffOutlined />}
         onDelete={onDelete}
       />
     );
@@ -135,9 +124,8 @@ const TIMER_EFFECT_COMPONENTS = {
   RestartTimer(onDelete: () => void) {
     return (
       <SimpleTimerEffect
-        title="Restart this Timer"
+        variant="RestartTimer"
         help="Restart this Timer with its original Duration."
-        icon={<RestartAltOutlined />}
         onDelete={onDelete}
       />
     );
@@ -146,9 +134,8 @@ const TIMER_EFFECT_COMPONENTS = {
   HideTimer(onDelete: () => void) {
     return (
       <SimpleTimerEffect
-        title="Hide this Timer"
+        variant="HideTimer"
         help="Hides the Timer but keeps it running. You can use Unhide Timer to show it again."
-        icon={<VisibilityOffOutlined />}
         onDelete={onDelete}
       />
     );
@@ -157,9 +144,8 @@ const TIMER_EFFECT_COMPONENTS = {
   UnhideTimer(onDelete: () => void) {
     return (
       <SimpleTimerEffect
-        title="Un-Hide this Timer"
+        variant="UnhideTimer"
         help="Shows a previously hidden Timer"
-        icon={<VisibilityOutlined />}
         onDelete={onDelete}
       />
     );
@@ -168,9 +154,8 @@ const TIMER_EFFECT_COMPONENTS = {
   WaitUntilFinished(onDelete: () => void) {
     return (
       <SimpleTimerEffect
-        title="Wait until Finished"
+        variant="WaitUntilFinished"
         help="Waits until the Timer has run its course. This does not execute if the Timer has been killed. You probably want to use this in a Sequence"
-        icon={<AlarmOnOutlined />}
         onDelete={onDelete}
       />
     );
@@ -207,31 +192,39 @@ const EditScopedTimerEffect: React.FC<{
 };
 
 const SimpleTimerEffect: React.FC<{
-  title: string;
+  variant: TimerEffectVariant;
   help: string;
-  icon: ReactElement;
   onDelete: () => void;
-}> = ({ title, help, icon, onDelete }) => (
-  <EffectHeader onDelete={onDelete}>
-    <Paper elevation={10} sx={{ margin: '0 auto', padding: '10px 15px' }}>
-      <ExplicitEffectTitle title={title} help={help} icon={icon} />
-    </Paper>
-  </EffectHeader>
-);
+}> = ({ variant, help, onDelete }) => {
+  const title = HUMANIZED_TIMER_EFFECT_NAMES[variant];
+  const VariantIcon = TimerEffectIcon[variant];
+  return (
+    <EffectHeader onDelete={onDelete}>
+      <Paper elevation={10} sx={{ margin: '0 auto', padding: '10px 15px' }}>
+        <ExplicitEffectTitle title={title} help={help} icon={<VariantIcon />} />
+      </Paper>
+    </EffectHeader>
+  );
+};
 
 const TimerEffectWithOptions: React.FC<{
-  title: string;
+  variant: TimerEffectVariant;
   help: string;
-  icon: ReactElement;
   children: ReactNode;
   onDelete: () => void;
-}> = ({ title, help, icon, children, onDelete }) => {
+}> = ({ variant, help, children, onDelete }) => {
+  const title = HUMANIZED_TIMER_EFFECT_NAMES[variant];
+  const VariantIcon = TimerEffectIcon[variant];
   return (
     <Card elevation={10}>
       <CardHeader
         title={
           <EffectHeader onDelete={onDelete}>
-            <ExplicitEffectTitle title={title} help={help} icon={icon} />
+            <ExplicitEffectTitle
+              title={title}
+              help={help}
+              icon={<VariantIcon />}
+            />
           </EffectHeader>
         }
       />

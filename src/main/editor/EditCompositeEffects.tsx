@@ -10,7 +10,7 @@ import Stack from '@mui/material/Stack';
 
 import {
   deleteEffect,
-  insertEffect,
+  insertNewEffect,
   TriggerEditorSelector,
   triggerEditorSelector,
 } from '../../features/triggers/triggerEditorSlice';
@@ -61,11 +61,16 @@ const EditCompositeEffect: React.FC<{
   const seq = useSelector(triggerEditorSelector(seqSelector));
 
   const insertEffectAtIndex: (
-    insertedVariant: Effect['variant'],
+    insertedVariant: EffectVariant,
     index: number
   ) => void = (insertedVariant, index) => {
     dispatch(
-      insertEffect({ variant: insertedVariant, index, triggerID, seqSelector })
+      insertNewEffect({
+        variant: insertedVariant,
+        index,
+        triggerID,
+        seqSelector,
+      })
     );
   };
 
