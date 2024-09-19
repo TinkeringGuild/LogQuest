@@ -3,7 +3,7 @@ use crate::{
     file_path_is_executable, format_integer, progress_reporter::ProgressUpdate,
     security::is_crypto_available,
   },
-  gina::importer::import_from_gina_export_file,
+  gina::{importer::import_from_gina_export_file, regex::RegexGINA},
   state::{
     config::LogQuestConfig, state_handle::StateHandle, state_tree::OverlayState,
     timer_manager::TimerLifetime,
@@ -67,7 +67,8 @@ pub fn handler() -> impl Fn(tauri::Invoke) {
     set_overlay_opacity,
     sign_command_template,
     start_timers_sync,
-    sys_command_info
+    sys_command_info,
+    validate_gina_regex
   ]
 }
 
@@ -221,5 +222,16 @@ fn sys_command_info(command: String) -> Result<SystemCommandInfo, String> {
       Err(which::Error::CannotFindBinaryPath) => Ok(SystemCommandInfo::NotFound),
       Err(e) => Err(e.to_string()),
     }
+  }
+}
+
+#[tauri::command]
+fn validate_gina_regex(pattern: String) -> Option<(Option<usize>, String)> {
+  match RegexGINA::from_str(&pattern) {
+    Err(fancy_regex::Error::ParseError(position, parse_error)) => {
+      Some((Some(position), parse_error.to_string()))
+    }
+    Err(fancy_regex::Error::CompileError(compile_error)) => Some((None, compile_error.to_string())),
+    _ => None,
   }
 }

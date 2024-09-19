@@ -8,7 +8,7 @@ import FormControlLabel from '@mui/material/FormControlLabel';
 import IconButton from '@mui/material/IconButton';
 import InputAdornment from '@mui/material/InputAdornment';
 import Stack from '@mui/material/Stack';
-import TextField, { TextFieldProps } from '@mui/material/TextField';
+import TextField from '@mui/material/TextField';
 import StandardTooltip from '../../widgets/StandardTooltip';
 
 import selectExecutableFile from '../../dialogs/selectExecutable';
@@ -107,7 +107,9 @@ const EditRunSystemCommandEffect: React.FC<{
 
   // Cleanup error if component is unmounted
   useEffect(() => {
-    dispatch(forgetError(commandInputID));
+    return () => {
+      dispatch(forgetError(commandInputID));
+    };
   }, []);
 
   const createCommandTemplate = () => {

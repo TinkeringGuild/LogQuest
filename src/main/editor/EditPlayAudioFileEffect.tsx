@@ -18,7 +18,7 @@ const EditPlayAudioFileEffect: React.FC<{
   return (
     <EffectWithOptions
       variant="PlayAudioFile"
-      help="Plays an sound file located in your LogQuest configuration directory"
+      help="Plays a sound file located in your LogQuest configuration directory"
       onDelete={onDelete}
     >
       <p>{filePath ? <code>{filePath}</code> : 'No audio file selected'}</p>

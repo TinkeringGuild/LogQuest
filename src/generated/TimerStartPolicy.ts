@@ -2,9 +2,10 @@
 import type { TemplateString } from './TemplateString';
 
 export type TimerStartPolicy =
-  | 'AlwaysStartNewTimer'
-  | 'DoNothingIfTimerRunning'
-  | 'StartAndReplacesAllTimersOfTrigger'
+  | { variant: 'AlwaysStartNewTimer' }
+  | { variant: 'DoNothingIfTimerRunning' }
+  | { variant: 'StartAndReplacesAllTimersOfTrigger' }
   | {
-      StartAndReplacesAnyTimerOfTriggerWithNameTemplateMatching: TemplateString;
+      variant: 'StartAndReplacesAnyTimerOfTriggerWithNameTemplateMatching';
+      value: TemplateString;
     };

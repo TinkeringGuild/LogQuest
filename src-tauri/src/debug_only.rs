@@ -155,7 +155,7 @@ fn prettyify_typescript_file(path: &Path) {
 
 pub fn test_trigger_index() -> TriggerIndex {
   fn re(s: &str) -> matchers::Matcher {
-    matchers::Matcher::GINA(s.try_into().unwrap())
+    matchers::Matcher::gina(s).unwrap()
   }
 
   let mut index = TriggerIndex::new();

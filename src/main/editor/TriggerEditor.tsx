@@ -1,12 +1,9 @@
-import { formatDistanceToNow } from 'date-fns/formatDistanceToNow';
-import { format } from 'date-fns/fp/format';
-import { parseISO } from 'date-fns/fp/parseISO';
 import { map as pluck } from 'lodash';
-import React, { useState } from 'react';
+import React, { useEffect, useId, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 
 import { Add, CancelOutlined, NavigateNext, Save } from '@mui/icons-material';
-import { Button, Stack, TextField, Tooltip, Typography } from '@mui/material';
+import { Button, Stack, TextField, Typography } from '@mui/material';
 
 import {
   $$selectTriggerFilter,
@@ -15,9 +12,12 @@ import {
   $draftTrigger,
   $draftTriggerTags,
   $editorHasError,
+  $errorForID,
   cancelEditing,
   deleteEffect,
+  forgetError,
   insertEffect,
+  setError,
   setTriggerComment,
   setTriggerName,
   setTriggerTags,
@@ -27,11 +27,15 @@ import {
   $triggerTags,
   applyDeltas,
 } from '../../features/triggers/triggersSlice';
+import { Timestamp } from '../../generated/Timestamp';
 import { UUID } from '../../generated/UUID';
 import { createTrigger, saveTrigger } from '../../ipc';
+import { calculateTimeAgo } from '../../util';
+import StandardTooltip from '../../widgets/StandardTooltip';
 import EditEffect from './EditEffect';
 import TriggerTagsEditor from './TriggerTagsEditor';
 import AutocompleteEffect from './widgets/AutocompleteEffect';
+import ControlledTextField from './widgets/ControlledTextField';
 import EditFilter from './widgets/EditFilter';
 
 import './TriggerEditor.css';
@@ -46,18 +50,13 @@ const TriggerEditor: React.FC<{}> = () => {
   const allTriggerTags = useSelector($triggerTags);
   const parentPosition = useSelector($draftParentPosition);
 
-  const editorHasError = useSelector($editorHasError);
-  const [nameError, setNameError] = useState<string | undefined>(undefined);
-
-  const hasError = editorHasError || !!nameError;
+  const nameInputID = useId();
+  const nameError = useSelector($errorForID(nameInputID));
+  const hasError = useSelector($editorHasError);
 
   // parentPosition is only needed to be given when creating, so it is also used to signal
   // whether this Trigger is being newly created.
   const isNew = parentPosition !== null;
-
-  const updatedAt = parseISO(trigger.updated_at);
-  const updatedAgo = formatDistanceToNow(updatedAt);
-  const updatedExact = format('PPpp', updatedAt);
 
   const submit = async () => {
     const triggerTagIDs = pluck(triggerTagsOfTrigger, 'id');
@@ -86,6 +85,7 @@ const TriggerEditor: React.FC<{}> = () => {
             <Typography>{trigger.name}</Typography>
           </Stack>
         </div>
+
         <div style={{ marginBottom: 10, textAlign: 'center' }}>
           <Button
             variant="contained"
@@ -105,30 +105,34 @@ const TriggerEditor: React.FC<{}> = () => {
             Cancel
           </Button>{' '}
         </div>
+
         <p className="trigger-editor-info" style={{ textAlign: 'center' }}>
-          Last updated:{' '}
-          <Tooltip arrow title={updatedExact}>
-            <span>{updatedAgo} ago</span>
-          </Tooltip>
+          Last updated <TimeAgo timestamp={trigger.updated_at} />
         </p>
+
         <div>
-          <TextField
+          <ControlledTextField
             label="Trigger Name"
             fullWidth
-            defaultValue={trigger.name}
+            value={trigger.name}
             error={!!nameError}
+            id={nameInputID}
             slotProps={{ htmlInput: { sx: { fontSize: 30 } } }}
             helperText={nameError}
             className="trigger-editor-name"
-            onChange={(e) => {
-              e.target.value.trim()
-                ? nameError !== undefined && setNameError(undefined)
-                : setNameError('Name cannot be blank');
-            }}
-            onBlur={(e) => dispatch(setTriggerName(e.target.value))}
+            validate={(value) => (value.trim() ? null : 'Name cannot be blank')}
+            onValidateChange={(errorMaybe) =>
+              dispatch(
+                errorMaybe
+                  ? setError({ id: nameInputID, error: errorMaybe })
+                  : forgetError(nameInputID)
+              )
+            }
+            onCommit={(input) => dispatch(setTriggerName(input))}
             autoFocus={trigger.name.trim() === ''}
           />
         </div>
+
         <div style={{ marginTop: 5 }}>
           <TextField
             multiline
@@ -138,6 +142,7 @@ const TriggerEditor: React.FC<{}> = () => {
             onBlur={(e) => dispatch(setTriggerComment(e.target.value))}
           />
         </div>
+
         <div style={{ marginTop: 10, marginBottom: 20 }}>
           <h3 className="trigger-tags-header">Trigger Tags</h3>
           <TriggerTagsEditor
@@ -146,6 +151,7 @@ const TriggerEditor: React.FC<{}> = () => {
             onSave={(tags) => dispatch(setTriggerTags(tags))}
           />
         </div>
+
         <h3>Filters</h3>
         {trigger.filter.length > 1 && (
           <p className="trigger-editor-info">
@@ -156,6 +162,7 @@ const TriggerEditor: React.FC<{}> = () => {
         <div>
           <EditFilter selector={$$selectTriggerFilter} />
         </div>
+
         <h3 style={{ marginBottom: 10 }}>Effects</h3>
         <div style={{ height: 45, marginBottom: 15 }}>
           <CreateEffectButton triggerID={trigger.id} />
@@ -222,6 +229,29 @@ const CreateEffectButton: React.FC<{ triggerID: UUID }> = ({ triggerID }) => {
         );
       }}
     />
+  );
+};
+
+const TimeAgo: React.FC<{ timestamp: Timestamp }> = ({ timestamp }) => {
+  const [[timeAgo, timeExact], setCalculatedTime] = useState(['', '']);
+
+  useEffect(() => {
+    setCalculatedTime(calculateTimeAgo(timestamp));
+
+    const interval = setInterval(
+      () => setCalculatedTime(calculateTimeAgo(timestamp)),
+      1000
+    );
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, [timestamp]);
+
+  return (
+    <StandardTooltip help={timeExact}>
+      <span>{timeAgo} ago</span>
+    </StandardTooltip>
   );
 };
 

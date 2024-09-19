@@ -1,15 +1,11 @@
 import { invoke } from '@tauri-apps/api/tauri';
+import { format } from 'date-fns/format';
+import { formatDistanceToNow } from 'date-fns/formatDistanceToNow';
 import { formatRFC3339 } from 'date-fns/formatRFC3339';
+import { parseISO } from 'date-fns/parseISO';
 
 import { ProgressUpdate } from './generated/ProgressUpdate';
 import { Timestamp } from './generated/Timestamp';
-
-export function nowTimestamp(): Timestamp {
-  // Example: "2024-09-18T19:00:52.234Z"
-  return formatRFC3339(new Date(), {
-    fractionDigits: 3,
-  });
-}
 
 export function println(message: any) {
   console.log('PRINTLN:', message);
@@ -19,6 +15,20 @@ export function println(message: any) {
 export function eprintln(message: any) {
   console.error('EPRINTLN', message);
   invoke('print_to_stderr', { message });
+}
+
+export function nowTimestamp(): Timestamp {
+  // Example: "2024-09-18T19:00:52.234Z"
+  return formatRFC3339(new Date(), {
+    fractionDigits: 3,
+  });
+}
+
+export function calculateTimeAgo(time: Timestamp): [string, string] {
+  const date = parseISO(time);
+  const updatedAgo = formatDistanceToNow(date);
+  const updatedExact = format(date, 'PPpp');
+  return [updatedAgo, updatedExact];
 }
 
 export function seqFromProgressUpdate(update: ProgressUpdate | null) {

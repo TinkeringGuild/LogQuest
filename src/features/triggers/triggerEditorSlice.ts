@@ -1,5 +1,5 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { pullAt, remove, some, sortBy } from 'lodash';
+import { remove, some, sortBy } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
 import { CommandTemplateSecurityCheck } from '../../generated/CommandTemplateSecurityCheck';
@@ -176,30 +176,33 @@ const triggerEditorSlice = createSlice({
       remove(effects, (effect) => effect.id === effectID);
     },
 
-    setMatcherValue(
+    setMatcherValue<M extends Matcher | MatcherWithContext>(
       slice: TriggerEditorState,
       {
         payload: { value, selector },
       }: PayloadAction<{
         value: string;
-        selector: TriggerEditorSelector<Matcher | MatcherWithContext>;
+        selector: TriggerEditorSelector<M>;
       }>
     ) {
       const matcher = selector(slice);
-      matcher.value = value;
+      matcher.value.pattern = value;
     },
 
     appendNewMatcher<M extends Matcher | MatcherWithContext, F extends M[]>(
       slice: TriggerEditorState,
       {
-        payload: { matcherVariant, selector },
+        payload: { variant, selector },
       }: PayloadAction<{
         selector: TriggerEditorSelector<F>;
-        matcherVariant: M['variant'];
+        variant: M['variant'];
       }>
     ) {
       const filter = selector(slice);
-      filter.push({ variant: matcherVariant, value: '' } as M);
+      filter.push({
+        variant,
+        value: { id: uuid(), pattern: '' },
+      } as M);
     },
 
     deleteFilterMatcher(
@@ -212,7 +215,7 @@ const triggerEditorSlice = createSlice({
       }>
     ) {
       const matchers = selector(slice);
-      pullAt(matchers, index);
+      matchers.splice(index, 1);
     },
 
     setTimerField<T extends TimerField>(
@@ -414,7 +417,7 @@ function newEffect(variant: Effect['variant'], triggerID: UUID): Effect {
           name_tmpl: '',
           tags: [],
           duration: 0,
-          start_policy: 'AlwaysStartNewTimer',
+          start_policy: { variant: 'AlwaysStartNewTimer' },
           repeats: false,
           effects: [],
         },

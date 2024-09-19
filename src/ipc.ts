@@ -164,3 +164,13 @@ export async function signCommandTemplate(
     cmdTmpl,
   });
 }
+
+export type ValidateGINARegexResponse = [number | null, string] | null;
+
+export async function validateGINARegex(
+  pattern: string
+): Promise<ValidateGINARegexResponse> {
+  return await invoke<ValidateGINARegexResponse>('validate_gina_regex', {
+    pattern,
+  });
+}

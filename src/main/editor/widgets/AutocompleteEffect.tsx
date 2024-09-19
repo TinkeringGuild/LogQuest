@@ -19,7 +19,7 @@ const AutocompleteEffect: React.FC<{
     autoHighlight
     size="small"
     options={EFFECTS}
-    renderOption={(props, option, { selected }) => {
+    renderOption={(props, option, { selected: _ }) => {
       const { key, ...optionProps } = props;
       const VariantIcon = EffectIcon[option];
       return (

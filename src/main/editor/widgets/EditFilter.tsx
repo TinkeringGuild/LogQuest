@@ -1,25 +1,28 @@
+import { RefCallback, useEffect, useId, useRef, useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+
 import { DeleteForeverOutlined, PlaylistAdd } from '@mui/icons-material';
 import Button from '@mui/material/Button';
-import FormControl from '@mui/material/FormControl';
 import IconButton from '@mui/material/IconButton';
 import InputAdornment from '@mui/material/InputAdornment';
-import InputLabel from '@mui/material/InputLabel';
-import OutlinedInput from '@mui/material/OutlinedInput';
 import Stack from '@mui/material/Stack';
-import { useDispatch, useSelector } from 'react-redux';
-import { uniqueId } from 'lodash';
+import TextField from '@mui/material/TextField';
 
 import {
+  $errorForID,
   appendNewMatcher,
   deleteFilterMatcher,
+  forgetError,
+  setError,
+  setMatcherValue,
   triggerEditorSelector,
   TriggerEditorSelector,
-  setMatcherValue,
 } from '../../../features/triggers/triggerEditorSlice';
 import { Filter } from '../../../generated/Filter';
 import { FilterWithContext } from '../../../generated/FilterWithContext';
 import { Matcher } from '../../../generated/Matcher';
 import { MatcherWithContext } from '../../../generated/MatcherWithContext';
+import { validateGINARegex, ValidateGINARegexResponse } from '../../../ipc';
 import StandardTooltip from '../../../widgets/StandardTooltip';
 
 import './EditFilter.css';
@@ -34,18 +37,29 @@ function EditFilter<T extends Filter | FilterWithContext>({
   const dispatch = useDispatch();
   const filter = useSelector(triggerEditorSelector(selector));
 
+  const matcherInputFieldRefs = useRef<HTMLInputElement[]>([]);
+  const [isAdding, setIsAdding] = useState(false);
+
+  useEffect(() => {
+    if (isAdding && matcherInputFieldRefs.current.length > 0) {
+      const lastIndex = matcherInputFieldRefs.current.length - 1;
+      matcherInputFieldRefs.current[lastIndex].focus();
+      setIsAdding(false);
+    }
+  }, [isAdding]);
+
   return (
     <Stack spacing={2}>
       {filter.map((matcher, index) => (
         <MatcherInputField
-          key={
-            uniqueId(
-              'matcher'
-            ) /* matchers have no ID, so this forces a full re-render on each matcher add/removal */
-          }
-          defaultValue={matcher.value}
-          variant="GINA"
-          onDelete={() => dispatch(deleteFilterMatcher({ index, selector }))}
+          key={matcher.value.id}
+          value={matcher.value.pattern}
+          variant={matcher.variant}
+          getRef={(ref) => ref && (matcherInputFieldRefs.current[index] = ref)}
+          onDelete={() => {
+            matcherInputFieldRefs.current.splice(index, 1);
+            dispatch(deleteFilterMatcher({ index, selector }));
+          }}
           onChange={(value) =>
             dispatch(
               setMatcherValue({
@@ -61,7 +75,8 @@ function EditFilter<T extends Filter | FilterWithContext>({
         size="large"
         startIcon={<PlaylistAdd />}
         onClick={() => {
-          dispatch(appendNewMatcher({ selector, matcherVariant: 'GINA' }));
+          setIsAdding(true);
+          dispatch(appendNewMatcher({ selector, variant: 'GINA' }));
         }}
       >
         Add a new Pattern
@@ -72,33 +87,99 @@ function EditFilter<T extends Filter | FilterWithContext>({
 
 const MatcherInputField: React.FC<{
   variant: MatcherVariant;
-  defaultValue: string;
+  value: string;
+  getRef: RefCallback<HTMLInputElement>;
   onDelete: () => void;
   onChange: (value: string) => void;
-}> = ({ defaultValue, variant, onDelete, onChange }) => {
-  const variantHumanized = humanizeMatcherVariant(variant);
-  return (
-    <FormControl sx={{ m: 1 }} variant="outlined">
-      <InputLabel>{variantHumanized}</InputLabel>
-      <OutlinedInput
-        label={variantHumanized}
-        defaultValue={defaultValue}
-        className="pattern-input"
-        type="text"
-        fullWidth
-        multiline
-        onBlur={(e) => onChange(e.target.value)}
-        endAdornment={
-          <InputAdornment position="end">
-            <StandardTooltip help="Delete this pattern">
-              <IconButton edge="end" onClick={onDelete}>
-                <DeleteForeverOutlined />
-              </IconButton>
-            </StandardTooltip>
-          </InputAdornment>
+}> = ({ value, variant, getRef, onDelete, onChange }) => {
+  const dispatch = useDispatch();
+
+  const id = useId();
+  const [pattern, setPattern] = useState('');
+
+  // Keeps pattern in-sync with the prop passed in
+  useEffect(() => {
+    setPattern(value);
+  }, [value]);
+
+  // Cleanup error state on un-mount
+  useEffect(() => {
+    return () => {
+      dispatch(forgetError(id));
+    };
+  }, []);
+
+  // Validates GINA regex patterns via a Tauri command
+  useEffect(() => {
+    if (variant !== 'GINA') {
+      return;
+    }
+    let isMounted = true;
+
+    if (pattern.trim()) {
+      validateGINARegex(pattern).then(
+        (errorMaybe: ValidateGINARegexResponse) => {
+          if (!isMounted) {
+            return;
+          }
+          if (errorMaybe) {
+            // I cannot use the position in the error message (yet) because a RegexGINA
+            // interpolates data into the Regex, making the position number somewhat useless.
+            // I would have to fix this in Rust, intercepting parse errors and subtracting
+            // out the length of the interpolated sections... that's low-priority for now.
+            const [_positionMaybe, error] = errorMaybe;
+            setRegexError(error);
+          } else {
+            setRegexError(null);
+          }
         }
-      />
-    </FormControl>
+      );
+    } else {
+      setRegexError('Pattern cannot be blank');
+    }
+
+    return () => {
+      isMounted = false;
+    };
+  }, [pattern]);
+
+  const regexError: string | undefined = useSelector($errorForID(id));
+
+  const setRegexError = (error: string | null) => {
+    const action = error ? setError({ id, error }) : forgetError(id);
+    dispatch(action);
+  };
+
+  const variantHumanized = humanizeMatcherVariant(variant);
+
+  return (
+    <TextField
+      className="pattern-input"
+      label={variantHumanized}
+      value={pattern}
+      id={id}
+      variant="outlined"
+      error={!!regexError}
+      helperText={regexError}
+      fullWidth
+      multiline
+      inputRef={getRef}
+      onChange={(e) => setPattern(e.target.value)}
+      onBlur={() => onChange(pattern)}
+      slotProps={{
+        input: {
+          endAdornment: (
+            <InputAdornment position="end">
+              <StandardTooltip help="Delete this pattern">
+                <IconButton edge="end" onClick={onDelete}>
+                  <DeleteForeverOutlined />
+                </IconButton>
+              </StandardTooltip>
+            </InputAdornment>
+          ),
+        },
+      }}
+    />
   );
 };
 

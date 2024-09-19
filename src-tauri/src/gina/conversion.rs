@@ -172,9 +172,11 @@ impl GINATrigger {
       (Some(text), Some(true)) => {
         vec![matchers::Matcher::gina(text).map_err(GINAConversionError::from)?].into()
       }
-      (Some(text), Some(false)) | (Some(text), None) => {
-        vec![matchers::Matcher::WholeLine(text.to_owned())].into()
-      }
+      (Some(text), Some(false)) | (Some(text), None) => vec![matchers::Matcher::WholeLine {
+        id: UUID::new(),
+        pattern: text.to_owned(),
+      }]
+      .into(),
       _ => return Err(GINAConversionError::TriggerPatternError(trigger_name.to_owned()).into()),
     };
 
@@ -409,8 +411,14 @@ impl GINATimerTrigger {
 impl GINAEarlyEnder {
   fn to_lq(&self) -> Result<matchers::MatcherWithContext, GINAConversionError> {
     Ok(match (self.enable_regex, &self.early_end_text) {
-      (Some(true), Some(pattern)) => matchers::MatcherWithContext::GINA(pattern.to_owned()),
-      (Some(false), Some(line)) => matchers::MatcherWithContext::WholeLine(line.to_owned()),
+      (Some(true), Some(pattern)) => matchers::MatcherWithContext::GINA {
+        id: UUID::new(),
+        pattern: pattern.to_owned(),
+      },
+      (Some(false), Some(line)) => matchers::MatcherWithContext::WholeLine {
+        id: UUID::new(),
+        pattern: line.to_owned(),
+      },
       _ => return Err(GINAConversionError::EarlyEnderPatternError),
     })
   }

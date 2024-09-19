@@ -3,8 +3,8 @@ import { useState } from 'react';
 import { useSelector } from 'react-redux';
 
 import AddBoxOutlined from '@mui/icons-material/AddBoxOutlined';
+import AddCircle from '@mui/icons-material/AddCircle';
 import CancelOutlined from '@mui/icons-material/CancelOutlined';
-import Save from '@mui/icons-material/Save';
 import Button from '@mui/material/Button';
 import FormControl from '@mui/material/FormControl';
 import InputLabel from '@mui/material/InputLabel';
@@ -61,7 +61,15 @@ const SelectTriggerTagMode: React.FC<{
   createClicked: () => void;
   onChange: OnChangeCallback;
 }> = ({ triggerTags, activeTriggerTagID, createClicked, onChange }) => {
-  const createButton = <CreateTriggerTagButton onClick={createClicked} />;
+  const createButton = (
+    <Button
+      variant={triggerTags.length === 0 ? 'contained' : 'outlined'}
+      onClick={createClicked}
+      startIcon={<AddBoxOutlined />}
+    >
+      New Trigger Tag
+    </Button>
+  );
 
   if (triggerTags.length === 0) {
     return <div>{createButton} Create a Trigger Tag to enable Triggers</div>;
@@ -78,14 +86,6 @@ const SelectTriggerTagMode: React.FC<{
     </div>
   );
 };
-
-const CreateTriggerTagButton: React.FC<{ onClick: () => void }> = ({
-  onClick,
-}) => (
-  <Button variant="outlined" onClick={onClick} startIcon={<AddBoxOutlined />}>
-    New Trigger Tag
-  </Button>
-);
 
 const SelectTriggerTagMenu: React.FC<{
   activeTriggerTagID: UUID | null;
@@ -144,9 +144,9 @@ const CreateTriggerTagMode: React.FC<{
         onClick={() => onCreate(nameInput.trim())}
         variant="contained"
         disabled={!!errorMessage}
-        startIcon={<Save />}
+        startIcon={<AddCircle />}
       >
-        Save
+        Create
       </Button>{' '}
       <Button
         onClick={onCancel}

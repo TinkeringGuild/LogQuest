@@ -1,4 +1,4 @@
-use crate::common::serializable_regex::SerializableRegex;
+use crate::common::{serializable_regex::SerializableRegex, UUID};
 use crate::gina::regex::RegexGINA;
 use fancy_regex::{Captures, Regex};
 use serde::{Deserialize, Serialize};
@@ -22,10 +22,22 @@ pub struct MatchContext {
 #[serde(tag = "variant", content = "value")]
 #[ts(tag = "variant", content = "value")]
 pub enum Matcher {
-  WholeLine(String),
-  PartialLine(String),
-  Pattern(SerializableRegex),
-  GINA(RegexGINA),
+  WholeLine {
+    id: UUID,
+    pattern: String,
+  },
+  PartialLine {
+    id: UUID,
+    pattern: String,
+  },
+  Pattern {
+    id: UUID,
+    pattern: SerializableRegex,
+  },
+  GINA {
+    id: UUID,
+    pattern: RegexGINA,
+  },
 }
 
 /// The key difference between MatcherWithContext and Matcher is that some
@@ -40,10 +52,10 @@ pub enum Matcher {
 #[serde(tag = "variant", content = "value")]
 #[ts(tag = "variant", content = "value")]
 pub enum MatcherWithContext {
-  WholeLine(String),
-  PartialLine(String),
-  Pattern(String),
-  GINA(String),
+  WholeLine { id: UUID, pattern: String },
+  PartialLine { id: UUID, pattern: String },
+  Pattern { id: UUID, pattern: String },
+  GINA { id: UUID, pattern: String },
 }
 
 impl From<Vec<Matcher>> for Filter {
@@ -74,18 +86,27 @@ impl FilterWithContext {
       .iter()
       .map(|matcher_with_context| {
         match matcher_with_context {
-          MatcherWithContext::WholeLine(string) => Matcher::WholeLine(string.to_owned()),
-          MatcherWithContext::PartialLine(string) => Matcher::PartialLine(string.to_owned()),
-          MatcherWithContext::Pattern(pattern) => {
+          MatcherWithContext::WholeLine { id, pattern } => Matcher::WholeLine {
+            id: id.to_owned(),
+            pattern: pattern.to_owned(),
+          },
+          MatcherWithContext::PartialLine { id, pattern } => Matcher::PartialLine {
+            id: id.to_owned(),
+            pattern: pattern.to_owned(),
+          },
+          MatcherWithContext::Pattern { id, pattern } => {
             // TODO: IMPLEMENT A CONTEXT-LOOKUP SYNTAX FOR LQ PATTERNS. THIS CODE IS JUST TEMPORARY
             let serializable_regex: SerializableRegex =
               pattern.as_str().try_into().unwrap_or_else(|_| {
                 error!(r#"INVALID REGEX IN MatcherWithContext::Pattern("{pattern}")"#);
                 "^(?!)$".try_into().unwrap() // unwrap is safe here
               });
-            Matcher::Pattern(serializable_regex)
+            Matcher::Pattern {
+              id: id.to_owned(),
+              pattern: serializable_regex,
+            }
           }
-          MatcherWithContext::GINA(pattern) => {
+          MatcherWithContext::GINA { id, pattern } => {
             // TODO: compile_with_context should probably have an error type that means
             // "partially successful" and still encapsulates a filter with the matchers
             // that didn't fail to convert. This is probably not very necessary considering
@@ -97,7 +118,10 @@ impl FilterWithContext {
                 error!(r#"INVALID REGEX IN MatcherWithContext::GINA("{pattern}")"#);
                 "^(?!)$".try_into().unwrap() // unwrap is safe here
               });
-            Matcher::GINA(regex_gina)
+            Matcher::GINA {
+              id: id.to_owned(),
+              pattern: regex_gina,
+            }
           }
         }
       })
@@ -108,26 +132,32 @@ impl FilterWithContext {
 
 impl Matcher {
   pub fn gina(pattern: &str) -> Result<Self, fancy_regex::Error> {
-    Ok(Self::GINA(pattern.try_into()?))
+    Ok(Self::GINA {
+      id: UUID::new(),
+      pattern: pattern.try_into()?,
+    })
   }
 
   pub fn check(&self, line: &str, character_name: &str) -> Option<MatchContext> {
     match self {
-      Self::WholeLine(exact_line) => {
-        if line == exact_line {
+      Self::WholeLine { pattern, .. } => {
+        if line == pattern {
           Some(MatchContext::empty(character_name))
         } else {
           None
         }
       }
-      Self::PartialLine(substring) => {
-        if line.contains(substring) {
+      Self::PartialLine { pattern, .. } => {
+        if line.contains(pattern) {
           Some(MatchContext::empty(character_name))
         } else {
           None
         }
       }
-      Self::Pattern(serializable_regex) => {
+      Self::Pattern {
+        pattern: serializable_regex,
+        ..
+      } => {
         let re: &Regex = &serializable_regex.compiled;
         if let Ok(Some(captures)) = re.captures(line) {
           Some(MatchContext::from_captures(&captures, re, character_name))
@@ -135,7 +165,10 @@ impl Matcher {
           None
         }
       }
-      Self::GINA(regex_gina) => regex_gina.check(line, character_name),
+      Self::GINA {
+        pattern: regex_gina,
+        ..
+      } => regex_gina.check(line, character_name),
     }
   }
 }
@@ -189,25 +222,25 @@ impl MatchContext {
 #[cfg(test)]
 mod tests {
   use super::{Filter, Matcher, MatcherWithContext};
-  use crate::matchers::FilterWithContext;
+  use crate::{common::UUID, matchers::FilterWithContext};
 
   #[test]
   fn test_gina_matchers_with_context() {
     let toon = "Xenk";
-    let first_matcher: Filter = vec![Matcher::GINA(
-      r"^(\w+) (hits YOU for (\d+) points? of damage|tries to hit YOU)"
-        .try_into()
-        .unwrap(),
-    )]
-    .into();
+    let first_matcher: Filter =
+      vec![
+        Matcher::gina(r"^(\w+) (hits YOU for (\d+) points? of damage|tries to hit YOU)").unwrap(),
+      ]
+      .into();
 
     let context = first_matcher
       .check("Bristlebane hits YOU for 1000 points of damage", toon)
       .expect("Regex did not match!");
 
-    let filter_with_context: FilterWithContext = vec![MatcherWithContext::GINA(
-      r"^${1} has been slain by (?<whom>{C})".try_into().unwrap(),
-    )]
+    let filter_with_context: FilterWithContext = vec![MatcherWithContext::GINA {
+      id: UUID::new(),
+      pattern: r"^${1} has been slain by (?<whom>{C})".to_owned(),
+    }]
     .into();
 
     let compiled_filter_with_context = filter_with_context.compile_with_context(&context);
