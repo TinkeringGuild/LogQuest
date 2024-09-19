@@ -26,6 +26,7 @@ const EditOverlayMessageEffect: React.FC<{
         label="Overlay Message (Template)"
         fullWidth
         defaultValue={tmpl}
+        className="template-input"
         onBlur={(e) =>
           dispatch(
             setOverlayMessageTemplate({ tmpl: e.target.value, selector })

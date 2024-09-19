@@ -114,6 +114,7 @@ const EditStartTimerEffect: React.FC<{
             sx={{ width: 400 }}
             label="Timer Name (Template)"
             defaultValue={timer.name_tmpl}
+            className="template-input"
             onBlur={(e) =>
               dispatch(
                 setTimerField({
@@ -205,6 +206,7 @@ const EditStartTimerEffect: React.FC<{
                 error={!!startPolicyErrorMessage}
                 helperText={startPolicyErrorMessage}
                 id={startPolicyValueFieldID}
+                className="template-input"
                 onCommit={(input) => setStartPolicyValue(input)}
                 validate={(value) =>
                   value.trim()
@@ -212,7 +214,7 @@ const EditStartTimerEffect: React.FC<{
                     : 'You must specify a Timer name to replace'
                 }
                 onValidateChange={setStartPolicyError}
-                sx={{ ml: 3.75, mt: 0.5, width: 470 }}
+                sx={{ ml: 3.75, mt: 0.5, width: 480 }}
               />
             </div>
           )}

@@ -154,7 +154,7 @@ const MatcherInputField: React.FC<{
 
   return (
     <TextField
-      className="pattern-input"
+      className="pattern-input template-input"
       label={variantHumanized}
       value={pattern}
       id={id}

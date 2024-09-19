@@ -205,6 +205,7 @@ const EditRunSystemCommandEffect: React.FC<{
           error={!!commandError}
           helperText={commandError || commandPath || ' '}
           onChange={(e) => setCommandInput(e.target.value)}
+          className="template-input"
           slotProps={{
             input: {
               endAdornment: (
@@ -226,6 +227,7 @@ const EditRunSystemCommandEffect: React.FC<{
           label="Command Arguments"
           value={paramsInput}
           onCommit={(input) => setParamsInput(input)}
+          className="template-input"
           fullWidth
         />
         <div>
@@ -245,6 +247,7 @@ const EditRunSystemCommandEffect: React.FC<{
               label="Written to STDIN (Template)"
               value={stdinInput}
               onCommit={(input) => setStdinInput(input)}
+              className="template-input"
               sx={{ mt: 1 }}
             />
           )}

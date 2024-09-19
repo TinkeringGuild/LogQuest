@@ -36,6 +36,7 @@ const EditCopyToClipboardEffect: React.FC<{
           label="Clipboard Text (Template)"
           defaultValue={tmpl}
           fullWidth
+          className="template-input"
           onBlur={(e) =>
             dispatch(
               setCopyToClipboardTemplate({ tmpl: e.target.value, selector })

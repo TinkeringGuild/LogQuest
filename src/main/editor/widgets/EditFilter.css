@@ -8,10 +8,3 @@
 .pattern-input:hover .MuiInputAdornment-root {
   display: flex;
 }
-
-.pattern-input input,
-.pattern-input textarea {
-  font-size: 14px;
-  font-family: 'Liberation Mono', 'Consolas', 'Courier New', 'Menlo', 'Monaco',
-    monospace;
-}

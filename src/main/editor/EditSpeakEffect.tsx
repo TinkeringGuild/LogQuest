@@ -43,6 +43,7 @@ const EditSpeakEffect: React.FC<{
         label="Text-to-Speech Text (Template)"
         defaultValue={tmpl}
         fullWidth
+        className="template-input"
         inputRef={tmplRef}
         onBlur={dispatchUpdate}
       />
