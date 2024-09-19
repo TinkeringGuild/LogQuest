@@ -44,8 +44,8 @@ function $$innerAs<T extends Effect>(
   effectSelector: TriggerEditorSelector<EffectWithID>
 ): (slice: TriggerEditorState) => T {
   return (slice) => {
-    const effect: EffectWithID = effectSelector(slice);
-    return effect.inner as T;
+    const effectWithID: EffectWithID = effectSelector(slice);
+    return effectWithID.effect as T;
   };
 }
 
@@ -54,9 +54,9 @@ const EditEffect: React.FC<{
   effectSelector: TriggerEditorSelector<EffectWithID>;
   onDelete: () => void;
 }> = ({ triggerID, effectSelector, onDelete }) => {
-  const effect = useSelector(triggerEditorSelector(effectSelector));
+  const effectWithID = useSelector(triggerEditorSelector(effectSelector));
 
-  switch (effect.inner.variant) {
+  switch (effectWithID.effect.variant) {
     case 'CopyToClipboard':
       return (
         <EditCopyToClipboardEffect
@@ -155,12 +155,12 @@ const EditEffect: React.FC<{
     default:
       return (
         <EffectWithOptions
-          variant={effect.inner.variant}
+          variant={effectWithID.effect.variant}
           help="TODO"
           onDelete={onDelete}
         >
           <h3>TODO!</h3>
-          <pre>{JSON.stringify(effect.inner, null, 2)}</pre>
+          <pre>{JSON.stringify(effectWithID.effect, null, 2)}</pre>
         </EffectWithOptions>
       );
   }

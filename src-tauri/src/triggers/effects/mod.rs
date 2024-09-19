@@ -43,19 +43,19 @@ use timer_effects::wait_until_seconds_remain::WaitUntilSecondsRemainEffect;
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
 pub struct EffectWithID {
   pub id: UUID,
-  pub inner: Effect,
+  pub effect: Effect,
 }
 
 impl EffectWithID {
-  pub fn new(inner: Effect) -> Self {
+  pub fn new(effect: Effect) -> Self {
     let id = UUID::new();
-    Self { id, inner }
+    Self { id, effect }
   }
 
   pub fn security_check(self) -> Self {
     Self {
       id: self.id,
-      inner: self.inner.security_check(),
+      effect: self.effect.security_check(),
     }
   }
 }
@@ -139,11 +139,11 @@ impl Effect {
     match self {
       Self::DoNothing => Box::new(DoNothingEffect),
       Self::Parallel(effects) => {
-        let effects = effects.into_iter().map(|e| e.inner.ready()).collect();
+        let effects = effects.into_iter().map(|eid| eid.effect.ready()).collect();
         Box::new(EffectParallel(effects))
       }
       Self::Sequence(effects) => {
-        let effects = effects.into_iter().map(|e| e.inner.ready()).collect();
+        let effects = effects.into_iter().map(|eid| eid.effect.ready()).collect();
         Box::new(EffectSequence(effects))
       }
       Self::StartTimer(timer) => Box::new(StartTimerEffect(timer)),

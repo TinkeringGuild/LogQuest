@@ -2,4 +2,4 @@
 import type { Effect } from './Effect';
 import type { UUID } from './UUID';
 
-export type EffectWithID = { id: UUID; inner: Effect };
+export type EffectWithID = { id: UUID; effect: Effect };

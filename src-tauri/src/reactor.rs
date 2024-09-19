@@ -329,9 +329,9 @@ impl EventLoop {
     })
   }
 
-  async fn exec_effect(&self, effect: EffectWithID, event_context: Arc<EventContext>) {
+  async fn exec_effect(&self, effect_with_id: EffectWithID, event_context: Arc<EventContext>) {
     spawn(async move {
-      if let Err(effect_error) = effect.inner.ready().fire(event_context).await {
+      if let Err(effect_error) = effect_with_id.effect.ready().fire(event_context).await {
         error!("Encountered error executing Effect: {effect_error:?}");
       }
     });

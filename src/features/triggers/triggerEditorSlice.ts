@@ -158,7 +158,7 @@ const triggerEditorSlice = createSlice({
       const seq = seqSelector(slice);
       let effect: EffectWithID = {
         id: uuid(),
-        inner: newEffect(variant, triggerID),
+        effect: newEffect(variant, triggerID),
       };
       seq.splice(index, 0, effect);
     },
