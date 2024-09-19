@@ -27,10 +27,10 @@
       {
         "label": "main",
         "title": "LogQuest",
-        "width": 800,
+        "width": 730,
         "height": 600,
-        "minWidth": 640,
-        "minHeight": 480,
+        "minWidth": 730,
+        "minHeight": 400,
         "focus": true,
         "visible": true
       }
