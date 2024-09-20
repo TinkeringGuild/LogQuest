@@ -1,16 +1,18 @@
+import { ReactElement } from 'react';
+
 import Autocomplete from '@mui/material/Autocomplete';
 import TextField from '@mui/material/TextField';
 
 import {
-  EffectIcon,
   EFFECT_VARIANTS,
+  EffectIcon,
   EffectVariant,
-  TimerEffectVariant,
-  isTimerEffectVariant,
   HUMANIZED_EFFECT_NAMES,
-  TimerEffectIcon,
   HUMANIZED_TIMER_EFFECT_NAMES,
   TIMER_EFFECT_VARIANTS,
+  TimerEffectIcon,
+  TimerEffectVariant,
+  isTimerEffectVariant,
 } from '../effect-utils';
 
 type EitherVariant = EffectVariant | TimerEffectVariant;
@@ -27,85 +29,68 @@ const SHOWN_TIMER_EFFECT_VARIANTS: TimerEffectVariant[] =
       ].includes(variant)
   );
 
-export const VARIANTS_OF_EFFECTS_AND_TIMER_EFFECTS: (
+export const VARIANTS_OF_TIMER_EFFECTS_AND_EFFECTS: (
   | EffectVariant
   | TimerEffectVariant
 )[] = [...SHOWN_TIMER_EFFECT_VARIANTS, ...EFFECT_VARIANTS];
 
-export const AutocompleteEffect: React.FC<{
-  onSelect: (e: EffectVariant) => void;
+export const createAutocomplete = <
+  OptionType extends EffectVariant | EitherVariant,
+>(props: {
+  options: OptionType[];
+  groupBy?: (value: OptionType) => string;
+  onSelect: (value: OptionType) => void;
   close?: () => void;
-}> = ({ onSelect, close = () => {} }) => {
+  width: number;
+}): ReactElement => {
+  const { onSelect, close, width, ...autocompleteProps } = props;
   return (
-    <Autocomplete
+    <Autocomplete<OptionType>
+      {...autocompleteProps}
       openOnFocus
       blurOnSelect
       autoHighlight
       size="small"
-      options={EFFECT_VARIANTS}
-      renderOption={(props, option, { selected: _ }) => {
+      renderOption={(props, option: OptionType) => {
         const { key, ...optionProps } = props;
-        const VariantIcon = EffectIcon[option];
+        const [name, VariantIcon] = isTimerEffectVariant(option)
+          ? [HUMANIZED_TIMER_EFFECT_NAMES[option], TimerEffectIcon[option]]
+          : [
+              HUMANIZED_EFFECT_NAMES[option as EffectVariant],
+              EffectIcon[option],
+            ];
         return (
           <li key={key} {...optionProps}>
             <VariantIcon />
-            &nbsp;&nbsp;{HUMANIZED_EFFECT_NAMES[option]}
+            &nbsp;&nbsp;{name}
           </li>
         );
       }}
       onChange={(_, value) => {
-        if (value) {
-          onSelect(value);
-        }
-        close();
+        value && onSelect(value);
+        close && close();
       }}
       renderInput={(params) => (
         <TextField {...params} autoFocus={true} onBlur={close} />
       )}
-      sx={{ width: 200 }}
+      sx={{ width: width }}
     />
   );
 };
 
-export const AutocompleteEffectAndTimerEffect: React.FC<{
-  onSelect: (e: EitherVariant) => void;
+export const createEffectAutocomplete = (props: {
+  onSelect: (value: EffectVariant) => void;
   close?: () => void;
-}> = ({ onSelect, close = () => {} }) => {
-  return (
-    <Autocomplete
-      openOnFocus
-      blurOnSelect
-      autoHighlight
-      size="small"
-      options={VARIANTS_OF_EFFECTS_AND_TIMER_EFFECTS}
-      groupBy={(option: EitherVariant) =>
-        isTimerEffectVariant(option) ? 'Timer Effects' : 'General Effects'
-      }
-      renderOption={(props, option, { selected: _ }) => {
-        const { key, ...optionProps } = props;
-        const VariantIcon = isTimerEffectVariant(option)
-          ? TimerEffectIcon[option]
-          : EffectIcon[option];
-        return (
-          <li key={key} {...optionProps}>
-            <VariantIcon />
-            &nbsp;&nbsp;
-            {isTimerEffectVariant(option)
-              ? HUMANIZED_TIMER_EFFECT_NAMES[option]
-              : HUMANIZED_EFFECT_NAMES[option]}
-          </li>
-        );
-      }}
-      onChange={(_, value) => {
-        if (value) {
-          onSelect(value);
-        }
-        close();
-      }}
-      renderInput={(params) => (
-        <TextField {...params} autoFocus={true} onBlur={close} />
-      )}
-      sx={{ width: 250 }}
-    />
-  );
-};
+}) => createAutocomplete({ width: 200, options: EFFECT_VARIANTS, ...props });
+
+export const createEffectOrTimerEffectAutocomplete = (props: {
+  onSelect: (value: EitherVariant) => void;
+  close?: () => void;
+}) =>
+  createAutocomplete({
+    options: VARIANTS_OF_TIMER_EFFECTS_AND_EFFECTS,
+    width: 275,
+    groupBy: (option) =>
+      isTimerEffectVariant(option) ? 'Timer Effects' : 'General Effects',
+    ...props,
+  });

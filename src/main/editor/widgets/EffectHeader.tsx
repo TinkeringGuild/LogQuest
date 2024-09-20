@@ -10,19 +10,21 @@ import {
   EffectIcon,
   EffectVariant,
   HUMANIZED_EFFECT_NAMES,
+  HUMANIZED_TIMER_EFFECT_NAMES,
+  isTimerEffectVariant,
+  TimerEffectIcon,
+  TimerEffectVariant,
 } from '../effect-utils';
 
 export const EffectTitle: React.FC<{
-  variant: EffectVariant;
+  variant: EffectVariant | TimerEffectVariant;
   help: string;
 }> = ({ variant, help }) => {
-  const VariantIcon = EffectIcon[variant];
+  const [title, VariantIcon] = isTimerEffectVariant(variant)
+    ? [HUMANIZED_TIMER_EFFECT_NAMES[variant], TimerEffectIcon[variant]]
+    : [HUMANIZED_EFFECT_NAMES[variant], EffectIcon[variant]];
   return (
-    <ExplicitEffectTitle
-      title={HUMANIZED_EFFECT_NAMES[variant]}
-      help={help}
-      icon={<VariantIcon />}
-    />
+    <ExplicitEffectTitle title={title} help={help} icon={<VariantIcon />} />
   );
 };
 

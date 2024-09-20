@@ -4,7 +4,6 @@ import { useDispatch, useSelector } from 'react-redux';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import CardHeader from '@mui/material/CardHeader';
-import Paper from '@mui/material/Paper';
 import TextField from '@mui/material/TextField';
 
 import {
@@ -22,6 +21,7 @@ import {
   TimerEffectIcon,
   TimerEffectVariant,
 } from './effect-utils';
+import EffectWithoutOptions from './EffectWithoutOptions';
 import EditDuration from './widgets/EditDuration';
 import EditFilter from './widgets/EditFilter';
 import { EffectHeader, ExplicitEffectTitle } from './widgets/EffectHeader';
@@ -113,7 +113,7 @@ const TIMER_EFFECT_COMPONENTS = {
 
   ClearTimer(onDelete: () => void) {
     return (
-      <SimpleTimerEffect
+      <EffectWithoutOptions
         variant="ClearTimer"
         help="Kills this Timer when this Effect is ran."
         onDelete={onDelete}
@@ -123,7 +123,7 @@ const TIMER_EFFECT_COMPONENTS = {
 
   RestartTimer(onDelete: () => void) {
     return (
-      <SimpleTimerEffect
+      <EffectWithoutOptions
         variant="RestartTimer"
         help="Restart this Timer with its original Duration."
         onDelete={onDelete}
@@ -133,7 +133,7 @@ const TIMER_EFFECT_COMPONENTS = {
 
   HideTimer(onDelete: () => void) {
     return (
-      <SimpleTimerEffect
+      <EffectWithoutOptions
         variant="HideTimer"
         help="Hides the Timer but keeps it running. You can use Unhide Timer to show it again."
         onDelete={onDelete}
@@ -143,7 +143,7 @@ const TIMER_EFFECT_COMPONENTS = {
 
   UnhideTimer(onDelete: () => void) {
     return (
-      <SimpleTimerEffect
+      <EffectWithoutOptions
         variant="UnhideTimer"
         help="Shows a previously hidden Timer"
         onDelete={onDelete}
@@ -153,7 +153,7 @@ const TIMER_EFFECT_COMPONENTS = {
 
   WaitUntilFinished(onDelete: () => void) {
     return (
-      <SimpleTimerEffect
+      <EffectWithoutOptions
         variant="WaitUntilFinished"
         help="Waits until the Timer has run its course. This does not execute if the Timer has been killed. You probably want to use this in a Sequence"
         onDelete={onDelete}
@@ -189,22 +189,6 @@ const EditScopedTimerEffect: React.FC<{
   } else {
     return TIMER_EFFECT_COMPONENTS[timerEffect.variant](onDelete);
   }
-};
-
-const SimpleTimerEffect: React.FC<{
-  variant: TimerEffectVariant;
-  help: string;
-  onDelete: () => void;
-}> = ({ variant, help, onDelete }) => {
-  const title = HUMANIZED_TIMER_EFFECT_NAMES[variant];
-  const VariantIcon = TimerEffectIcon[variant];
-  return (
-    <EffectHeader onDelete={onDelete}>
-      <Paper elevation={10} sx={{ margin: '0 auto', padding: '10px 15px' }}>
-        <ExplicitEffectTitle title={title} help={help} icon={<VariantIcon />} />
-      </Paper>
-    </EffectHeader>
-  );
 };
 
 const TimerEffectWithOptions: React.FC<{

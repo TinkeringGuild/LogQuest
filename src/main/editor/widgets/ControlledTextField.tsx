@@ -1,11 +1,17 @@
-import { useEffect, useMemo, useState } from 'react';
+import { omit } from 'lodash';
+import { useEffect, useId, useMemo, useState } from 'react';
+import { useDispatch } from 'react-redux';
 
 import TextField, { TextFieldProps } from '@mui/material/TextField';
-import { omit } from 'lodash';
+import {
+  forgetError,
+  setError,
+} from '../../../features/triggers/triggerEditorSlice';
 
 type ControlledTextFieldValidationProps = {
   validate: (value: string) => string | null;
-  onValidateChange: (errorMessage: string | null) => void;
+  // onValidateChange: (errorMessage: string | null) => void;
+  errorID?: string;
 };
 
 type BaseControlledTextFieldProps = TextFieldProps & {
@@ -29,12 +35,14 @@ const ControlledTextField: React.FC<ControlledTextFieldProps> = ({
   onCommit,
   ...props
 }) => {
+  const dispatch = useDispatch();
   const [input, setInput] = useState(value);
+  const defaultID = useId();
 
-  const [validate, onValidateChange] =
-    'validate' in props && 'onValidateChange' in props
-      ? [props.validate, props.onValidateChange]
-      : [null, null];
+  const errorID = 'errorID' in props ? props.errorID! : defaultID;
+
+  const validate = 'validate' in props && props.validate;
+  // const onValidateChange = 'onValidateChange' in props && props.onValidateChange;
 
   // Synchronize the component state with the value prop
   useEffect(() => {
@@ -49,18 +57,36 @@ const ControlledTextField: React.FC<ControlledTextFieldProps> = ({
     }
   }, [input]);
 
-  // Invoke onValidateChange when the validation state changes
+  // Register errors when validation state changes
   useEffect(() => {
-    if (validation !== undefined && onValidateChange) {
-      onValidateChange(validation);
+    if (validation === undefined) {
+      return;
     }
+    if (validation) {
+      dispatch(setError({ id: errorID, error: validation }));
+    } else {
+      dispatch(forgetError(errorID));
+    }
+
+    // onValidateChange && onValidateChange(validation);
   }, [validation]);
+
+  // Clean up error on un-mount
+  useEffect(
+    () => () => {
+      dispatch(forgetError(errorID));
+    },
+    []
+  );
 
   return (
     <TextField
-      {...omit(props, ['validate', 'onValidateChange'])}
+      {...omit(props, ['validate', 'errorID' /*, 'onValidateChange' */])}
+      id={defaultID}
       label={label}
       value={input}
+      error={!!validation}
+      helperText={validation || undefined}
       onChange={(e) => setInput(e.target.value)}
       onBlur={() => onCommit(input)}
     />

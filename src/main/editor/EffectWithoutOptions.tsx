@@ -2,10 +2,10 @@ import Card from '@mui/material/Card';
 import CardHeader from '@mui/material/CardHeader';
 
 import { EffectHeader, EffectTitle } from './widgets/EffectHeader';
-import { EffectVariant } from './effect-utils';
+import { EffectVariant, TimerEffectVariant } from './effect-utils';
 
 const EffectWithoutOptions: React.FC<{
-  variant: EffectVariant;
+  variant: EffectVariant | TimerEffectVariant;
   help: string;
   onDelete: () => void;
 }> = ({ variant, help, onDelete }) => (

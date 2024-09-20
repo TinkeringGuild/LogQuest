@@ -1,5 +1,5 @@
 import { map as pluck } from 'lodash';
-import React, { useEffect, useId, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 
 import { Add, CancelOutlined, NavigateNext, Save } from '@mui/icons-material';
@@ -12,11 +12,8 @@ import {
   $draftTrigger,
   $draftTriggerTags,
   $editorHasError,
-  $errorForID,
   cancelEditing,
-  forgetError,
   insertNewEffect,
-  setError,
   setTriggerComment,
   setTriggerName,
   setTriggerTags,
@@ -32,7 +29,7 @@ import { calculateTimeAgo } from '../../util';
 import StandardTooltip from '../../widgets/StandardTooltip';
 import { EffectVariant } from './effect-utils';
 import TriggerTagsEditor from './TriggerTagsEditor';
-import { AutocompleteEffect } from './widgets/AutocompleteEffect';
+import { createEffectAutocomplete } from './widgets/AutocompleteEffect';
 import ControlledTextField from './widgets/ControlledTextField';
 import EditFilter from './widgets/EditFilter';
 import EffectList from './widgets/EffectList';
@@ -49,8 +46,6 @@ const TriggerEditor: React.FC<{}> = () => {
   const allTriggerTags = useSelector($triggerTags);
   const parentPosition = useSelector($draftParentPosition);
 
-  const nameInputID = useId();
-  const nameError = useSelector($errorForID(nameInputID));
   const hasError = useSelector($editorHasError);
 
   // parentPosition is only needed to be given when creating, so it is also used to signal
@@ -114,19 +109,9 @@ const TriggerEditor: React.FC<{}> = () => {
             label="Trigger Name"
             fullWidth
             value={trigger.name}
-            error={!!nameError}
-            id={nameInputID}
             slotProps={{ htmlInput: { sx: { fontSize: 30 } } }}
-            helperText={nameError}
             className="trigger-editor-name"
             validate={(value) => (value.trim() ? null : 'Name cannot be blank')}
-            onValidateChange={(errorMaybe) =>
-              dispatch(
-                errorMaybe
-                  ? setError({ id: nameInputID, error: errorMaybe })
-                  : forgetError(nameInputID)
-              )
-            }
             onCommit={(input) => dispatch(setTriggerName(input))}
             autoFocus={trigger.name.trim() === ''}
           />
@@ -229,9 +214,10 @@ const CreateEffectButton: React.FC<{
     );
   }
 
-  return (
-    <AutocompleteEffect close={() => setIsOpen(false)} onSelect={create} />
-  );
+  return createEffectAutocomplete({
+    onSelect: create,
+    close: () => setIsOpen(false),
+  });
 };
 
 export default TriggerEditor;

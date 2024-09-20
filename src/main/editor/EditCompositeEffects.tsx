@@ -1,4 +1,4 @@
-import React, { ReactElement } from 'react';
+import React, { ReactElement, useContext } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 
 import { Add } from '@mui/icons-material';
@@ -7,21 +7,22 @@ import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import CardHeader from '@mui/material/CardHeader';
 import Stack from '@mui/material/Stack';
+import Typography from '@mui/material/Typography';
 
 import {
   deleteEffect,
   insertNewEffect,
+  insertNewEffectOrTimerEffect,
   TriggerEditorSelector,
   triggerEditorSelector,
 } from '../../features/triggers/triggerEditorSlice';
-import { Effect } from '../../generated/Effect';
 import { EffectWithID } from '../../generated/EffectWithID';
 import { UUID } from '../../generated/UUID';
 import EditEffect from './EditEffect';
+import { EffectVariant, TimerEffectVariant } from './effect-utils';
 import { EffectHeader, EffectTitle } from './widgets/EffectHeader';
+import IncludeTimerEffectsContext from './widgets/IncludeTimerEffectsContext';
 import InsertEffectDivider from './widgets/InsertEffectDivider';
-import Typography from '@mui/material/Typography';
-import { EffectVariant } from './effect-utils';
 
 export const EditSequenceEffect: React.FC<{
   triggerID: UUID;
@@ -60,18 +61,28 @@ const EditCompositeEffect: React.FC<{
   const dispatch = useDispatch();
   const seq = useSelector(triggerEditorSelector(seqSelector));
 
+  const includeTimerEffects = useContext(IncludeTimerEffectsContext);
+
   const insertEffectAtIndex: (
-    insertedVariant: EffectVariant,
+    insertedVariant: string,
     index: number
   ) => void = (insertedVariant, index) => {
-    dispatch(
-      insertNewEffect({
-        variant: insertedVariant,
-        index,
-        triggerID,
-        seqSelector,
-      })
-    );
+    const actionParams = {
+      index,
+      triggerID,
+      seqSelector,
+    };
+    const action = includeTimerEffects
+      ? insertNewEffectOrTimerEffect({
+          variant: insertedVariant as EffectVariant | TimerEffectVariant,
+          ...actionParams,
+        })
+      : insertNewEffect({
+          variant: insertedVariant as EffectVariant,
+          ...actionParams,
+        });
+
+    dispatch(action);
   };
 
   return (
@@ -87,8 +98,8 @@ const EditCompositeEffect: React.FC<{
       <CardContent sx={{ pt: 0 }}>
         <InsertEffectDivider
           index={0}
-          onInsertEffect={insertEffectAtIndex}
           defaultIcon={<Add />}
+          onInsertEffect={(variant) => insertEffectAtIndex(variant, 0)}
         />
         <Stack direction="column">
           {seq.map((effect, index) => (
@@ -99,14 +110,19 @@ const EditCompositeEffect: React.FC<{
                 effectSelector={(slice) => seqSelector(slice)[index]}
                 onDelete={() =>
                   dispatch(
-                    deleteEffect({ effectID: effect.id, selector: seqSelector })
+                    deleteEffect({
+                      effectID: effect.id,
+                      selector: seqSelector,
+                    })
                   )
                 }
               />
               <InsertEffectDivider
                 index={index + 1}
-                onInsertEffect={insertEffectAtIndex}
                 defaultIcon={index === seq.length - 1 ? <Add /> : seqIcon}
+                onInsertEffect={(variant) =>
+                  insertEffectAtIndex(variant, index + 1)
+                }
               />
             </React.Fragment>
           ))}

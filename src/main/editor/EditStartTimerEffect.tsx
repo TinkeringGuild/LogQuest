@@ -1,4 +1,4 @@
-import React, { useEffect, useId, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 
 import { Add } from '@mui/icons-material';
@@ -16,9 +16,7 @@ import TextField from '@mui/material/TextField';
 
 import {
   $errorForID,
-  forgetError,
   insertNewEffectOrTimerEffect,
-  setError,
   setTimerField,
   triggerEditorSelector,
   TriggerEditorSelector,
@@ -27,16 +25,19 @@ import { EffectWithID } from '../../generated/EffectWithID';
 import { Timer } from '../../generated/Timer';
 import { TimerStartPolicy } from '../../generated/TimerStartPolicy';
 import { UUID } from '../../generated/UUID';
-import { EffectVariant } from './effect-utils';
-import { TimerEffectVariant } from './effect-utils';
-import { AutocompleteEffectAndTimerEffect } from './widgets/AutocompleteEffect';
+import { EffectVariant, TimerEffectVariant } from './effect-utils';
+import { createEffectOrTimerEffectAutocomplete } from './widgets/AutocompleteEffect';
 import ControlledTextField from './widgets/ControlledTextField';
 import EditDuration from './widgets/EditDuration';
 import { EffectHeader, EffectTitle } from './widgets/EffectHeader';
 import EffectList from './widgets/EffectList';
+import IncludeTimerEffectsContext from './widgets/IncludeTimerEffectsContext';
 
 const VARIANT_WITH_VALUE: TimerStartPolicy['variant'] =
   'StartAndReplacesAnyTimerOfTriggerWithNameTemplateMatching';
+
+const START_POLICY_INPUT_FIELD_ERROR_ID =
+  'trigger-editor-start-policy-input-field';
 
 const EditStartTimerEffect: React.FC<{
   triggerID: UUID;
@@ -56,10 +57,8 @@ const EditStartTimerEffect: React.FC<{
       : null
   );
 
-  const startPolicyValueFieldID = useId();
-
   const startPolicyErrorMessage = useSelector(
-    $errorForID(startPolicyValueFieldID)
+    $errorForID(START_POLICY_INPUT_FIELD_ERROR_ID)
   );
 
   // Updates the Timer in the store with its TimerStartPolicy value
@@ -82,22 +81,22 @@ const EditStartTimerEffect: React.FC<{
     );
   }, [startPolicyVariant, startPolicyValue]);
 
-  // Cleans up the error message from the store on un-mount
-  useEffect(() => {
-    return () => {
-      dispatch(forgetError(startPolicyValueFieldID));
-    };
-  }, []);
-
-  const setStartPolicyError = (error: string | null) => {
-    const action = error
-      ? setError({ id: startPolicyValueFieldID, error })
-      : forgetError(startPolicyValueFieldID);
-    dispatch(action);
-  };
-
   const $$effects: TriggerEditorSelector<EffectWithID[]> = (slice) => {
     return timerSelector(slice).effects;
+  };
+
+  const insertNewVariantAtIndex = (
+    variant: EffectVariant | TimerEffectVariant,
+    index: number
+  ) => {
+    dispatch(
+      insertNewEffectOrTimerEffect({
+        variant,
+        index,
+        triggerID: triggerID,
+        seqSelector: $$effects,
+      })
+    );
   };
 
   return (
@@ -112,10 +111,11 @@ const EditStartTimerEffect: React.FC<{
           </EffectHeader>
         }
       />
+
       <CardContent>
         <div>
           <TextField
-            sx={{ width: 400 }}
+            fullWidth
             label="Timer Name (Template)"
             defaultValue={timer.name_tmpl}
             className="template-input"
@@ -162,12 +162,14 @@ const EditStartTimerEffect: React.FC<{
             />
           }
         />
+
         {/* TODO: timer.tags */}
+
         <Box mt={2}>
           <h3 style={{ marginBottom: 5 }}>Timer Start Behavior</h3>
           <FormControl>
             <RadioGroup
-              defaultValue={startPolicyVariant}
+              value={startPolicyVariant}
               onChange={(e) => {
                 const variant = e.target.value as TimerStartPolicy['variant'];
                 setStartPolicyVariant(variant);
@@ -176,7 +178,6 @@ const EditStartTimerEffect: React.FC<{
                   startPolicyValue !== null
                 ) {
                   setStartPolicyValue(null);
-                  forgetError(startPolicyValueFieldID);
                 }
               }}
             >
@@ -207,9 +208,6 @@ const EditStartTimerEffect: React.FC<{
               <ControlledTextField
                 label="Name of Timer(s) to replace (Template)"
                 value={startPolicyValue || ''}
-                error={!!startPolicyErrorMessage}
-                helperText={startPolicyErrorMessage}
-                id={startPolicyValueFieldID}
                 className="template-input"
                 onCommit={(input) => setStartPolicyValue(input)}
                 validate={(value) =>
@@ -217,27 +215,21 @@ const EditStartTimerEffect: React.FC<{
                     ? null
                     : 'You must specify a Timer name to replace'
                 }
-                onValidateChange={setStartPolicyError}
+                errorID={START_POLICY_INPUT_FIELD_ERROR_ID}
                 sx={{ ml: 3.75, mt: 0.5, width: 480 }}
               />
             </div>
           )}
         </Box>
+
         <h3>Timer Effects</h3>
         <CreateEffectOrTimerEffectButton
-          create={(variant) => {
-            dispatch(
-              insertNewEffectOrTimerEffect({
-                variant,
-                index: 0,
-                triggerID: triggerID,
-                seqSelector: $$effects,
-              })
-            );
-          }}
+          create={(variant) => insertNewVariantAtIndex(variant, 0)}
         />
         {timer.effects.length ? (
-          <EffectList triggerID={triggerID} selector={$$effects} />
+          <IncludeTimerEffectsContext.Provider value={true}>
+            <EffectList triggerID={triggerID} selector={$$effects} />
+          </IncludeTimerEffectsContext.Provider>
         ) : (
           <p>This Timer currently has no Effects. Do you want to create one?</p>
         )}
@@ -258,19 +250,17 @@ const CreateEffectOrTimerEffectButton: React.FC<{
         size="large"
         startIcon={<Add />}
         onClick={() => setIsOpen(true)}
-        sx={{ width: 250 }}
+        sx={{ width: 275 }}
       >
         Add New Timer Effect
       </Button>
     );
   }
 
-  return (
-    <AutocompleteEffectAndTimerEffect
-      close={() => setIsOpen(false)}
-      onSelect={create}
-    />
-  );
+  return createEffectOrTimerEffectAutocomplete({
+    onSelect: create,
+    close: () => setIsOpen(false),
+  });
 };
 
 export default EditStartTimerEffect;
