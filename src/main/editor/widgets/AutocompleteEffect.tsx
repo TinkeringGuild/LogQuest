@@ -5,13 +5,11 @@ import TextField from '@mui/material/TextField';
 
 import {
   EFFECT_VARIANTS,
-  EffectIcon,
   EffectVariant,
-  HUMANIZED_EFFECT_NAMES,
-  HUMANIZED_TIMER_EFFECT_NAMES,
   TIMER_EFFECT_VARIANTS,
-  TimerEffectIcon,
   TimerEffectVariant,
+  effectIcon,
+  humanizeEffectName,
   isTimerEffectVariant,
 } from '../effect-utils';
 
@@ -53,15 +51,12 @@ export const createAutocomplete = <
       size="small"
       renderOption={(props, option: OptionType) => {
         const { key, ...optionProps } = props;
-        const [name, VariantIcon] = isTimerEffectVariant(option)
-          ? [HUMANIZED_TIMER_EFFECT_NAMES[option], TimerEffectIcon[option]]
-          : [
-              HUMANIZED_EFFECT_NAMES[option as EffectVariant],
-              EffectIcon[option],
-            ];
+        const name = humanizeEffectName(option);
+        const icon = effectIcon(option);
+
         return (
           <li key={key} {...optionProps}>
-            <VariantIcon />
+            {icon}
             &nbsp;&nbsp;{name}
           </li>
         );

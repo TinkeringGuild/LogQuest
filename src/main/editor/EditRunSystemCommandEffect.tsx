@@ -203,7 +203,13 @@ const EditRunSystemCommandEffect: React.FC<{
           value={commandInput}
           disabled={commandFileSelectDialogOpen}
           error={!!commandError}
-          helperText={commandError || commandPath || ' '}
+          color={commandError ? 'error' : isApproved ? 'primary' : 'warning'}
+          helperText={
+            commandError ||
+            commandPath + (isApproved ? '' : ' (NOT APPROVED)') ||
+            ' '
+          }
+          focused={!commandError && !isApproved}
           onChange={(e) => setCommandInput(e.target.value)}
           className="template-input"
           slotProps={{

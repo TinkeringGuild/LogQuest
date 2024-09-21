@@ -122,6 +122,7 @@ const TriggerEditor: React.FC<{}> = () => {
             multiline
             fullWidth
             placeholder="Comments"
+            maxRows={10}
             defaultValue={trigger.comment || ''}
             onBlur={(e) => dispatch(setTriggerComment(e.target.value))}
           />

@@ -66,3 +66,11 @@ p.trigger-editor-info {
   font-family: 'Liberation Mono', 'Consolas', 'Courier New', 'Menlo', 'Monaco',
     monospace;
 }
+
+.trigger-editor .effect-with-options .MuiCardHeader-root {
+  padding-bottom: 0;
+}
+
+.trigger-editor .effect-with-options .MuiCardContent-root {
+  padding-top: 10px;
+}

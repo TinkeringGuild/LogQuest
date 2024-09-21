@@ -4,17 +4,18 @@ import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import CardHeader from '@mui/material/CardHeader';
 
-import { EffectVariant } from './effect-utils';
+import { EffectVariant, TimerEffectVariant } from './effect-utils';
 import { EffectHeader, EffectTitle } from './widgets/EffectHeader';
 
 const EffectWithOptions: React.FC<{
-  variant: EffectVariant;
+  variant: EffectVariant | TimerEffectVariant;
   help: string;
   width?: number;
   children: ReactNode;
   onDelete: () => void;
 }> = ({ variant, help, width, children, onDelete }) => (
   <Card
+    className="effect-with-options"
     elevation={10}
     sx={{ ...(width ? { width, alignSelf: 'center' } : {}) }}
   >

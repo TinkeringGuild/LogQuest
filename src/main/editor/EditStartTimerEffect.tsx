@@ -223,9 +223,11 @@ const EditStartTimerEffect: React.FC<{
         </Box>
 
         <h3>Timer Effects</h3>
-        <CreateEffectOrTimerEffectButton
-          create={(variant) => insertNewVariantAtIndex(variant, 0)}
-        />
+        <div style={{ marginBottom: 20 }}>
+          <CreateEffectOrTimerEffectButton
+            create={(variant) => insertNewVariantAtIndex(variant, 0)}
+          />
+        </div>
         {timer.effects.length ? (
           <IncludeTimerEffectsContext.Provider value={true}>
             <EffectList triggerID={triggerID} selector={$$effects} />

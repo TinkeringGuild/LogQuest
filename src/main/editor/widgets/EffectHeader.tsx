@@ -7,12 +7,9 @@ import Typography from '@mui/material/Typography';
 
 import StandardTooltip from '../../../widgets/StandardTooltip';
 import {
-  EffectIcon,
+  effectIcon,
   EffectVariant,
-  HUMANIZED_EFFECT_NAMES,
-  HUMANIZED_TIMER_EFFECT_NAMES,
-  isTimerEffectVariant,
-  TimerEffectIcon,
+  humanizeEffectName,
   TimerEffectVariant,
 } from '../effect-utils';
 
@@ -20,12 +17,9 @@ export const EffectTitle: React.FC<{
   variant: EffectVariant | TimerEffectVariant;
   help: string;
 }> = ({ variant, help }) => {
-  const [title, VariantIcon] = isTimerEffectVariant(variant)
-    ? [HUMANIZED_TIMER_EFFECT_NAMES[variant], TimerEffectIcon[variant]]
-    : [HUMANIZED_EFFECT_NAMES[variant], EffectIcon[variant]];
-  return (
-    <ExplicitEffectTitle title={title} help={help} icon={<VariantIcon />} />
-  );
+  const title = humanizeEffectName(variant);
+  const icon = effectIcon(variant);
+  return <ExplicitEffectTitle title={title} help={help} icon={icon} />;
 };
 
 export const ExplicitEffectTitle: React.FC<{

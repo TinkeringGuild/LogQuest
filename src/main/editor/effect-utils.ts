@@ -23,6 +23,8 @@ import WatchLater from '@mui/icons-material/WatchLater';
 
 import { Effect } from '../../generated/Effect';
 import { TimerEffect } from '../../generated/TimerEffect';
+import { ReactElement } from 'react';
+import React from 'react';
 
 export type EffectVariant = Effect['variant'];
 
@@ -98,7 +100,7 @@ export const TimerEffectIcon: {
   ResetCounter: QuestionMark,
 };
 
-export const HUMANIZED_TIMER_EFFECT_NAMES: {
+const HUMANIZED_TIMER_EFFECT_NAMES: {
   [key in TimerEffectVariant]: string;
 } = {
   AddTag: 'Add Timer Tag',
@@ -117,7 +119,7 @@ export const HUMANIZED_TIMER_EFFECT_NAMES: {
   ResetCounter: 'Reset Counter',
 };
 
-export const HUMANIZED_EFFECT_NAMES: { [key in EffectVariant]: string } = {
+const HUMANIZED_EFFECT_NAMES: { [key in EffectVariant]: string } = {
   Sequence: 'Sequence',
   Parallel: 'Parallel',
   Pause: 'Pause',
@@ -132,6 +134,23 @@ export const HUMANIZED_EFFECT_NAMES: { [key in EffectVariant]: string } = {
   SpeakStop: 'Stop Speaking',
   StartStopwatch: 'Start Stopwatch',
 };
+
+export function humanizeEffectName(
+  variant: EffectVariant | TimerEffectVariant
+): string {
+  return isTimerEffectVariant(variant)
+    ? HUMANIZED_TIMER_EFFECT_NAMES[variant]
+    : HUMANIZED_EFFECT_NAMES[variant];
+}
+
+export function effectIcon(
+  variant: EffectVariant | TimerEffectVariant
+): ReactElement {
+  const icon = isTimerEffectVariant(variant)
+    ? TimerEffectIcon[variant]
+    : EffectIcon[variant];
+  return React.createElement(icon);
+}
 
 export function isTimerEffectVariant(
   variant: string

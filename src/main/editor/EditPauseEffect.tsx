@@ -9,6 +9,7 @@ import {
 } from '../../features/triggers/triggerEditorSlice';
 import EffectWithOptions from './EffectWithOptions';
 import EditDuration from './widgets/EditDuration';
+import Box from '@mui/material/Box';
 
 const DEBOUNCE_WAIT_MILLIS = 300;
 
@@ -32,10 +33,12 @@ const EditPauseEffect: React.FC<{
       width={300}
       onDelete={onDelete}
     >
-      <EditDuration
-        millis={millis}
-        onChange={(value) => triggerChangeDebounced(value)}
-      />
+      <Box textAlign="center">
+        <EditDuration
+          millis={millis}
+          onChange={(value) => triggerChangeDebounced(value)}
+        />
+      </Box>
     </EffectWithOptions>
   );
 };

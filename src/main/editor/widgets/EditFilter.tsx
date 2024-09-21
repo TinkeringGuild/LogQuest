@@ -1,4 +1,11 @@
-import { RefCallback, useEffect, useId, useRef, useState } from 'react';
+import {
+  ReactNode,
+  RefCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 
 import { DeleteForeverOutlined, PlaylistAdd } from '@mui/icons-material';
@@ -31,8 +38,10 @@ type MatcherVariant = (Matcher & MatcherWithContext)['variant'];
 
 function EditFilter<T extends Filter | FilterWithContext>({
   selector,
+  children,
 }: {
   selector: TriggerEditorSelector<T>;
+  children?: ReactNode;
 }): JSX.Element {
   const dispatch = useDispatch();
   const filter = useSelector(triggerEditorSelector(selector));
@@ -50,26 +59,30 @@ function EditFilter<T extends Filter | FilterWithContext>({
 
   return (
     <Stack spacing={2}>
-      {filter.map((matcher, index) => (
-        <MatcherInputField
-          key={matcher.value.id}
-          value={matcher.value.pattern}
-          variant={matcher.variant}
-          getRef={(ref) => ref && (matcherInputFieldRefs.current[index] = ref)}
-          onDelete={() => {
-            matcherInputFieldRefs.current.splice(index, 1);
-            dispatch(deleteFilterMatcher({ index, selector }));
-          }}
-          onChange={(value) =>
-            dispatch(
-              setMatcherValue({
-                value,
-                selector: (slice) => selector(slice)[index],
-              })
-            )
-          }
-        />
-      ))}
+      {!filter.length
+        ? children
+        : filter.map((matcher, index) => (
+            <MatcherInputField
+              key={matcher.value.id}
+              value={matcher.value.pattern}
+              variant={matcher.variant}
+              getRef={(ref) =>
+                ref && (matcherInputFieldRefs.current[index] = ref)
+              }
+              onDelete={() => {
+                matcherInputFieldRefs.current.splice(index, 1);
+                dispatch(deleteFilterMatcher({ index, selector }));
+              }}
+              onChange={(value) =>
+                dispatch(
+                  setMatcherValue({
+                    value,
+                    selector: (slice) => selector(slice)[index],
+                  })
+                )
+              }
+            />
+          ))}
       <Button
         variant="outlined"
         size="large"

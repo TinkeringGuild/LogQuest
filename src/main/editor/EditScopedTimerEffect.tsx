@@ -17,14 +17,17 @@ import { TimerEffect } from '../../generated/TimerEffect';
 import { TimerTag } from '../../generated/TimerTag';
 import { UUID } from '../../generated/UUID';
 import {
-  HUMANIZED_TIMER_EFFECT_NAMES,
-  TimerEffectIcon,
+  effectIcon,
+  humanizeEffectName,
   TimerEffectVariant,
 } from './effect-utils';
 import EffectWithoutOptions from './EffectWithoutOptions';
 import EditDuration from './widgets/EditDuration';
 import EditFilter from './widgets/EditFilter';
 import { EffectHeader, ExplicitEffectTitle } from './widgets/EffectHeader';
+import EffectWithOptions from './EffectWithOptions';
+import Box from '@mui/material/Box';
+import EditorError from './widgets/EditorError';
 
 const TIMER_EFFECT_COMPONENTS = {
   WaitUntilFilterMatches(
@@ -36,50 +39,61 @@ const TIMER_EFFECT_COMPONENTS = {
     const [_, durationMaybe] = timerEffect.value;
     const filterSelector: TriggerEditorSelector<FilterWithContext> = (state) =>
       selector(state).value[0];
+
     return (
-      <TimerEffectWithOptions
+      <EffectWithOptions
         variant="WaitUntilFilterMatches"
         help="Pause the execution of subsequent Effects until one of the given patterns matches"
         onDelete={onDelete}
       >
-        <EditFilter selector={filterSelector} />
+        <EditFilter selector={filterSelector}>
+          <EditorError
+            center
+            message="This filter must have at least one valid pattern."
+          />
+        </EditFilter>
         {/* TODO: There should be a checkbox to enable timeout, and EditDuration should validate it's not zero */}
-        <h5>Timeout (Optional)</h5>
-        <EditDuration
-          millis={durationMaybe || 0}
-          onChange={(duration) =>
-            dispatch(
-              setWaitUntilFilterMatchesDuration({
-                duration,
-                selector,
-              })
-            )
-          }
-        />
-      </TimerEffectWithOptions>
+        <Box textAlign="center">
+          <h4>Timeout (Optional)</h4>
+          <EditDuration
+            millis={durationMaybe || 0}
+            onChange={(duration) =>
+              dispatch(
+                setWaitUntilFilterMatchesDuration({
+                  duration,
+                  selector,
+                })
+              )
+            }
+          />
+        </Box>
+      </EffectWithOptions>
     );
   },
   WaitUntilSecondsRemain(seconds: number, onDelete: () => void) {
     return (
-      <TimerEffectWithOptions
+      <EffectWithOptions
         variant="WaitUntilSecondsRemain"
         help="Pause the execution of subsequent Effects until the Timer has the specified number of seconds remaining before completion."
         onDelete={onDelete}
+        width={400}
       >
-        <TextField
-          label="Seconds"
-          type="number"
-          variant="outlined"
-          defaultValue={seconds}
-          sx={{ maxWidth: 80 }}
-        />
-      </TimerEffectWithOptions>
+        <Box textAlign="center">
+          <TextField
+            label="Seconds"
+            type="number"
+            variant="outlined"
+            defaultValue={seconds}
+            sx={{ maxWidth: 110 }}
+          />
+        </Box>
+      </EffectWithOptions>
     );
   },
 
   AddTag(timerTag: TimerTag, onDelete: () => void) {
     return (
-      <TimerEffectWithOptions
+      <EffectWithOptions
         variant="AddTag"
         help="Adds a Timer Tag to this Timer. A Timer Tag can be used for filtering and styling of Timers in the Overlay."
         onDelete={onDelete}
@@ -90,13 +104,13 @@ const TIMER_EFFECT_COMPONENTS = {
           defaultValue={timerTag}
           sx={{ maxWidth: 200 }}
         />
-      </TimerEffectWithOptions>
+      </EffectWithOptions>
     );
   },
 
   RemoveTag(timerTag: TimerTag, onDelete: () => void) {
     return (
-      <TimerEffectWithOptions
+      <EffectWithOptions
         variant="RemoveTag"
         help="Removes a Timer Tag from this Timer."
         onDelete={onDelete}
@@ -107,7 +121,7 @@ const TIMER_EFFECT_COMPONENTS = {
           defaultValue={timerTag}
           sx={{ maxWidth: 200 }}
         />
-      </TimerEffectWithOptions>
+      </EffectWithOptions>
     );
   },
 
@@ -189,32 +203,6 @@ const EditScopedTimerEffect: React.FC<{
   } else {
     return TIMER_EFFECT_COMPONENTS[timerEffect.variant](onDelete);
   }
-};
-
-const TimerEffectWithOptions: React.FC<{
-  variant: TimerEffectVariant;
-  help: string;
-  children: ReactNode;
-  onDelete: () => void;
-}> = ({ variant, help, children, onDelete }) => {
-  const title = HUMANIZED_TIMER_EFFECT_NAMES[variant];
-  const VariantIcon = TimerEffectIcon[variant];
-  return (
-    <Card elevation={10}>
-      <CardHeader
-        title={
-          <EffectHeader onDelete={onDelete}>
-            <ExplicitEffectTitle
-              title={title}
-              help={help}
-              icon={<VariantIcon />}
-            />
-          </EffectHeader>
-        }
-      />
-      <CardContent>{children}</CardContent>
-    </Card>
-  );
 };
 
 export default EditScopedTimerEffect;
