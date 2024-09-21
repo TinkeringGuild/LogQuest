@@ -79,7 +79,7 @@ const TriggerGroupListItem: React.FC<{
                 ? [group.id, 0]
                 : [
                     group.parent_id,
-                    $positionOf({ group: group.id })(store.getState()),
+                    offset + $positionOf({ group: group.id })(store.getState()),
                   ];
             setEditDialogState({
               parentID,
