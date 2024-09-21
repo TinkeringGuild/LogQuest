@@ -2,6 +2,8 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
 import { MainRootState } from '../../MainStore';
 import { ProgressUpdate } from '../../generated/ProgressUpdate';
+import { ReactorState } from '../../generated/ReactorState';
+import { UUID } from '../../generated/UUID';
 import { seqFromProgressUpdate } from '../../util';
 
 export const APP_SLICE = 'app';
@@ -19,6 +21,7 @@ export interface AppState {
   currentMode: MODE;
   isLoading: boolean;
   progressUpdate: ProgressUpdate | null;
+  reactor: ReactorState | null;
 }
 
 const INITIAL_APP_STATE: AppState = {
@@ -26,60 +29,100 @@ const INITIAL_APP_STATE: AppState = {
   currentMode: 'triggers',
   isLoading: false,
   progressUpdate: null,
+  reactor: null,
 };
+
+export type AppSelector<T> = (slice: AppState) => T;
 
 const appSlice = createSlice({
   name: APP_SLICE,
   initialState: INITIAL_APP_STATE,
   reducers: {
-    bootstrapHasLoaded(state: AppState) {
-      state.bootstrapped = true;
+    initReactor(
+      slice: AppState,
+      { payload: reactorState }: PayloadAction<ReactorState>
+    ) {
+      slice.reactor = reactorState;
     },
-    navigateTo(state: AppState, { payload: mode }: PayloadAction<MODE>) {
-      state.currentMode = mode;
+
+    updateActivedTriggerTagIDs(
+      slice: AppState,
+      { payload }: PayloadAction<UUID[]>
+    ) {
+      if (!slice.reactor) {
+        return;
+      }
+      slice.reactor.active_trigger_tags = payload;
     },
-    enterLoadingState(state: AppState) {
-      state.isLoading = true;
+
+    bootstrapHasLoaded(slice: AppState) {
+      slice.bootstrapped = true;
     },
-    exitLoadingState(state: AppState) {
-      state.isLoading = false;
+
+    navigateTo(slice: AppState, { payload: mode }: PayloadAction<MODE>) {
+      slice.currentMode = mode;
     },
+
+    enterLoadingState(slice: AppState) {
+      slice.isLoading = true;
+    },
+
+    exitLoadingState(slice: AppState) {
+      slice.isLoading = false;
+    },
+
     updateProgress(
-      state: AppState,
+      slice: AppState,
       { payload: update }: PayloadAction<ProgressUpdate>
     ) {
       if (
         seqFromProgressUpdate(update) >
-        seqFromProgressUpdate(state.progressUpdate)
+        seqFromProgressUpdate(slice.progressUpdate)
       ) {
-        state.progressUpdate = update;
+        slice.progressUpdate = update;
       }
     },
-    updateProgressFinished(state: AppState) {
-      state.progressUpdate = null;
+
+    updateProgressFinished(slice: AppState) {
+      slice.progressUpdate = null;
     },
   },
 });
+
 export default appSlice.reducer;
+
 export const {
   bootstrapHasLoaded,
-  navigateTo,
   enterLoadingState,
   exitLoadingState,
+  initReactor,
+  navigateTo,
+  updateActivedTriggerTagIDs,
   updateProgress,
   updateProgressFinished,
 } = appSlice.actions;
 
 ////////////////////////////////////////
 
-export const $isBootstrapped = ({ [APP_SLICE]: app }: MainRootState) =>
-  app.bootstrapped;
+export function appSelector<T>(
+  selector: AppSelector<T>
+): (state: MainRootState) => T {
+  return (state: MainRootState) => selector(state[APP_SLICE]);
+}
+export const $isBootstrapped = appSelector(({ bootstrapped }) => bootstrapped);
 
-export const $currentMode = ({ [APP_SLICE]: app }: { [APP_SLICE]: AppState }) =>
-  app.currentMode;
+export const $currentMode = appSelector(({ currentMode }) => currentMode);
 
-export const $isLoading = ({ [APP_SLICE]: app }: { [APP_SLICE]: AppState }) =>
-  app.isLoading || !app.bootstrapped;
+export const $isLoading = appSelector(
+  ({ isLoading, bootstrapped }) => isLoading || !bootstrapped
+);
 
-export const $progress = ({ [APP_SLICE]: app }: { [APP_SLICE]: AppState }) =>
-  app.progressUpdate;
+export const $progress = appSelector(({ progressUpdate }) => progressUpdate);
+
+export const $currentCharacter = appSelector(
+  ({ reactor }) => reactor?.current_character
+);
+
+export const $activeTriggerTags = appSelector(
+  ({ reactor }) => reactor?.active_trigger_tags
+);

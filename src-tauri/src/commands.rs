@@ -1,11 +1,13 @@
 use crate::{
   common::{
     file_path_is_executable, format_integer, progress_reporter::ProgressUpdate,
-    security::is_crypto_available,
+    security::is_crypto_available, UUID,
   },
   gina::{importer::import_from_gina_export_file, regex::RegexGINA},
   state::{
-    config::LogQuestConfig, state_handle::StateHandle, state_tree::OverlayState,
+    config::LogQuestConfig,
+    state_handle::StateHandle,
+    state_tree::{OverlayState, ReactorState},
     timer_manager::TimerLifetime,
   },
   triggers::{
@@ -18,7 +20,7 @@ use crate::{
   },
 };
 use serde::Serialize;
-use std::path::PathBuf;
+use std::{collections::HashSet, path::PathBuf};
 use tauri::{AppHandle, Manager, State, Window};
 use tracing::{debug, error, event, info};
 
@@ -38,6 +40,7 @@ pub struct Bootstrap {
   config: LogQuestConfig,
   overlay: OverlayState,
   triggers: TriggerIndex,
+  reactor: ReactorState,
 }
 
 impl Bootstrap {
@@ -45,10 +48,13 @@ impl Bootstrap {
     let config = state.select_config(|c| c.clone());
     let triggers = state.select_triggers(|r| r.clone());
     let overlay = state.select_overlay(|o| o.clone());
+    let reactor = state.select_reactor(|r| r.clone());
+
     Self {
       overlay,
       triggers,
       config,
+      reactor,
     }
   }
 }
@@ -58,6 +64,7 @@ pub fn handler() -> impl Fn(tauri::Invoke) {
     bootstrap,
     bootstrap_overlay,
     dispatch_to_overlay,
+    get_active_trigger_tags,
     get_config,
     import_gina_triggers_file,
     mutate,
@@ -65,6 +72,7 @@ pub fn handler() -> impl Fn(tauri::Invoke) {
     print_to_stdout,
     set_everquest_dir,
     set_overlay_opacity,
+    set_trigger_tag_activated,
     sign_command_template,
     start_timers_sync,
     sys_command_info,
@@ -96,6 +104,28 @@ fn print_to_stderr(message: String) {
 fn get_config(state: State<StateHandle>) -> Result<LogQuestConfig, String> {
   let config = state.select_config(|c| c.clone());
   Ok(config)
+}
+
+#[tauri::command]
+fn get_active_trigger_tags(state: State<StateHandle>) -> Result<HashSet<UUID>, String> {
+  let active = state.select_reactor(|c| c.active_trigger_tags.clone());
+  Ok(active)
+}
+
+#[tauri::command]
+fn set_trigger_tag_activated(
+  id: UUID,
+  activated: bool,
+  state: State<StateHandle>,
+) -> HashSet<UUID> {
+  state.update_reactor_and_select(|c| {
+    if activated {
+      c.active_trigger_tags.insert(id);
+    } else {
+      c.active_trigger_tags.remove(&id);
+    }
+    c.active_trigger_tags.clone()
+  })
 }
 
 #[tauri::command]

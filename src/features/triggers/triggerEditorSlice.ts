@@ -63,6 +63,11 @@ export type TimerEffectWaitUntilFilterMatchesType = Extract<
   { variant: 'WaitUntilFilterMatches' }
 >;
 
+export type TimerEffectWaitUntilSecondsRemainType = Extract<
+  TimerEffect,
+  { variant: 'WaitUntilSecondsRemain' }
+>;
+
 export type EffectVariantCopyToClipboard = Extract<
   Effect,
   { variant: 'CopyToClipboard' }
@@ -271,6 +276,19 @@ const triggerEditorSlice = createSlice({
       waitUntilFilterMatches.value[1] = duration;
     },
 
+    setWaitUntilSecondsRemainSeconds(
+      slice: TriggerEditorState,
+      {
+        payload: { selector, seconds },
+      }: PayloadAction<{
+        seconds: number;
+        selector: TriggerEditorSelector<TimerEffectWaitUntilSecondsRemainType>;
+      }>
+    ) {
+      const waitUntilSecondsRemain = selector(slice);
+      waitUntilSecondsRemain.value = seconds;
+    },
+
     setCopyToClipboardTemplate(
       slice: TriggerEditorState,
       {
@@ -384,6 +402,7 @@ export const {
   setTriggerName,
   setTriggerTags,
   setWaitUntilFilterMatchesDuration,
+  setWaitUntilSecondsRemainSeconds,
 } = triggerEditorSlice.actions;
 
 export default triggerEditorSlice.reducer;

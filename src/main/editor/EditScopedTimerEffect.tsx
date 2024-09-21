@@ -1,17 +1,20 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 
-import TextField from '@mui/material/TextField';
-import FormControlLabel from '@mui/material/FormControlLabel';
-import Checkbox from '@mui/material/Checkbox';
-
 import Box from '@mui/material/Box';
+import Checkbox from '@mui/material/Checkbox';
+import FormControlLabel from '@mui/material/FormControlLabel';
+import TextField from '@mui/material/TextField';
+
 import {
   setWaitUntilFilterMatchesDuration,
+  setWaitUntilSecondsRemainSeconds,
   TimerEffectWaitUntilFilterMatchesType,
+  TimerEffectWaitUntilSecondsRemainType,
   triggerEditorSelector,
   TriggerEditorSelector,
 } from '../../features/triggers/triggerEditorSlice';
+import { Duration } from '../../generated/Duration';
 import { FilterWithContext } from '../../generated/FilterWithContext';
 import { TimerEffect } from '../../generated/TimerEffect';
 import { TimerTag } from '../../generated/TimerTag';
@@ -21,7 +24,6 @@ import EffectWithoutOptions from './EffectWithoutOptions';
 import EditDuration from './widgets/EditDuration';
 import EditFilter from './widgets/EditFilter';
 import EditorError from './widgets/EditorError';
-import { Duration } from '../../generated/Duration';
 
 const TIMER_EFFECT_COMPONENTS = {
   WaitUntilFilterMatches(
@@ -92,7 +94,18 @@ const TIMER_EFFECT_COMPONENTS = {
       </EffectWithOptions>
     );
   },
-  WaitUntilSecondsRemain(seconds: number, onDelete: () => void) {
+  WaitUntilSecondsRemain(
+    seconds: number,
+    selector: TriggerEditorSelector<TimerEffectWaitUntilSecondsRemainType>,
+    onDelete: () => void
+  ) {
+    const dispatch = useDispatch();
+    const [secondsInput, setSecondsInput] = useState(0);
+
+    useEffect(() => {
+      seconds !== secondsInput && setSecondsInput(seconds);
+    }, [seconds]);
+
     return (
       <EffectWithOptions
         variant="WaitUntilSecondsRemain"
@@ -105,7 +118,14 @@ const TIMER_EFFECT_COMPONENTS = {
             label="Seconds"
             type="number"
             variant="outlined"
-            defaultValue={seconds}
+            value={secondsInput}
+            onChange={(e) => setSecondsInput(+e.target.value)}
+            onBlur={(e) => {
+              const value = +e.target.value;
+              dispatch(
+                setWaitUntilSecondsRemainSeconds({ seconds: value, selector })
+              );
+            }}
             sx={{ maxWidth: 110 }}
           />
         </Box>
@@ -217,7 +237,11 @@ const EditScopedTimerEffect: React.FC<{
       onDelete
     );
   } else if (variant === 'WaitUntilSecondsRemain') {
-    return TIMER_EFFECT_COMPONENTS[variant](timerEffect.value, onDelete);
+    return TIMER_EFFECT_COMPONENTS[variant](
+      timerEffect.value,
+      timerSelector as TriggerEditorSelector<TimerEffectWaitUntilSecondsRemainType>,
+      onDelete
+    );
   } else if (variant === 'AddTag') {
     return TIMER_EFFECT_COMPONENTS[variant](timerEffect.value, onDelete);
   } else if (variant === 'RemoveTag') {

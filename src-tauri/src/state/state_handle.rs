@@ -74,6 +74,20 @@ impl StateHandle {
     self.select_branch(&self.tree.triggers, selector)
   }
 
+  pub fn select_reactor<F, T>(&self, selector: F) -> T
+  where
+    F: FnOnce(&ReactorState) -> T,
+  {
+    self.select_branch(&self.tree.reactor, selector)
+  }
+
+  pub fn update_reactor_and_select<F, T>(&self, selector: F) -> T
+  where
+    F: FnOnce(&mut ReactorState) -> T,
+  {
+    self.update_branch_and_select(&self.tree.reactor, selector)
+  }
+
   pub fn update_reactor<F>(&self, func: F)
   where
     F: for<'a> FnOnce(&'a mut ReactorState),

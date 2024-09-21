@@ -10,6 +10,7 @@ import {
   $isLoading,
   $progress,
   bootstrapHasLoaded,
+  initReactor,
   updateProgress,
   updateProgressFinished,
 } from '../features/app/appSlice';
@@ -41,6 +42,7 @@ const MainWindow: React.FC<{}> = () => {
       dispatch(initConfig(b.config));
       dispatch(initTriggers(b.triggers));
       dispatch(initOverlay(b.overlay));
+      dispatch(initReactor(b.reactor));
       dispatch(bootstrapHasLoaded());
     });
   }, [dispatch]);

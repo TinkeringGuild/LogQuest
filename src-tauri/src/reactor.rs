@@ -1,6 +1,6 @@
 use crate::{
   audio::AudioMixer,
-  common::{clipboard::ClipboardWriter, shutdown::quitter, UUID},
+  common::{clipboard::ClipboardWriter, shutdown::quitter},
   logs::{
     active_character_detection::{ActiveCharacterDetector, Character},
     log_event_broadcaster::{LogEventBroadcaster, NotifyError},
@@ -18,7 +18,6 @@ use crate::{
   tts::TTS,
 };
 use futures::StreamExt as _;
-use std::collections::HashSet;
 use std::sync::Arc;
 use tauri::async_runtime::spawn;
 use tokio::sync::{broadcast, mpsc};
@@ -61,7 +60,6 @@ pub struct EventLoop {
   timer_manager: Arc<TimerManager>,
   overlay_manager: Arc<OverlayManager>,
   clipboard: ClipboardWriter,
-  active_trigger_tags: HashSet<UUID>,
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -183,7 +181,6 @@ impl EventLoop {
     let t2s_tx = create_tts_engine(state.clone());
     let mixer = Arc::new(AudioMixer::new());
     let clipboard = ClipboardWriter::new();
-    let active_trigger_tags = HashSet::new();
     Self {
       state,
       cursors,
@@ -195,7 +192,6 @@ impl EventLoop {
       timer_manager,
       overlay_manager,
       clipboard,
-      active_trigger_tags,
     }
   }
 
@@ -283,7 +279,7 @@ impl EventLoop {
         };
         let cursor_after = Arc::new(cursor_after);
         let active_triggers: Vec<&Trigger> =
-          index.get_distinct_triggers_tagged_by_any_of(self.active_trigger_tags.iter());
+          index.get_distinct_triggers_tagged_by_any_of(reactor_state.active_trigger_tags.iter());
         for trigger in active_triggers.into_iter() {
           if let Some(match_context) = trigger.filter.check(&line.content, &character.name) {
             let match_context = Arc::new(match_context);

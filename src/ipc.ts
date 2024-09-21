@@ -107,6 +107,17 @@ export async function createTriggerTag(name: string): Promise<DataDelta[]> {
   return mutate([{ variant: 'CreateTriggerTag', value: name }]);
 }
 
+export async function getActiveTriggerTags(): Promise<UUID[]> {
+  return invoke<UUID[]>('get_active_trigger_tags');
+}
+
+export async function setTriggerTagActivated(
+  id: UUID,
+  activated: boolean
+): Promise<UUID[]> {
+  return invoke<UUID[]>('set_trigger_tag_activated', { id, activated });
+}
+
 export async function addTriggerToTag(
   trigger_id: UUID,
   trigger_tag_id: UUID

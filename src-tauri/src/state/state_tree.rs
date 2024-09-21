@@ -1,9 +1,9 @@
 use super::config::LogQuestConfig;
 use super::overlay::OverlayMode;
-use crate::logs::active_character_detection::Character;
 use crate::triggers::trigger_index::TriggerIndex;
-use serde::{Deserialize, Serialize};
-use std::sync::Mutex;
+use crate::{common::UUID, logs::active_character_detection::Character};
+use serde::Serialize;
+use std::{collections::HashSet, sync::Mutex};
 
 pub const DEFAULT_OVERLAY_OPACITY: u8 = 75;
 
@@ -15,12 +15,13 @@ pub struct StateTree {
   pub overlay: Mutex<OverlayState>,
 }
 
-#[derive(ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, ts_rs::TS)]
 pub struct ReactorState {
   pub current_character: Option<Character>,
+  pub active_trigger_tags: HashSet<UUID>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, ts_rs::TS)]
 pub struct OverlayState {
   pub overlay_editable: bool,
 
@@ -55,6 +56,7 @@ impl ReactorState {
   fn new() -> Self {
     Self {
       current_character: None,
+      active_trigger_tags: HashSet::new(),
     }
   }
 }

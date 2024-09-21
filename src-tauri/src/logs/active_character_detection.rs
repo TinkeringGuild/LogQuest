@@ -2,12 +2,13 @@ use super::log_event_broadcaster::NotifyError;
 use super::{LogFileEvent, LOG_FILENAME_PATTERN};
 use crate::common::shutdown::quitter;
 use futures::FutureExt as _;
+use serde::Serialize;
 use tauri::async_runtime::spawn;
 use tokio::select;
 use tokio::sync::{broadcast, oneshot, watch};
 use tracing::{debug, error, info, warn};
 
-#[derive(Debug, Clone, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, ts_rs::TS)]
 pub struct Character {
   pub name: String,
   #[allow(unused)]
