@@ -1,11 +1,11 @@
-import React, { ReactNode } from 'react';
+import React from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 
-import Card from '@mui/material/Card';
-import CardContent from '@mui/material/CardContent';
-import CardHeader from '@mui/material/CardHeader';
 import TextField from '@mui/material/TextField';
+import FormControlLabel from '@mui/material/FormControlLabel';
+import Checkbox from '@mui/material/Checkbox';
 
+import Box from '@mui/material/Box';
 import {
   setWaitUntilFilterMatchesDuration,
   TimerEffectWaitUntilFilterMatchesType,
@@ -16,18 +16,12 @@ import { FilterWithContext } from '../../generated/FilterWithContext';
 import { TimerEffect } from '../../generated/TimerEffect';
 import { TimerTag } from '../../generated/TimerTag';
 import { UUID } from '../../generated/UUID';
-import {
-  effectIcon,
-  humanizeEffectName,
-  TimerEffectVariant,
-} from './effect-utils';
+import EffectWithOptions from './EffectWithOptions';
 import EffectWithoutOptions from './EffectWithoutOptions';
 import EditDuration from './widgets/EditDuration';
 import EditFilter from './widgets/EditFilter';
-import { EffectHeader, ExplicitEffectTitle } from './widgets/EffectHeader';
-import EffectWithOptions from './EffectWithOptions';
-import Box from '@mui/material/Box';
 import EditorError from './widgets/EditorError';
+import { Duration } from '../../generated/Duration';
 
 const TIMER_EFFECT_COMPONENTS = {
   WaitUntilFilterMatches(
@@ -40,6 +34,14 @@ const TIMER_EFFECT_COMPONENTS = {
     const filterSelector: TriggerEditorSelector<FilterWithContext> = (state) =>
       selector(state).value[0];
 
+    const setDuration = (duration: Duration | null) =>
+      dispatch(
+        setWaitUntilFilterMatchesDuration({
+          duration,
+          selector,
+        })
+      );
+
     return (
       <EffectWithOptions
         variant="WaitUntilFilterMatches"
@@ -47,25 +49,45 @@ const TIMER_EFFECT_COMPONENTS = {
         onDelete={onDelete}
       >
         <EditFilter selector={filterSelector}>
-          <EditorError
-            center
-            message="This filter must have at least one valid pattern."
-          />
+          <Box margin="0 auto">
+            <EditorError
+              center
+              message="This filter must have at least one valid pattern."
+            />
+          </Box>
         </EditFilter>
         {/* TODO: There should be a checkbox to enable timeout, and EditDuration should validate it's not zero */}
-        <Box textAlign="center">
-          <h4>Timeout (Optional)</h4>
-          <EditDuration
-            millis={durationMaybe || 0}
-            onChange={(duration) =>
-              dispatch(
-                setWaitUntilFilterMatchesDuration({
-                  duration,
-                  selector,
-                })
-              )
-            }
+        <Box
+          textAlign="center"
+          justifyContent="center"
+          display="flex"
+          flexDirection="column"
+        >
+          <FormControlLabel
+            label="Stop waiting after a specific duration..."
+            control={<Checkbox />}
+            value={durationMaybe !== null}
+            onChange={(_, checked) => setDuration(checked ? 0 : null)}
+            sx={{ margin: '15px auto 0' }}
           />
+          {durationMaybe !== null && (
+            <>
+              <h4 style={{ marginTop: 0 }}>Stop Waiting Timeout</h4>
+              <EditDuration
+                millis={durationMaybe || 0}
+                onChange={setDuration}
+                errorProps={{
+                  style: {
+                    marginTop: 10,
+                    width: 287,
+                    alignSelf: 'center',
+                    display: 'flex',
+                    justifyContent: 'center',
+                  },
+                }}
+              />
+            </>
+          )}
         </Box>
       </EffectWithOptions>
     );

@@ -130,21 +130,6 @@ const EditStartTimerEffect: React.FC<{
             }
           />
         </div>
-        <div>
-          <h3>Timer Duration</h3>
-          <EditDuration
-            millis={timer.duration}
-            onChange={(duration) => {
-              dispatch(
-                setTimerField({
-                  field: 'duration',
-                  value: duration,
-                  selector: timerSelector,
-                })
-              );
-            }}
-          />
-        </div>
         <FormControlLabel
           label="Timer repeats when finished"
           control={
@@ -162,6 +147,21 @@ const EditStartTimerEffect: React.FC<{
             />
           }
         />
+        <div>
+          <h3 style={{ marginTop: 10 }}>Timer Duration</h3>
+          <EditDuration
+            millis={timer.duration}
+            onChange={(duration) => {
+              dispatch(
+                setTimerField({
+                  field: 'duration',
+                  value: duration,
+                  selector: timerSelector,
+                })
+              );
+            }}
+          />
+        </div>
 
         {/* TODO: timer.tags */}
 

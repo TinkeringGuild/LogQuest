@@ -109,7 +109,7 @@ const HUMANIZED_TIMER_EFFECT_NAMES: {
   RemoveTag: 'Remove Timer Tag',
   RestartTimer: 'Restart this Timer',
   UnhideTimer: 'Un-Hide this Timer',
-  WaitUntilFilterMatches: 'Wait Until Filter Matches',
+  WaitUntilFilterMatches: 'Wait until Filter Matches',
   WaitUntilFinished: 'Wait until Finished',
   WaitUntilSecondsRemain: 'Wait until Seconds Remain',
 

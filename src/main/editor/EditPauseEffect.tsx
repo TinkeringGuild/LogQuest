@@ -20,8 +20,8 @@ const EditPauseEffect: React.FC<{
   const dispatch = useDispatch();
   const { value: millis } = useSelector(triggerEditorSelector(selector));
 
-  const triggerChange = (seconds: number) => {
-    dispatch(setPauseDuration({ millis: seconds * 1000, selector }));
+  const triggerChange = (millis: number) => {
+    dispatch(setPauseDuration({ millis, selector }));
   };
 
   const triggerChangeDebounced = debounce(triggerChange, DEBOUNCE_WAIT_MILLIS);
@@ -36,7 +36,7 @@ const EditPauseEffect: React.FC<{
       <Box textAlign="center">
         <EditDuration
           millis={millis}
-          onChange={(value) => triggerChangeDebounced(value)}
+          onChange={(millis) => triggerChangeDebounced(millis)}
         />
       </Box>
     </EffectWithOptions>

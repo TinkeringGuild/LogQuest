@@ -82,6 +82,7 @@ const EditRunSystemCommandEffect: React.FC<{
         setError({ id: commandInputID, error: 'Command cannot be blank' })
       );
     } else {
+      dispatch(forgetError(commandInputID));
       getSystemCommandInfoDebounced(
         commandInput,
         async (cmdInfo: SystemCommandInfo) => {
@@ -106,11 +107,12 @@ const EditRunSystemCommandEffect: React.FC<{
   }, [commandInput, paramsInput, stdinInput, commandInputID]);
 
   // Cleanup error if component is unmounted
-  useEffect(() => {
-    return () => {
+  useEffect(
+    () => () => {
       dispatch(forgetError(commandInputID));
-    };
-  }, []);
+    },
+    []
+  );
 
   const createCommandTemplate = () => {
     const trimmedParams = paramsInput.trim();
@@ -186,6 +188,7 @@ const EditRunSystemCommandEffect: React.FC<{
               checked={isApproved}
               disabled={!isValid}
               indeterminate={!isValid && isApproved}
+              color={isApproved ? 'success' : 'warning'}
               onChange={(e) => {
                 if (e.target.checked) {
                   setStoreStateAsApprovedCommandTemplate();
@@ -193,6 +196,13 @@ const EditRunSystemCommandEffect: React.FC<{
                   setStoreStateAsUnapprovedCommandTemplate();
                 }
               }}
+              sx={
+                isApproved
+                  ? {}
+                  : {
+                      color: '#ed6c02', // warning color
+                    }
+              }
             />
           }
         />
@@ -203,14 +213,18 @@ const EditRunSystemCommandEffect: React.FC<{
           value={commandInput}
           disabled={commandFileSelectDialogOpen}
           error={!!commandError}
-          color={commandError ? 'error' : isApproved ? 'primary' : 'warning'}
+          color={commandError ? 'error' : isApproved ? 'success' : 'warning'}
           helperText={
             commandError ||
-            commandPath + (isApproved ? '' : ' (NOT APPROVED)') ||
-            ' '
+            (commandPath
+              ? `${commandPath} ${isApproved ? '' : ' (NOT APPROVED)'}`
+              : 'Detecting command...') // commandPath can be undefined while typing
           }
-          focused={!commandError && !isApproved}
+          focused={!!commandError || !!commandPath}
           onChange={(e) => setCommandInput(e.target.value)}
+          onKeyDown={() =>
+            commandPath !== undefined && setCommandPath(undefined)
+          }
           className="template-input"
           slotProps={{
             input: {

@@ -264,7 +264,7 @@ const triggerEditorSlice = createSlice({
         payload: { selector, duration },
       }: PayloadAction<{
         selector: TriggerEditorSelector<TimerEffectWaitUntilFilterMatchesType>;
-        duration: Duration;
+        duration: Duration | null;
       }>
     ) {
       const waitUntilFilterMatches = selector(slice);

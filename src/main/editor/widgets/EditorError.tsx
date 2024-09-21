@@ -8,10 +8,11 @@ import {
   setError,
 } from '../../../features/triggers/triggerEditorSlice';
 
-const EditorError: React.FC<{ message: string; center?: boolean }> = ({
-  message: error,
-  center,
-}) => {
+const EditorError: React.FC<{
+  message: string;
+  center?: boolean;
+  width?: number;
+}> = ({ message: error, center, width }) => {
   const dispatch = useDispatch();
   const id = useId();
 
@@ -20,11 +21,13 @@ const EditorError: React.FC<{ message: string; center?: boolean }> = ({
     return () => {
       dispatch(forgetError(id));
     };
-  }, []);
+  }, [error]);
 
-  const sx = center ? { justifyContent: 'center' } : {};
+  const sxCenter = center ? { justifyContent: 'center' } : {};
+  const sxWidth = width ? { width } : {};
+
   return (
-    <Alert severity="error" sx={sx}>
+    <Alert severity="error" sx={{ ...sxCenter, ...sxWidth }}>
       {error}
     </Alert>
   );

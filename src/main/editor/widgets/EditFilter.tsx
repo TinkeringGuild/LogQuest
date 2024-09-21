@@ -9,11 +9,21 @@ import {
 import { useDispatch, useSelector } from 'react-redux';
 
 import { DeleteForeverOutlined, PlaylistAdd } from '@mui/icons-material';
+import DataArray from '@mui/icons-material/DataArray';
+import FormatQuote from '@mui/icons-material/FormatQuote';
 import Button from '@mui/material/Button';
 import IconButton from '@mui/material/IconButton';
 import InputAdornment from '@mui/material/InputAdornment';
+import ListItemIcon from '@mui/material/ListItemIcon';
+import Menu from '@mui/material/Menu';
+import MenuItem from '@mui/material/MenuItem';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
+import {
+  bindMenu,
+  bindTrigger,
+  usePopupState,
+} from 'material-ui-popup-state/hooks';
 
 import {
   $errorForID,
@@ -46,6 +56,9 @@ function EditFilter<T extends Filter | FilterWithContext>({
   const dispatch = useDispatch();
   const filter = useSelector(triggerEditorSelector(selector));
 
+  const popupId = useId();
+  const popupState = usePopupState({ popupId, variant: 'popover' });
+
   const matcherInputFieldRefs = useRef<HTMLInputElement[]>([]);
   const [isAdding, setIsAdding] = useState(false);
 
@@ -56,6 +69,12 @@ function EditFilter<T extends Filter | FilterWithContext>({
       setIsAdding(false);
     }
   }, [isAdding]);
+
+  const appendMatcherOnClick = (variant: MatcherVariant) => () => {
+    setIsAdding(true);
+    dispatch(appendNewMatcher({ selector, variant: variant }));
+    popupState.close();
+  };
 
   return (
     <Stack spacing={2}>
@@ -87,13 +106,40 @@ function EditFilter<T extends Filter | FilterWithContext>({
         variant="outlined"
         size="large"
         startIcon={<PlaylistAdd />}
-        onClick={() => {
-          setIsAdding(true);
-          dispatch(appendNewMatcher({ selector, variant: 'GINA' }));
-        }}
+        {...bindTrigger(popupState)}
       >
         Add a new Pattern
       </Button>
+      <Menu
+        {...bindMenu(popupState)}
+        anchorOrigin={{
+          vertical: 'top',
+          horizontal: 'center',
+        }}
+        transformOrigin={{
+          vertical: 'bottom',
+          horizontal: 'center',
+        }}
+      >
+        <MenuItem onClick={appendMatcherOnClick('PartialLine')}>
+          <ListItemIcon>
+            <FormatQuote />
+          </ListItemIcon>
+          Partial Text Match
+        </MenuItem>
+        <MenuItem onClick={appendMatcherOnClick('WholeLine')}>
+          <ListItemIcon>
+            <FormatQuote />
+          </ListItemIcon>
+          Exact Text Match
+        </MenuItem>
+        <MenuItem onClick={appendMatcherOnClick('GINA')}>
+          <ListItemIcon>
+            <DataArray />
+          </ListItemIcon>
+          GINA-style Regular Expression
+        </MenuItem>
+      </Menu>
     </Stack>
   );
 }
@@ -116,39 +162,41 @@ const MatcherInputField: React.FC<{
   }, [value]);
 
   // Cleanup error state on un-mount
-  useEffect(() => {
-    return () => {
+  useEffect(
+    () => () => {
       dispatch(forgetError(id));
-    };
-  }, []);
+    },
+    []
+  );
 
   // Validates GINA regex patterns via a Tauri command
   useEffect(() => {
-    if (variant !== 'GINA') {
-      return;
-    }
     let isMounted = true;
 
     if (pattern.trim()) {
-      validateGINARegex(pattern).then(
-        (errorMaybe: ValidateGINARegexResponse) => {
-          if (!isMounted) {
-            return;
+      if (variant === 'GINA') {
+        validateGINARegex(pattern).then(
+          (errorMaybe: ValidateGINARegexResponse) => {
+            if (!isMounted) {
+              return;
+            }
+            if (errorMaybe) {
+              // I cannot use the position in the error message (yet) because a RegexGINA
+              // interpolates data into the Regex, making the position number somewhat useless.
+              // I would have to fix this in Rust, intercepting parse errors and subtracting
+              // out the length of the interpolated sections... that's low-priority for now.
+              const [_positionMaybe, error] = errorMaybe;
+              setInputError(error);
+            } else {
+              setInputError(null);
+            }
           }
-          if (errorMaybe) {
-            // I cannot use the position in the error message (yet) because a RegexGINA
-            // interpolates data into the Regex, making the position number somewhat useless.
-            // I would have to fix this in Rust, intercepting parse errors and subtracting
-            // out the length of the interpolated sections... that's low-priority for now.
-            const [_positionMaybe, error] = errorMaybe;
-            setRegexError(error);
-          } else {
-            setRegexError(null);
-          }
-        }
-      );
+        );
+      } else {
+        setInputError(null);
+      }
     } else {
-      setRegexError('Pattern cannot be blank');
+      setInputError('Pattern cannot be blank');
     }
 
     return () => {
@@ -158,7 +206,7 @@ const MatcherInputField: React.FC<{
 
   const regexError: string | undefined = useSelector($errorForID(id));
 
-  const setRegexError = (error: string | null) => {
+  const setInputError = (error: string | null) => {
     const action = error ? setError({ id, error }) : forgetError(id);
     dispatch(action);
   };
