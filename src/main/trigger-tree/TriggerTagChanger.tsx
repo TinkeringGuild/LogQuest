@@ -301,7 +301,11 @@ const TriggerTagNameEntryMode: React.FC<{
         onChange={(e) => setNameInput(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === 'Enter' && !errorMessage) {
-            onCreate(nameInput.trim());
+            if (mode === 'create') {
+              onCreate(nameInput.trim());
+            } else {
+              onRename(nameInput.trim());
+            }
           } else if (e.key === 'Escape') {
             onCancel();
           }
