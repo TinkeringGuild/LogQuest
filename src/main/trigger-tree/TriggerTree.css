@@ -17,6 +17,11 @@ li.view-trigger-list-item {
   overflow: hidden;
   white-space: nowrap;
   border-bottom: 1px solid transparent;
+  font-size: 16px;
+}
+
+.view-trigger-group-list-item-name {
+  font-size: 18px;
 }
 
 .view-trigger-list-item-name {

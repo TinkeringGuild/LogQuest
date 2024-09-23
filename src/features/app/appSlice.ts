@@ -26,7 +26,7 @@ export interface AppState {
 
 const INITIAL_APP_STATE: AppState = {
   bootstrapped: false,
-  currentMode: 'triggers',
+  currentMode: 'overview',
   isLoading: false,
   progressUpdate: null,
   reactor: null,

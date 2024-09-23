@@ -27,6 +27,7 @@ export type Mutation =
     }
   | { variant: 'DeleteTriggerGroup'; value: UUID }
   | { variant: 'CreateTriggerTag'; value: string }
+  | { variant: 'RenameTriggerTag'; value: [UUID, string] }
   | { variant: 'DeleteTriggerTag'; value: UUID }
   | { variant: 'TagTrigger'; value: { trigger_id: UUID; trigger_tag_id: UUID } }
   | {

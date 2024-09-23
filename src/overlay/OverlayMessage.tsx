@@ -1,5 +1,7 @@
 import React from 'react';
 
+import EmojiText from '../widgets/EmojiText';
+
 import './OverlayMessage.css';
 
 interface OverlayMessageProps {
@@ -8,7 +10,9 @@ interface OverlayMessageProps {
 
 const OverlayMessage: React.FC<OverlayMessageProps> = ({ text }) => (
   <p className="overlay-message text-outline">
-    <span>{text}</span>
+    <span>
+      <EmojiText text={text} />
+    </span>
   </p>
 );
 

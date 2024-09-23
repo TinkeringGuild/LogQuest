@@ -15,6 +15,7 @@ import {
   saveTriggerGroup,
 } from '../../ipc';
 import store from '../../MainStore';
+import EmojiText from '../../widgets/EmojiText';
 import TriggerGroupEditorDialog from './dialogs/TriggerGroupEditorDialog';
 import TriggerGroupContextMenu from './menus/TriggerGroupContextMenu';
 import TriggerListItem from './TriggerListItem';
@@ -56,7 +57,7 @@ const TriggerGroupListItem: React.FC<{
         className="view-trigger-group-list-item-name"
         onContextMenu={openContextMenu}
       >
-        {group.name}
+        <EmojiText text={group.name} />
       </span>
       {!!group.children.length && (
         <ul className="view-trigger-group-sublist">

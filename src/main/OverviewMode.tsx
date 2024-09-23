@@ -2,7 +2,7 @@ import { sortBy } from 'lodash';
 import React, { useEffect, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 
-import { FormControlLabel, Switch } from '@mui/material';
+import { FormControlLabel, Stack, Switch } from '@mui/material';
 
 import {
   $activeTriggerTags,
@@ -51,28 +51,31 @@ const OverviewMode: React.FC<{}> = () => {
           alt="LogQuest"
         />
       </div>
-      <h2>Current character: {currentCharacter?.name ?? 'None'}</h2>
-      <h2>Enable Trigger Tags</h2>
-      <ul>
+      <h3>
+        {currentCharacter
+          ? `Current character: ${currentCharacter.name}`
+          : 'No current character detected'}
+      </h3>
+      <h2 style={{ marginBottom: 5 }}>Enable Trigger Tags</h2>
+      <Stack gap={0}>
         {sortedTags.map((tag) => {
           return (
-            <li key={tag.id}>
-              <FormControlLabel
-                checked={activeTriggerTagIDsSet.has(tag.id)}
-                label={tag.name}
-                control={<Switch />}
-                onChange={async (_, checked) => {
-                  const activatedIDs = await setTriggerTagActivated(
-                    tag.id,
-                    checked
-                  );
-                  dispatch(updateActivedTriggerTagIDs(activatedIDs));
-                }}
-              />
-            </li>
+            <FormControlLabel
+              key={tag.id}
+              checked={activeTriggerTagIDsSet.has(tag.id)}
+              label={tag.name}
+              control={<Switch />}
+              onChange={async (_, checked) => {
+                const activatedIDs = await setTriggerTagActivated(
+                  tag.id,
+                  checked
+                );
+                dispatch(updateActivedTriggerTagIDs(activatedIDs));
+              }}
+            />
           );
         })}
-      </ul>
+      </Stack>
     </div>
   );
 };

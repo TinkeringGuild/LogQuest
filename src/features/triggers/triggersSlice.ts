@@ -67,6 +67,8 @@ const triggersSlice = createSlice({
           deltas[variant](state.index, value);
         } else if (variant === 'TriggerTagTriggersChanged') {
           deltas[variant](state.index, value);
+        } else if (variant === 'TriggerTagRenamed') {
+          deltas[variant](state.index, value);
         } else if (variant === 'TriggerGroupDeleted') {
           deltas[variant](state.index, value);
         } else {

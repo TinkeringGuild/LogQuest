@@ -27,6 +27,7 @@ export type DataDelta =
     }
   | { variant: 'TriggerGroupDeleted'; value: UUID }
   | { variant: 'TriggerTagCreated'; value: TriggerTag }
+  | { variant: 'TriggerTagRenamed'; value: [UUID, string] }
   | {
       variant: 'TriggerTagTriggersChanged';
       value: { trigger_tag_id: UUID; triggers: Array<UUID> };

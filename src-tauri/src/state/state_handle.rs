@@ -105,28 +105,15 @@ impl StateHandle {
           let deltas = func(index)?;
           for delta in deltas.iter() {
             match delta {
+              DataDelta::TopLevelChanged(top_level) => {
+                config.save_top_level(top_level)?;
+              }
               DataDelta::TriggerSaved(trigger) => config.save_trigger(&trigger)?,
               DataDelta::TriggerDeleted(trigger_id) => {
                 config.delete_trigger_file(trigger_id)?;
               }
-              DataDelta::TriggerTagCreated(trigger_tag) => {
-                config.save_trigger_tag(trigger_tag)?;
-              }
-              DataDelta::TriggerTagDeleted(trigger_tag_id) => {
-                config.delete_trigger_tag_file(trigger_tag_id)?;
-              }
-              DataDelta::TriggerTagged { trigger_tag_id, .. }
-              | DataDelta::TriggerUntagged { trigger_tag_id, .. }
-              | DataDelta::TriggerTagTriggersChanged { trigger_tag_id, .. } => {
-                if let Some(trigger_tag) = index.trigger_tags.get(trigger_tag_id) {
-                  config.save_trigger_tag(trigger_tag)?;
-                }
-              }
               DataDelta::TriggerGroupSaved(group) => {
                 config.save_trigger_group(group)?;
-              }
-              DataDelta::TriggerGroupDeleted(group_id) => {
-                config.delete_trigger_group_file(group_id)?;
               }
               DataDelta::TriggerGroupChildrenChanged {
                 trigger_group_id, ..
@@ -135,8 +122,24 @@ impl StateHandle {
                   config.save_trigger_group(group)?;
                 }
               }
-              DataDelta::TopLevelChanged(top_level) => {
-                config.save_top_level(top_level)?;
+              DataDelta::TriggerGroupDeleted(group_id) => {
+                config.delete_trigger_group_file(group_id)?;
+              }
+
+              DataDelta::TriggerTagCreated(trigger_tag) => {
+                config.save_trigger_tag(trigger_tag)?;
+              }
+              DataDelta::TriggerTagDeleted(trigger_tag_id) => {
+                config.delete_trigger_tag_file(trigger_tag_id)?;
+              }
+
+              DataDelta::TriggerTagged { trigger_tag_id, .. }
+              | DataDelta::TriggerUntagged { trigger_tag_id, .. }
+              | DataDelta::TriggerTagTriggersChanged { trigger_tag_id, .. }
+              | DataDelta::TriggerTagRenamed(trigger_tag_id, _) => {
+                if let Some(trigger_tag) = index.trigger_tags.get(trigger_tag_id) {
+                  config.save_trigger_tag(trigger_tag)?;
+                }
               }
             }
           }

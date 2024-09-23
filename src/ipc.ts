@@ -107,6 +107,23 @@ export async function createTriggerTag(name: string): Promise<DataDelta[]> {
   return mutate([{ variant: 'CreateTriggerTag', value: name }]);
 }
 
+export async function renameTriggerTag(
+  triggerTagId: UUID,
+  name: string
+): Promise<DataDelta[]> {
+  return mutate([{ variant: 'RenameTriggerTag', value: [triggerTagId, name] }]);
+}
+
+export async function deleteTriggerTag(
+  triggerTagID: UUID
+): Promise<{ activeTriggerTags: UUID[]; deltas: DataDelta[] }> {
+  const activeTriggerTags = await setTriggerTagActivated(triggerTagID, false);
+  const deltas = await mutate([
+    { variant: 'DeleteTriggerTag', value: triggerTagID },
+  ]);
+  return { activeTriggerTags, deltas };
+}
+
 export async function getActiveTriggerTags(): Promise<UUID[]> {
   return invoke<UUID[]>('get_active_trigger_tags');
 }

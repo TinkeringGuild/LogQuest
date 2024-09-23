@@ -26,6 +26,7 @@ import {
 } from '../../ipc';
 import store from '../../MainStore';
 import { nowTimestamp } from '../../util';
+import EmojiText from '../../widgets/EmojiText';
 import TriggerGroupEditorDialog from './dialogs/TriggerGroupEditorDialog';
 import TriggerContextMenu from './menus/TriggerContextMenu';
 import TriggerIDsInSelectedTriggerTagContext from './TriggerIDsInSelectedTriggerTagContext';
@@ -74,7 +75,7 @@ const TriggerListItem: React.FC<{
           );
         }}
       >
-        {trigger.name}
+        <EmojiText text={trigger.name} />
       </a>
       {contextMenuPosition && (
         <TriggerContextMenu

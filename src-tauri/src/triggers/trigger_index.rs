@@ -56,6 +56,7 @@ pub enum Mutation {
   },
   DeleteTriggerGroup(UUID),
   CreateTriggerTag(String),
+  RenameTriggerTag(UUID, String),
   DeleteTriggerTag(UUID),
   TagTrigger {
     trigger_id: UUID,
@@ -93,6 +94,7 @@ pub enum DataDelta {
   TriggerGroupDeleted(UUID),
 
   TriggerTagCreated(TriggerTag),
+  TriggerTagRenamed(UUID, String),
   TriggerTagTriggersChanged {
     trigger_tag_id: UUID,
     triggers: Vec<UUID>,
@@ -495,6 +497,13 @@ impl TriggerIndex {
       Mutation::CreateTriggerTag(name) => Ok(vec![DataDelta::TriggerTagCreated(
         self.create_trigger_tag(&name),
       )]),
+      Mutation::RenameTriggerTag(trigger_tag_id, name) => {
+        let Some(trigger_tag) = self.trigger_tags.get_mut(&trigger_tag_id) else {
+          return Err(DataMutationError::TriggerTagNotFound(trigger_tag_id));
+        };
+        trigger_tag.name = name.clone();
+        Ok(vec![DataDelta::TriggerTagRenamed(trigger_tag_id, name)])
+      }
       Mutation::DeleteTriggerTag(trigger_tag_id) => self.delete_trigger_tag(&trigger_tag_id),
     }
   }

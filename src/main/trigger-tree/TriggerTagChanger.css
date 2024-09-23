@@ -1,0 +1,21 @@
+.MuiInputBase-root:has(#trigger-tag-select) {
+  border-radius: 0;
+}
+
+.trigger-tag-changer-more-button.MuiButtonBase-root {
+  border-radius: 0 !important;
+  border-color: black;
+}
+
+.trigger-tag-changer-more-button .MuiButton-icon {
+  margin-right: -3px;
+}
+
+.trigger-tag-select fieldset {
+  border-color: black;
+}
+
+.trigger-tag-select-option-none.MuiMenuItem-root {
+  font-weight: 500;
+  font-style: italic;
+}

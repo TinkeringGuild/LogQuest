@@ -5,6 +5,7 @@ import CancelOutlined from '@mui/icons-material/CancelOutlined';
 import CheckCircleOutline from '@mui/icons-material/CheckCircleOutline';
 import RadioButtonUnchecked from '@mui/icons-material/RadioButtonUnchecked';
 import Save from '@mui/icons-material/Save';
+import Alert from '@mui/material/Alert';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
 import Stack from '@mui/material/Stack';
@@ -49,7 +50,9 @@ const TriggerTagsEditor: React.FC<{
       <div>
         <div>
           {!tagsOfTrigger.length ? (
-            <p>This Trigger has no Trigger Tags</p>
+            <Alert severity="warning">
+              No Trigger Tags are assigned to this Trigger.
+            </Alert>
           ) : (
             tagsOfTrigger.map((tag) => (
               <span className="trigger-tag-chip" key={tag.id}>

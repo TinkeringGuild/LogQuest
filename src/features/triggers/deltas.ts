@@ -71,6 +71,13 @@ export function TriggerTagCreated(
   index.trigger_tags[trigger_tag.id] = trigger_tag;
 }
 
+export function TriggerTagRenamed(
+  index: TriggerIndex,
+  [trigger_tag_id, name]: [UUID, string]
+) {
+  index.trigger_tags[trigger_tag_id].name = name;
+}
+
 export function TriggerTagTriggersChanged(
   index: TriggerIndex,
   { trigger_tag_id, triggers }: { trigger_tag_id: UUID; triggers: UUID[] }
