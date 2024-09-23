@@ -114,16 +114,19 @@ const EditStartTimerEffect: React.FC<{
 
       <CardContent>
         <div>
-          <TextField
+          <ControlledTextField
             fullWidth
             label="Timer Name (Template)"
-            defaultValue={timer.name_tmpl}
+            value={timer.name_tmpl}
             className="template-input"
-            onBlur={(e) =>
+            validate={(value) =>
+              value.trim() ? null : 'Timer must have a name'
+            }
+            onCommit={(value) =>
               dispatch(
                 setTimerField({
                   field: 'name_tmpl',
-                  value: e.target.value,
+                  value,
                   selector: timerSelector,
                 })
               )
