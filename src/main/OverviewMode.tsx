@@ -12,6 +12,7 @@ import {
 import { $triggerTags } from '../features/triggers/triggersSlice';
 import { UUID } from '../generated/UUID';
 import { getActiveTriggerTags, setTriggerTagActivated } from '../ipc';
+import { LQ_VERSION } from '../generated/constants';
 
 const OverviewMode: React.FC<{}> = () => {
   const dispatch = useDispatch();
@@ -50,13 +51,16 @@ const OverviewMode: React.FC<{}> = () => {
           src="/LogQuest header black.png"
           alt="LogQuest"
         />
+        <p style={{ marginTop: 0, fontSize: '17px', fontFamily: 'monospace' }}>
+          version {LQ_VERSION.join('.')}
+        </p>
       </div>
       <h3>
         {currentCharacter
           ? `Current character: ${currentCharacter.name}`
           : 'No current character detected'}
       </h3>
-      <h2 style={{ marginBottom: 5 }}>Enable Trigger Tags</h2>
+      <h2 style={{ marginBottom: 5 }}>Activate Trigger Tags</h2>
       <Stack gap={0}>
         {sortedTags.map((tag) => {
           return (
