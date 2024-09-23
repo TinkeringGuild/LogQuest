@@ -47,6 +47,7 @@ pub enum ReactorEvent {
     effect: EffectWithID,
     event_context: Arc<EventContext>,
   },
+  TestAudioFile(String),
 }
 
 pub struct EventLoop {
@@ -242,6 +243,12 @@ impl EventLoop {
             }
             Some(ReactorEvent::ExecEffect{effect, event_context}) => {
               self.exec_effect(effect, event_context).await;
+            }
+            Some(ReactorEvent::TestAudioFile(file_path)) => {
+              let mixer = self.mixer.clone();
+              spawn(async move {
+                mixer.play_file(&file_path).await;
+              });
             }
           }
         }

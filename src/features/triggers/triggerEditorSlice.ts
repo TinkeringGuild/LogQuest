@@ -364,6 +364,19 @@ const triggerEditorSlice = createSlice({
       effect.value = cmdTmplSecCheck;
     },
 
+    setAudioFile(
+      slice: TriggerEditorState,
+      {
+        payload: { path, selector },
+      }: PayloadAction<{
+        path: string | null;
+        selector: TriggerEditorSelector<EffectVariantPlayAudioFile>;
+      }>
+    ) {
+      const effect = selector(slice);
+      effect.value = path;
+    },
+
     setError(
       slice: TriggerEditorState,
       { payload: { id, error } }: PayloadAction<{ id: string; error: string }>
@@ -390,6 +403,7 @@ export const {
   forgetError,
   insertNewEffect,
   insertNewEffectOrTimerEffect,
+  setAudioFile,
   setCommandTemplateSecurityCheck,
   setCopyToClipboardTemplate,
   setError,

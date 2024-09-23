@@ -4,6 +4,7 @@ use crate::{
     security::is_crypto_available, UUID,
   },
   gina::{importer::import_from_gina_export_file, regex::RegexGINA},
+  reactor::ReactorEvent,
   state::{
     config::LogQuestConfig,
     state_handle::StateHandle,
@@ -22,6 +23,7 @@ use crate::{
 use serde::Serialize;
 use std::{collections::HashSet, path::PathBuf};
 use tauri::{AppHandle, Manager, State, Window};
+use tokio::sync::mpsc;
 use tracing::{debug, error, event, info};
 
 pub const CROSS_DISPATCH_EVENT_NAME: &str = "cross-dispatch";
@@ -68,6 +70,7 @@ pub fn handler() -> impl Fn(tauri::Invoke) {
     get_config,
     import_gina_triggers_file,
     mutate,
+    play_audio_file,
     print_to_stderr,
     print_to_stdout,
     set_everquest_dir,
@@ -264,4 +267,15 @@ fn validate_gina_regex(pattern: String) -> Option<(Option<usize>, String)> {
     Err(fancy_regex::Error::CompileError(compile_error)) => Some((None, compile_error.to_string())),
     _ => None,
   }
+}
+
+#[tauri::command]
+async fn play_audio_file(
+  path: String,
+  state: State<'_, mpsc::Sender<ReactorEvent>>,
+) -> Result<(), String> {
+  state
+    .send(ReactorEvent::TestAudioFile(path))
+    .await
+    .map_err(|_| "Reactor not running".to_owned())
 }

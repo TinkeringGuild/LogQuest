@@ -202,3 +202,7 @@ export async function validateGINARegex(
     pattern,
   });
 }
+
+export async function playAudioFile(path: string) {
+  await invoke('play_audio_file', { path });
+}

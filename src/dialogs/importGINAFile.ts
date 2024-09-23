@@ -1,4 +1,4 @@
-import { open as openDialog } from '@tauri-apps/api/dialog';
+import { open as openDialog, OpenDialogOptions } from '@tauri-apps/api/dialog';
 import { isString } from 'lodash';
 
 import { loadingWhile } from '../features/app/loadingWhile';
@@ -19,7 +19,7 @@ export default async function openGINATriggerFileDialog(
   dispatch(initTriggers(trigger_root));
 }
 
-const openDialogOptions = {
+const openDialogOptions: OpenDialogOptions = {
   title: 'Import a GINA Triggers Package file',
   directory: false,
   multiple: false,
