@@ -247,7 +247,7 @@ impl EventLoop {
             Some(ReactorEvent::TestAudioFile(file_path)) => {
               let mixer = self.mixer.clone();
               spawn(async move {
-                mixer.play_file(&file_path).await;
+                _ = mixer.play_file(&file_path).await;
               });
             }
           }

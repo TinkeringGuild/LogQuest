@@ -166,26 +166,15 @@ pub fn test_trigger_index() -> TriggerIndex {
   let trigger = Trigger {
     id: trigger_id.clone(),
     parent_id: Some(group_id.clone()),
-    name: "Tells / Hail".to_owned(),
+    name: "Hail".to_owned(),
     comment: None,
     created_at: Timestamp::now(),
     updated_at: Timestamp::now(),
-    enabled: true,
-    filter: vec![
-      re(r"^([A-Za-z]+) -> {C}: (.+)$"),
-      re(r"^([A-Za-z]+) says, 'Hail, {C}'$"),
-    ]
-    .into(),
-    effects: vec![
-      EffectWithID::new(Effect::Speak {
-        tmpl: "Hail, ${C}!".into(),
-        interrupt: false,
-      }),
-      // TriggerEffect::PlayAudioFile(Some(
-      //   "/home/j/Downloads/sound effects/hail/hail-exclaim-callum.ogg".into(),
-      // )),
-      // TriggerEffect::OverlayMessage("💬${1}: ${2}".into()),
-    ],
+    filter: vec![re(r"^([A-Za-z]+) says, 'Hail, {C}'$")].into(),
+    effects: vec![EffectWithID::new(Effect::Speak {
+      tmpl: "Hail, ${C}!".into(),
+      interrupt: false,
+    })],
   };
 
   let group = TriggerGroup {

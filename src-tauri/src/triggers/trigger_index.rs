@@ -6,7 +6,7 @@ use std::iter::once;
 use std::{cmp::min, collections::HashSet};
 use tracing::error;
 
-fn is_compatible_triggers_import_version(_version: &LogQuestVersion) -> bool {
+pub fn is_compatible_triggers_import_version(_version: &LogQuestVersion) -> bool {
   true // TODO: This will need to be maintained over time
 }
 

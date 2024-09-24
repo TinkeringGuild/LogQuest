@@ -335,7 +335,6 @@ impl GINATrigger {
       parent_id: Some(parent_id),
       name: trigger_name,
       comment: self.comments,
-      enabled: true,
       created_at: import_time.to_owned(),
       updated_at,
       filter,

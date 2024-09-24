@@ -9,7 +9,6 @@ export type Trigger = {
   parent_id: UUID | null;
   name: string;
   comment: string | null;
-  enabled: boolean;
   filter: Filter;
   effects: Array<EffectWithID>;
   created_at: Timestamp;

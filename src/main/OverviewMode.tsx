@@ -2,9 +2,10 @@ import { sortBy } from 'lodash';
 import React, { useEffect, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 
-import { FormControlLabel, Stack, Switch } from '@mui/material';
-
-import './OverviewMode.css';
+import Alert from '@mui/material/Alert';
+import FormControlLabel from '@mui/material/FormControlLabel';
+import Stack from '@mui/material/Stack';
+import Switch from '@mui/material/Switch';
 
 import {
   $activeTriggerTags,
@@ -13,13 +14,15 @@ import {
   updateActivedTriggerTagIDs,
 } from '../features/app/appSlice';
 import { $triggerTags } from '../features/triggers/triggersSlice';
+import { LQ_VERSION } from '../generated/constants';
 import { UUID } from '../generated/UUID';
 import {
   getActiveTriggerTags,
   getCurrentCharacter,
   setTriggerTagActivated,
 } from '../ipc';
-import { LQ_VERSION } from '../generated/constants';
+
+import './OverviewMode.css';
 
 const OverviewMode: React.FC<{}> = () => {
   const dispatch = useDispatch();
@@ -114,10 +117,13 @@ const OverviewMode: React.FC<{}> = () => {
             </Stack>
           ) : (
             <>
-              <p>You currently have no Trigger Tags.</p>
+              <Alert severity="warning" sx={{ mt: 1.5 }}>
+                You currently have no Trigger Tags.
+              </Alert>
               <p>
-                When you create one, you will be able to activate all Triggers
-                associated with it. You can do this in the Triggers section.
+                Triggers can be assigned to Trigger Tags. When a Trigger Tag is
+                activated here, any associated Triggers will be processed while
+                playing EverQuest.
               </p>
             </>
           )}

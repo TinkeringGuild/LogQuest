@@ -1,7 +1,11 @@
 use crate::common::shutdown::critical_path;
-use crate::common::{absolute_path_handling_tilde, fatal_error, format_integer, UUID, UUID_LEN};
+use crate::common::{
+  absolute_path_handling_tilde, fatal_error, format_integer, LogQuestVersion, LOG_QUEST_VERSION,
+  UUID, UUID_LEN,
+};
 use crate::triggers::trigger_index::{
-  DataMutationError, TriggerGroupDescendant, TriggerIndex, TriggerTag,
+  is_compatible_triggers_import_version, DataMutationError, TriggerGroupDescendant, TriggerIndex,
+  TriggerTag,
 };
 use crate::triggers::{Trigger, TriggerGroup};
 use serde::{Deserialize, Serialize};
@@ -73,6 +77,18 @@ pub enum TriggerLoadError {
   IOError(#[from] io::Error),
   #[error(transparent)]
   JSONDeserializationError(#[from] serde_json::error::Error),
+
+  #[error("No version metadata was found in the JSON file: ${0}")]
+  NoVersionInFile(String),
+
+  #[error("Could not parse the version from file: ${0}")]
+  VersionParseError(String),
+
+  #[error("Tried to deserialize a JSON file with an incompatible version (${0:?}) in: ${1}")]
+  IncompatibleVersion(LogQuestVersion, String),
+
+  #[error("The trigger file is missing a '${key}' key: ${file_path}")]
+  MissingKey { file_path: String, key: String },
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, ts_rs::TS)]
@@ -214,24 +230,28 @@ impl LogQuestConfig {
 
   pub fn save_trigger(&self, trigger: &Trigger) -> Result<(), TriggersSaveError> {
     let trigger_file_path = self.trigger_file_path(&trigger.id);
-    self.write_json(trigger, &trigger_file_path)
+    let with_version = TriggerWithVersion::new(trigger);
+    self.write_json(with_version, &trigger_file_path)
   }
 
   pub fn save_trigger_group(&self, group: &TriggerGroup) -> Result<(), TriggersSaveError> {
     let group_file_path = self.trigger_group_file_path(&group.id);
-    self.write_json(group, &group_file_path)
+    let with_version = TriggerGroupWithVersion::new(group);
+    self.write_json(with_version, &group_file_path)
   }
 
   pub fn save_trigger_tag(&self, tag: &TriggerTag) -> Result<(), TriggersSaveError> {
     let tag_file_path = self.trigger_tag_file_path(&tag.id);
-    self.write_json(tag, &tag_file_path)
+    let with_version = TriggerTagWithVersion::new(tag);
+    self.write_json(with_version, &tag_file_path)
   }
 
   pub fn save_top_level(
     &self,
     top_level: &Vec<TriggerGroupDescendant>,
   ) -> Result<(), TriggersSaveError> {
-    self.write_json(top_level, &self.top_level_file_path())
+    let with_version = TopLevelWithVersion::new(top_level);
+    self.write_json(with_version, &self.top_level_file_path())
   }
 
   fn write_json<S>(&self, value: S, path: &Path) -> Result<(), TriggersSaveError>
@@ -283,18 +303,18 @@ impl LogQuestConfig {
   }
 
   pub fn load_trigger_file(&self, id: &UUID) -> Result<Trigger, TriggerLoadError> {
-    let file = fs::File::open(self.trigger_file_path(id))?;
-    serde_json::from_reader(BufReader::new(file)).map_err(|e| e.into())
+    let path = self.trigger_file_path(id);
+    parse_json_file_with_version_check(&path, "trigger")
   }
 
   pub fn load_trigger_group_file(&self, id: &UUID) -> Result<TriggerGroup, TriggerLoadError> {
-    let file = fs::File::open(self.trigger_group_file_path(id))?;
-    serde_json::from_reader(BufReader::new(file)).map_err(|e| e.into())
+    let path = self.trigger_group_file_path(id);
+    parse_json_file_with_version_check(&path, "group")
   }
 
   pub fn load_trigger_tag_file(&self, id: &UUID) -> Result<TriggerTag, TriggerLoadError> {
-    let file = fs::File::open(self.trigger_tag_file_path(id))?;
-    serde_json::from_reader(BufReader::new(file)).map_err(|e| e.into())
+    let path = self.trigger_tag_file_path(id);
+    parse_json_file_with_version_check(&path, "tag")
   }
 
   pub fn load_top_level_file(
@@ -304,8 +324,7 @@ impl LogQuestConfig {
     if !file_path.exists() {
       return Ok(None);
     }
-    let file = fs::File::open(file_path)?;
-    let top_level: Vec<TriggerGroupDescendant> = serde_json::from_reader(BufReader::new(file))?;
+    let top_level = parse_json_file_with_version_check(&file_path, "root")?;
     Ok(Some(top_level))
   }
 
@@ -400,6 +419,42 @@ impl LogQuestConfig {
   }
 }
 
+fn parse_json_file_with_version_check<T>(path: &Path, key: &str) -> Result<T, TriggerLoadError>
+where
+  T: for<'de> Deserialize<'de>,
+{
+  let file = fs::File::open(&path)?;
+
+  let path_string = move || path.display().to_string();
+
+  let mut version_check: serde_json::Value = serde_json::from_reader(BufReader::new(file))?;
+
+  let version: LogQuestVersion = match version_check["version"].take() {
+    version_value @ serde_json::Value::Array(_) => serde_json::from_value(version_value)?,
+    serde_json::Value::Null => return Err(TriggerLoadError::NoVersionInFile(path_string())),
+    _ => return Err(TriggerLoadError::VersionParseError(path_string())),
+  };
+
+  if !is_compatible_triggers_import_version(&version) {
+    return Err(TriggerLoadError::IncompatibleVersion(
+      version,
+      path_string(),
+    ));
+  }
+
+  let deserialized: T = match version_check[key].take() {
+    serde_json::Value::Null => {
+      return Err(TriggerLoadError::MissingKey {
+        key: key.to_owned(),
+        file_path: path_string(),
+      })
+    }
+    value => serde_json::from_value(value)?,
+  };
+
+  Ok(deserialized)
+}
+
 /// By default, this uses the platform-specific conventional config directory as the parent
 /// directory of the config dir.
 ///
@@ -489,4 +544,64 @@ where
   U: AsRef<str>,
 {
   dir.as_ref().join(format!("{}.json", id.as_ref()))
+}
+
+#[derive(Serialize)]
+struct TopLevelWithVersion<'a> {
+  version: &'a LogQuestVersion,
+  root: &'a Vec<TriggerGroupDescendant>,
+}
+
+impl<'a> TopLevelWithVersion<'a> {
+  fn new(root: &'a Vec<TriggerGroupDescendant>) -> Self {
+    Self {
+      version: &LOG_QUEST_VERSION,
+      root,
+    }
+  }
+}
+
+#[derive(Serialize)]
+struct TriggerWithVersion<'a> {
+  version: &'a LogQuestVersion,
+  trigger: &'a Trigger,
+}
+
+impl<'a> TriggerWithVersion<'a> {
+  fn new(trigger: &'a Trigger) -> Self {
+    Self {
+      version: &LOG_QUEST_VERSION,
+      trigger,
+    }
+  }
+}
+
+#[derive(Serialize)]
+struct TriggerGroupWithVersion<'a> {
+  version: &'a LogQuestVersion,
+  group: &'a TriggerGroup,
+}
+
+impl<'a> TriggerGroupWithVersion<'a> {
+  fn new(group: &'a TriggerGroup) -> Self {
+    Self {
+      version: &LOG_QUEST_VERSION,
+      group,
+    }
+  }
+}
+
+#[derive(Serialize)]
+struct TriggerTagWithVersion<'a> {
+  version: &'a LogQuestVersion,
+  tag: &'a TriggerTag,
+}
+
+impl<'a> TriggerTagWithVersion<'a> {
+  fn new(tag: &'a TriggerTag) -> Self {
+    Self {
+      version: &LOG_QUEST_VERSION,
+      tag,
+    }
+  }
 }
