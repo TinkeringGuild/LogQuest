@@ -34,7 +34,11 @@ import {
   search,
 } from '../../features/triggers/triggersSlice';
 import { TriggerGroupDescendant } from '../../generated/TriggerGroupDescendant';
-import { createTriggerGroup, createTriggerTag } from '../../ipc';
+import {
+  createTriggerGroup,
+  createTriggerTag,
+  setTriggerTagActivated,
+} from '../../ipc';
 import StandardTooltip from '../../widgets/StandardTooltip';
 import TriggerGroupListItem from './TriggerGroupListItem';
 import TriggerIDsInSelectedTriggerTagContext from './TriggerIDsInSelectedTriggerTagContext';
@@ -43,6 +47,7 @@ import TriggerTagChanger from './TriggerTagChanger';
 
 import './TriggerTree.css';
 import TriggerGroupEditorDialog from './dialogs/TriggerGroupEditorDialog';
+import { updateActivedTriggerTagIDs } from '../../features/app/appSlice';
 
 const TriggerTree: React.FC<{}> = () => {
   const dispatch = useDispatch();
@@ -140,6 +145,11 @@ const TriggerTree: React.FC<{}> = () => {
               );
               if (creation) {
                 dispatch(activateTriggerTagID(creation.value.id));
+                const activeTriggerTags = await setTriggerTagActivated(
+                  creation.value.id,
+                  true
+                );
+                dispatch(updateActivedTriggerTagIDs(activeTriggerTags));
               }
             }}
           />

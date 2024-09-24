@@ -117,7 +117,6 @@ const triggerEditorSlice = createSlice({
         created_at: now,
         updated_at: now,
         filter: [],
-        enabled: false, // TODO: REMOVE THIS FROM RUST CODE
       };
       slice.draftParentPosition = parentPosition;
       slice.draftTriggerTags = [];
