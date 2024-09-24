@@ -1,0 +1,33 @@
+.overview-mode .scrollable-content {
+  padding: 15px;
+}
+
+.overview-mode-header {
+  text-align: center;
+  position: absolute;
+  top: 15px;
+  right: 150px;
+  left: 30px;
+}
+
+.overview-mode-header p {
+  margin-top: -5px;
+  font-size: '17px';
+  font-family: monospace;
+}
+
+.overview-mode-content {
+  margin-top: 85px;
+}
+
+.overview-mode-current-character h3 {
+  margin-bottom: 10px;
+}
+
+.overview-mode-current-character p {
+  margin-top: 0;
+}
+
+.overview-mode label.MuiFormControlLabel-root .MuiFormControlLabel-label {
+  cursor: pointer;
+}

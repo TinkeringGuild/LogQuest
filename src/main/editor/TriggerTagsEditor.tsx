@@ -25,7 +25,7 @@ const TriggerTagsEditor: React.FC<{
   if (allTriggerTags.length === 0) {
     return (
       <div>
-        <p>No Trigger Tags have been created yet.</p>
+        <Alert severity="warning">No Trigger Tags have been created yet.</Alert>
       </div>
     );
   }

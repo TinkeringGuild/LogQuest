@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 
 import { editNewTrigger } from '../../features/triggers/triggerEditorSlice';
 import {
+  $filter,
   $groupsUptoGroup,
   $positionOf,
   $triggerGroup,
@@ -27,6 +28,16 @@ const TriggerGroupListItem: React.FC<{
 }> = ({ groupID }) => {
   const dispatch = useDispatch();
   const group = useSelector($triggerGroup(groupID));
+
+  const filter = useSelector($filter);
+
+  const children = filter?.text.trim()
+    ? group.children.filter((tgd) =>
+        tgd.variant === 'T'
+          ? filter.triggerIDs.has(tgd.value)
+          : filter.groupIDs.has(tgd.value)
+      )
+    : group.children;
 
   const [editDialogState, setEditDialogState] = useState<
     'closed' | 'edit' | GroupEditorCreateState
@@ -59,9 +70,9 @@ const TriggerGroupListItem: React.FC<{
       >
         <EmojiText text={group.name} />
       </span>
-      {!!group.children.length && (
+      {!!children.length && (
         <ul className="view-trigger-group-sublist">
-          {group.children.map(({ variant, value: id }) => {
+          {children.map(({ variant, value: id }) => {
             if (variant === 'T') {
               return <TriggerListItem key={id} triggerID={id} />;
             } else if (variant === 'G') {

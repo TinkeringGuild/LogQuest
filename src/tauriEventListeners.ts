@@ -59,7 +59,7 @@ const initOverlayTimersListener = (dispatch: Dispatch) => {
 const initOverlayMessageListener = (dispatch: OverlayDispatch) => {
   return listen<string>(OVERLAY_MESSAGE_EVENT_NAME, ({ payload: text }) => {
     const id = uniqueId('overlay-message-');
-    console.log('Overlay Message Event: ', text);
+    // console.log('Overlay Message Event: ', text);
     dispatch(appendMessage({ id, text }));
     removeMessageLater(id, OVERLAY_MESSAGE_LIFETIME_MILLIS, dispatch);
   });

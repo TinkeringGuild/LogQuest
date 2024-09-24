@@ -332,12 +332,12 @@ impl TriggerIndex {
               children: parent.children.clone(),
             })
           } else {
-            remove_trigger_from_descendants(&trigger_id, &mut self.top_level);
-            Some(DataDelta::TopLevelChanged(self.top_level.clone()))
+            error!("Deleting Trigger[{trigger_id}] but its parent was not found!");
+            None
           }
         } else {
-          error!("Deleting Trigger[{trigger_id}] but its parent was not found!");
-          None
+          remove_trigger_from_descendants(&trigger_id, &mut self.top_level);
+          Some(DataDelta::TopLevelChanged(self.top_level.clone()))
         };
 
         let trigger_tag_deltas: Vec<DataDelta> = self

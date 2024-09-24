@@ -2,17 +2,3 @@
   display: flex;
   flex-grow: 1;
 }
-
-.trigger-browser-scrollable-container {
-  position: relative;
-  flex-grow: 1;
-}
-
-.trigger-browser-scrollable-content {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  padding-right: 10px;
-}

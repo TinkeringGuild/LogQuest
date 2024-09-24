@@ -23,25 +23,6 @@ body {
 }
 
 span.emoji {
-  font-family: 'Apple Color Emoji';
-  text-shadow:
-    0 0 1px black,
-    0 0 5px white;
+  /* font-family: 'Apple Color Emoji'; */
+  text-shadow: 0 0 2px black; /*, 0 0 5px white; */
 }
-
-@font-face {
-  font-family: 'Jacquard_12';
-  src: url('/fonts/Jacquard_12/Jacquard12-Regular.woff2') format('woff2');
-  font-weight: normal;
-  font-style: normal;
-}
-
-/*
-@font-face {
-  font-family: 'UnifrakturMaguntia';
-  src: url('/fonts/UnifrakturMaguntia/UnifrakturMaguntia-Regular.ttf')
-    format('truetype');
-  font-weight: normal;
-  font-style: normal;
-}
-*/

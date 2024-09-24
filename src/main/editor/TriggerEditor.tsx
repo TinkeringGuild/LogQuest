@@ -62,7 +62,7 @@ const TriggerEditor: React.FC<{}> = () => {
   };
 
   return (
-    <div className="trigger-editor trigger-browser-scrollable-container">
+    <div className="trigger-editor scrollable-container">
       <div className="trigger-browser-scrollable-content scrollable-content central-content">
         <div className="trigger-editor-breadcrumbs">
           <Stack

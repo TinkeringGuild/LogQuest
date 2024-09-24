@@ -53,9 +53,10 @@ const NavButton: React.FC<{
   current: MODE;
   size: 'small' | 'medium' | 'large';
 }> = ({ to, current, text, size }) => {
-  const isLoading = useSelector($isLoading);
   const dispatch = useDispatch();
+  const isLoading = useSelector($isLoading);
   const active = to == current;
+
   const inactiveStyle: SxProps = {
     padding: '10px 25px',
     color: 'black',

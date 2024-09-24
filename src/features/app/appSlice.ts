@@ -1,6 +1,7 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
 import { MainRootState } from '../../MainStore';
+import { Character } from '../../generated/Character';
 import { ProgressUpdate } from '../../generated/ProgressUpdate';
 import { ReactorState } from '../../generated/ReactorState';
 import { UUID } from '../../generated/UUID';
@@ -59,6 +60,15 @@ const appSlice = createSlice({
       slice.bootstrapped = true;
     },
 
+    setCurrentCharacter(
+      slice: AppState,
+      { payload: characterMaybe }: PayloadAction<Character | null>
+    ) {
+      if (slice.reactor) {
+        slice.reactor.current_character = characterMaybe;
+      }
+    },
+
     navigateTo(slice: AppState, { payload: mode }: PayloadAction<MODE>) {
       slice.currentMode = mode;
     },
@@ -97,6 +107,7 @@ export const {
   exitLoadingState,
   initReactor,
   navigateTo,
+  setCurrentCharacter,
   updateActivedTriggerTagIDs,
   updateProgress,
   updateProgressFinished,

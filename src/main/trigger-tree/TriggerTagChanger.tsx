@@ -6,9 +6,9 @@ import AddBoxSharp from '@mui/icons-material/AddBoxSharp';
 import DeleteForeverSharp from '@mui/icons-material/DeleteForeverSharp';
 import DisabledByDefaultSharp from '@mui/icons-material/DisabledByDefaultSharp';
 import Edit from '@mui/icons-material/Edit';
-import Info from '@mui/icons-material/Info';
 import LibraryAddSharp from '@mui/icons-material/LibraryAddSharp';
 import More from '@mui/icons-material/More';
+import NewReleases from '@mui/icons-material/NewReleases';
 import Button from '@mui/material/Button';
 import ButtonGroup from '@mui/material/ButtonGroup';
 import FormControl from '@mui/material/FormControl';
@@ -104,9 +104,10 @@ const SelectTriggerTagMode: React.FC<{
         <Button
           variant={triggerTags.length === 0 ? 'contained' : 'outlined'}
           onClick={onCreateClicked}
-          startIcon={<Info />}
-        ></Button>
-        Create a Trigger Tag to enable Triggers
+          startIcon={<NewReleases />}
+        >
+          Create a Trigger Tag to activate Triggers
+        </Button>
       </div>
     );
   }

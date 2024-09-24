@@ -72,7 +72,7 @@ const EditDuration: React.FC<{
           size="small"
           type="number"
           error={!!errorMessage}
-          value={durationValues.hours}
+          value={`${durationValues.hours}`}
           onChange={(e) => updateDuration({ hours: +e.target.value })}
           sx={{ maxWidth: 80 }}
         />{' '}
@@ -81,7 +81,7 @@ const EditDuration: React.FC<{
           size="small"
           type="number"
           error={!!errorMessage}
-          value={durationValues.minutes}
+          value={`${durationValues.minutes}`}
           onChange={(e) => updateDuration({ minutes: +e.target.value })}
           sx={{ maxWidth: 80 }}
         />{' '}
@@ -90,7 +90,7 @@ const EditDuration: React.FC<{
           size="small"
           type="number"
           error={!!errorMessage}
-          value={durationValues.seconds}
+          value={`${durationValues.seconds}`}
           onChange={(e) => updateDuration({ seconds: +e.target.value })}
           sx={{ maxWidth: 100 }}
         />

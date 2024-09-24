@@ -26,9 +26,9 @@ const store = configureStore({
     // be possible to insert custom middleware that automatically applies the reducer and passes through
     // a new Immer draft object that can be updated, however that would only be necessary if I wanted to
     // use the time-travel debugging features of Redux.
-    getDefaultMiddleware({ serializableCheck: false }).concat(
-      crossDispatchMiddleware
-    ),
+    getDefaultMiddleware({
+      serializableCheck: false,
+    }).concat(crossDispatchMiddleware),
 });
 
 initOverlayStateListeners(store.dispatch);

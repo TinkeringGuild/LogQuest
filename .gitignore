@@ -22,8 +22,6 @@ dist-ssr
 *.sln
 *.sw?
 
+/local
 LogQuest.zip
 TODO.org
-RELEASE
-TEST_CONFIG
-TEST_LOGS

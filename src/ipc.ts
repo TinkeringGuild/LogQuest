@@ -4,6 +4,7 @@ import { clamp } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
 import { Bootstrap } from './generated/Bootstrap';
+import { Character } from './generated/Character';
 import { CommandTemplate } from './generated/CommandTemplate';
 import { CommandTemplateSecurityCheck } from './generated/CommandTemplateSecurityCheck';
 import { DataDelta } from './generated/DataDelta';
@@ -205,4 +206,8 @@ export async function validateGINARegex(
 
 export async function playAudioFile(path: string) {
   await invoke('play_audio_file', { path });
+}
+
+export async function getCurrentCharacter() {
+  return await invoke<Character | null>('get_current_character');
 }

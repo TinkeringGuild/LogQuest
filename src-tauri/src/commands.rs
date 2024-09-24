@@ -4,6 +4,7 @@ use crate::{
     security::is_crypto_available, UUID,
   },
   gina::{importer::import_from_gina_export_file, regex::RegexGINA},
+  logs::active_character_detection::Character,
   reactor::ReactorEvent,
   state::{
     config::LogQuestConfig,
@@ -68,6 +69,7 @@ pub fn handler() -> impl Fn(tauri::Invoke) {
     dispatch_to_overlay,
     get_active_trigger_tags,
     get_config,
+    get_current_character,
     import_gina_triggers_file,
     mutate,
     play_audio_file,
@@ -278,4 +280,9 @@ async fn play_audio_file(
     .send(ReactorEvent::TestAudioFile(path))
     .await
     .map_err(|_| "Reactor not running".to_owned())
+}
+
+#[tauri::command]
+fn get_current_character(state: State<StateHandle>) -> Option<Character> {
+  state.select_reactor(|reactor| reactor.current_character.clone())
 }

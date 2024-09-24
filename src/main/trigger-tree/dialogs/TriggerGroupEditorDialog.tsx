@@ -33,10 +33,15 @@ const TriggerGroupEditorDialog: React.FC<{
           label="Trigger Group Name"
           variant="outlined"
           error={!!nameError}
-          helperText={nameError}
+          helperText={nameError || ' '}
           defaultValue={nameInput}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !nameError) {
+              save();
+            }
+          }}
           onChange={(e) => setNameInput(e.target.value)}
-          sx={{ mt: 1, mb: 1 }}
+          sx={{ mt: 1, mb: 0 }}
           fullWidth
           autoFocus
         />

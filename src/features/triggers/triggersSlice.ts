@@ -13,6 +13,11 @@ export const TRIGGERS_SLICE = 'triggers';
 interface TriggersState {
   index: TriggerIndex;
   activeTriggerTagID: UUID | null;
+  filter: null | {
+    text: string;
+    triggerIDs: Set<UUID>;
+    groupIDs: Set<UUID>;
+  };
 }
 
 export type TriggersSelector<T> = (slice: TriggersState) => T;
@@ -25,27 +30,80 @@ const INITIAL_TRIGGERS_STATE: TriggersState = {
     trigger_tags: {},
   },
   activeTriggerTagID: null,
+  filter: null,
 };
+
+const WHITESPACE_REGEX = /\s+/g;
 
 const triggersSlice = createSlice({
   name: TRIGGERS_SLICE,
   initialState: INITIAL_TRIGGERS_STATE,
   reducers: {
     initTriggers(
-      state: TriggersState,
+      slice: TriggersState,
       { payload: index }: PayloadAction<TriggerIndex>
     ) {
-      state.index = index;
+      slice.index = index;
     },
 
     activateTriggerTagID(
-      state: TriggersState,
+      slice: TriggersState,
       { payload: triggerTagID }: PayloadAction<UUID | null>
     ) {
-      state.activeTriggerTagID = triggerTagID;
+      slice.activeTriggerTagID = triggerTagID;
+    },
+
+    search(slice: TriggersState, { payload: text }: PayloadAction<string>) {
+      const textTrimmed = text.trim();
+
+      if (textTrimmed === '') {
+        slice.filter = {
+          text: text,
+          triggerIDs: new Set(),
+          groupIDs: new Set(),
+        };
+        return;
+      }
+
+      const formattedSearch = textTrimmed
+        .toUpperCase()
+        .replace(WHITESPACE_REGEX, '');
+
+      const filterByName = ({ name }: { name: string }) =>
+        name
+          .toUpperCase()
+          .replace(WHITESPACE_REGEX, '')
+          .includes(formattedSearch);
+
+      const mapIDs = ({ id }: { id: UUID }) => id;
+
+      const triggers = Object.values(slice.index.triggers).filter(filterByName);
+      const triggerIDs = new Set(triggers.map(mapIDs));
+
+      const groups = Object.values(slice.index.groups).filter(filterByName);
+      const groupIDs = new Set<UUID>(groups.map(mapIDs));
+
+      for (const trigger of triggers) {
+        let parentID = trigger.parent_id;
+        while (parentID) {
+          groupIDs.add(parentID);
+          parentID = slice.index.groups[parentID]?.parent_id;
+        }
+      }
+
+      slice.filter = {
+        text,
+        triggerIDs,
+        groupIDs,
+      };
+    },
+
+    clearSearch(slice: TriggersState) {
+      slice.filter = null;
     },
 
     applyDeltas(state: TriggersState, { payload }: PayloadAction<DataDelta[]>) {
+      // console.log('APPLYING DELTAS:', payload);
       payload.forEach(({ variant, value }) => {
         if (variant === 'TriggerSaved') {
           deltas[variant](state.index, value);
@@ -79,8 +137,13 @@ const triggersSlice = createSlice({
   },
 });
 
-export const { initTriggers, activateTriggerTagID, applyDeltas } =
-  triggersSlice.actions;
+export const {
+  initTriggers,
+  activateTriggerTagID,
+  applyDeltas,
+  search,
+  clearSearch,
+} = triggersSlice.actions;
 
 export default triggersSlice.reducer;
 
@@ -163,3 +226,5 @@ export const $positionOf = (typeAndID: { trigger: UUID } | { group: UUID }) =>
       (tgd) => tgd.variant === tgdVariant && tgd.value === triggerOrGroup.id
     );
   });
+
+export const $filter = triggersSelector(({ filter }) => filter);

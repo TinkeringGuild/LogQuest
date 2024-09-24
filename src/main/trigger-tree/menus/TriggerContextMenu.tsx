@@ -43,6 +43,7 @@ export const TriggerContextMenu: React.FC<{
     </MenuItem>
 
     <MenuItem
+      disabled={true}
       onClick={() => {
         onDuplicate();
         close();

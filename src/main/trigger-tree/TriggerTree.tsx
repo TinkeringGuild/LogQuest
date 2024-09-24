@@ -1,27 +1,40 @@
-import React, { useId } from 'react';
+import { os } from '@tauri-apps/api';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 
+import Add from '@mui/icons-material/Add';
+import AddCircleOutline from '@mui/icons-material/AddCircleOutline';
 import ChecklistSharp from '@mui/icons-material/ChecklistSharp';
+import Close from '@mui/icons-material/Close';
 import DownloadingIcon from '@mui/icons-material/Downloading';
 import ManageSearch from '@mui/icons-material/ManageSearch';
 import MoreVert from '@mui/icons-material/MoreVert';
+import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import IconButton from '@mui/material/IconButton';
+import InputAdornment from '@mui/material/InputAdornment';
 import ListItemIcon from '@mui/material/ListItemIcon';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
+import Slide from '@mui/material/Slide';
+import TextField from '@mui/material/TextField';
+import ToggleButton from '@mui/material/ToggleButton';
 import PopupState, { bindMenu, bindTrigger } from 'material-ui-popup-state';
 
 import openGINATriggerFileDialog from '../../dialogs/importGINAFile';
+import { editNewTrigger } from '../../features/triggers/triggerEditorSlice';
 import {
   $activeTriggerTag,
+  $filter,
   $topLevel,
   activateTriggerTagID,
   applyDeltas,
+  clearSearch,
+  search,
 } from '../../features/triggers/triggersSlice';
 import { TriggerGroupDescendant } from '../../generated/TriggerGroupDescendant';
-import { createTriggerTag } from '../../ipc';
+import { createTriggerGroup, createTriggerTag } from '../../ipc';
 import StandardTooltip from '../../widgets/StandardTooltip';
 import TriggerGroupListItem from './TriggerGroupListItem';
 import TriggerIDsInSelectedTriggerTagContext from './TriggerIDsInSelectedTriggerTagContext';
@@ -29,12 +42,23 @@ import TriggerListItem from './TriggerListItem';
 import TriggerTagChanger from './TriggerTagChanger';
 
 import './TriggerTree.css';
+import TriggerGroupEditorDialog from './dialogs/TriggerGroupEditorDialog';
 
 const TriggerTree: React.FC<{}> = () => {
   const dispatch = useDispatch();
   const triggerTreeMoreMenuID = useId();
   const top: TriggerGroupDescendant[] = useSelector($topLevel);
   const activeTriggerTag = useSelector($activeTriggerTag);
+
+  const shouldFocusFilter = useState(false);
+  const filterInputRef = useRef<HTMLInputElement>(null);
+  const filter = useSelector($filter);
+
+  useEffect(() => {
+    if (shouldFocusFilter && filterInputRef.current) {
+      filterInputRef.current.focus();
+    }
+  }, [shouldFocusFilter]);
 
   const activeTriggersSet = activeTriggerTag
     ? {
@@ -43,9 +67,60 @@ const TriggerTree: React.FC<{}> = () => {
       }
     : null;
 
+  const topFiltered = filter?.text.trim()
+    ? top.filter((tgd) =>
+        tgd.variant === 'T'
+          ? filter.triggerIDs.has(tgd.value)
+          : filter.groupIDs.has(tgd.value)
+      )
+    : top;
+
   return (
-    <div className="trigger-tree trigger-browser-scrollable-container">
-      <div className="trigger-browser-scrollable-content scrollable-content central-content">
+    <div className="trigger-tree scrollable-container">
+      <div className="scrollable-content central-content">
+        <SearchShortcutListener />
+        {filter && (
+          <Slide
+            direction="down"
+            timeout={250}
+            in={!!filter}
+            mountOnEnter
+            unmountOnExit
+          >
+            <div style={{ marginBottom: 20 }}>
+              <TextField
+                label="Search"
+                value={filter.text}
+                variant="filled"
+                fullWidth
+                color={
+                  filter && topFiltered.length === 0 ? 'warning' : 'primary'
+                }
+                inputRef={filterInputRef}
+                onChange={(e) => dispatch(search(e.target.value))}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    dispatch(clearSearch());
+                  }
+                }}
+                slotProps={{
+                  input: {
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton
+                          edge="end"
+                          onClick={() => dispatch(clearSearch())}
+                        >
+                          <Close />
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                  },
+                }}
+              />
+            </div>
+          </Slide>
+        )}
         <Box
           display="flex"
           alignItems="flex-start"
@@ -73,12 +148,21 @@ const TriggerTree: React.FC<{}> = () => {
             {(popupState) => (
               <>
                 <div>
-                  <StandardTooltip help="Search" placement="left">
+                  <StandardTooltip help="Toggle Search" placement="left">
                     <span>
-                      {/* span is needed because button is disabled and disabled buttons don't fire any events */}
-                      <IconButton sx={{ color: 'black' }} disabled={true}>
+                      {/* the span is needed because if ToggleButton is disabled, it won't generate Tooltip events */}
+                      <ToggleButton
+                        value="filter"
+                        size="small"
+                        selected={!!filter}
+                        disabled={top.length === 0}
+                        onChange={() =>
+                          dispatch(filter ? clearSearch() : search(''))
+                        }
+                        sx={{ color: 'black' }}
+                      >
                         <ManageSearch />
-                      </IconButton>
+                      </ToggleButton>
                     </span>
                   </StandardTooltip>{' '}
                   <Button
@@ -125,9 +209,9 @@ const TriggerTree: React.FC<{}> = () => {
           value={activeTriggersSet}
         >
           <div>
-            {top.length ? (
+            {topFiltered.length ? (
               <ul>
-                {top.map((tgd) =>
+                {topFiltered.map((tgd) =>
                   tgd.variant === 'T' ? (
                     <TriggerListItem key={tgd.value} triggerID={tgd.value} />
                   ) : (
@@ -135,14 +219,104 @@ const TriggerTree: React.FC<{}> = () => {
                   )
                 )}
               </ul>
+            ) : filter ? (
+              <Alert severity="warning" sx={{ mt: 2 }}>
+                Nothing matches your search.
+              </Alert>
             ) : (
-              <p>You have not created any triggers yet.</p>
+              <div style={{ marginTop: 15 }}>
+                <Alert severity="info">
+                  You have not created any Triggers yet.
+                </Alert>
+                <div style={{ marginTop: 15 }}>
+                  <Button
+                    variant="contained"
+                    startIcon={<Add />}
+                    onClick={() => {
+                      dispatch(
+                        editNewTrigger({
+                          parentID: null,
+                          parentPosition: 0,
+                          ancestorGroups: [],
+                        })
+                      );
+                    }}
+                  >
+                    Create Trigger
+                  </Button>{' '}
+                  <CreateTriggerGroupButton />
+                </div>
+              </div>
             )}
           </div>
         </TriggerIDsInSelectedTriggerTagContext.Provider>
       </div>
     </div>
   );
+};
+
+const CreateTriggerGroupButton: React.FC<{}> = () => {
+  const dispatch = useDispatch();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  return (
+    <>
+      <Button
+        variant="contained"
+        startIcon={<AddCircleOutline />}
+        onClick={() => setDialogOpen(true)}
+      >
+        Create Trigger Group
+      </Button>
+      {dialogOpen && (
+        <TriggerGroupEditorDialog
+          name=""
+          comment={null}
+          onSave={async (name, comment) => {
+            const deltas = createTriggerGroup(name, comment, null, 0);
+            dispatch(applyDeltas(await deltas));
+          }}
+          close={() => setDialogOpen(false)}
+        />
+      )}
+    </>
+  );
+};
+
+const SearchShortcutListener: React.FC = () => {
+  const dispatch = useDispatch();
+
+  const filter = useSelector($filter);
+
+  useEffect(() => {
+    let osType: os.OsType | null = null;
+
+    const osTypePromise = os.type();
+
+    osTypePromise.then((tauriOsType) => {
+      osType = tauriOsType;
+    });
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!osType) return;
+
+      const modifierKeyIsDown =
+        osType === 'Darwin' ? event.metaKey : event.ctrlKey;
+      if (modifierKeyIsDown && event.key === 'f') {
+        dispatch(filter ? clearSearch() : search(''));
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    // Clean up the event listener on component unmount
+    return () => {
+      osTypePromise.then(() => {
+        window.removeEventListener('keydown', handleKeyDown);
+      });
+    };
+  }, []);
+
+  return <></>;
 };
 
 export default TriggerTree;
