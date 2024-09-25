@@ -5,6 +5,7 @@ use crate::{
   },
   gina::{importer::import_from_gina_export_file, regex::RegexGINA},
   logs::active_character_detection::Character,
+  matchers::MatchContext,
   reactor::ReactorEvent,
   state::{
     config::LogQuestConfig,
@@ -81,7 +82,8 @@ pub fn handler() -> impl Fn(tauri::Invoke) {
     sign_command_template,
     start_timers_sync,
     sys_command_info,
-    validate_gina_regex
+    validate_gina_regex,
+    validate_gina_regex_with_context
   ]
 }
 
@@ -263,6 +265,17 @@ fn sys_command_info(command: String) -> Result<SystemCommandInfo, String> {
 #[tauri::command]
 fn validate_gina_regex(pattern: String) -> Option<(Option<usize>, String)> {
   match RegexGINA::from_str(&pattern) {
+    Err(fancy_regex::Error::ParseError(position, parse_error)) => {
+      Some((Some(position), parse_error.to_string()))
+    }
+    Err(fancy_regex::Error::CompileError(compile_error)) => Some((None, compile_error.to_string())),
+    _ => None,
+  }
+}
+
+#[tauri::command]
+fn validate_gina_regex_with_context(pattern: String) -> Option<(Option<usize>, String)> {
+  match RegexGINA::from_str_with_context(&pattern, &MatchContext::empty("")) {
     Err(fancy_regex::Error::ParseError(position, parse_error)) => {
       Some((Some(position), parse_error.to_string()))
     }

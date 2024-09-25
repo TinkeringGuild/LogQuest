@@ -39,7 +39,11 @@ import { Filter } from '../../../generated/Filter';
 import { FilterWithContext } from '../../../generated/FilterWithContext';
 import { Matcher } from '../../../generated/Matcher';
 import { MatcherWithContext } from '../../../generated/MatcherWithContext';
-import { validateGINARegex, ValidateGINARegexResponse } from '../../../ipc';
+import {
+  validateGINARegex,
+  ValidateGINARegexResponse,
+  validateGINARegexWithContext,
+} from '../../../ipc';
 import StandardTooltip from '../../../widgets/StandardTooltip';
 
 import './EditFilter.css';
@@ -47,9 +51,11 @@ import './EditFilter.css';
 type MatcherVariant = (Matcher & MatcherWithContext)['variant'];
 
 function EditFilter<T extends Filter | FilterWithContext>({
+  matchersIncludeContext,
   selector,
   children,
 }: {
+  matchersIncludeContext: boolean;
   selector: TriggerEditorSelector<T>;
   children?: ReactNode;
 }): JSX.Element {
@@ -85,6 +91,7 @@ function EditFilter<T extends Filter | FilterWithContext>({
               key={matcher.value.id}
               value={matcher.value.pattern}
               variant={matcher.variant}
+              matchersIncludeContext={matchersIncludeContext}
               getRef={(ref) =>
                 ref && (matcherInputFieldRefs.current[index] = ref)
               }
@@ -148,9 +155,17 @@ const MatcherInputField: React.FC<{
   variant: MatcherVariant;
   value: string;
   getRef: RefCallback<HTMLInputElement>;
+  matchersIncludeContext: boolean;
   onDelete: () => void;
   onChange: (value: string) => void;
-}> = ({ value, variant, getRef, onDelete, onChange }) => {
+}> = ({
+  value,
+  variant,
+  getRef,
+  matchersIncludeContext,
+  onDelete,
+  onChange,
+}) => {
   const dispatch = useDispatch();
 
   const id = useId();
@@ -175,23 +190,24 @@ const MatcherInputField: React.FC<{
 
     if (pattern.trim()) {
       if (variant === 'GINA') {
-        validateGINARegex(pattern).then(
-          (errorMaybe: ValidateGINARegexResponse) => {
-            if (!isMounted) {
-              return;
-            }
-            if (errorMaybe) {
-              // I cannot use the position in the error message (yet) because a RegexGINA
-              // interpolates data into the Regex, making the position number somewhat useless.
-              // I would have to fix this in Rust, intercepting parse errors and subtracting
-              // out the length of the interpolated sections... that's low-priority for now.
-              const [_positionMaybe, error] = errorMaybe;
-              setInputError(error);
-            } else {
-              setInputError(null);
-            }
+        const validation = matchersIncludeContext
+          ? validateGINARegexWithContext(pattern)
+          : validateGINARegex(pattern);
+        validation.then((errorMaybe: ValidateGINARegexResponse) => {
+          if (!isMounted) {
+            return;
           }
-        );
+          if (errorMaybe) {
+            // I cannot use the position in the error message (yet) because a RegexGINA
+            // interpolates data into the Regex, making the position number somewhat useless.
+            // I would have to fix this in Rust, intercepting parse errors and subtracting
+            // out the length of the interpolated sections... that's low-priority for now.
+            const [_positionMaybe, error] = errorMaybe;
+            setInputError(error);
+          } else {
+            setInputError(null);
+          }
+        });
       } else {
         setInputError(null);
       }

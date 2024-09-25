@@ -204,6 +204,17 @@ export async function validateGINARegex(
   });
 }
 
+export async function validateGINARegexWithContext(
+  pattern: string
+): Promise<ValidateGINARegexResponse> {
+  return await invoke<ValidateGINARegexResponse>(
+    'validate_gina_regex_with_context',
+    {
+      pattern,
+    }
+  );
+}
+
 export async function playAudioFile(path: string) {
   await invoke('play_audio_file', { path });
 }

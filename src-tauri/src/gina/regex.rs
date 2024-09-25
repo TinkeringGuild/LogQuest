@@ -478,9 +478,18 @@ mod tests {
     assert!(re.check("Get capture", TOON).is_some());
     assert!(re.check("Get something else", TOON).is_none());
 
-    let re = RegexGINA::from_str_with_context(r"^Get ${1}", &context).unwrap();
-    assert!(re.check("Get capture", TOON).is_some());
-    assert!(re.check("Get something else", TOON).is_none());
+    let context = create_context(
+      r"^([\w -'`]+)\'s body pulses with mystic fortitude\.$",
+      "Xenk's body pulses with mystic fortitude.",
+    );
+    let re =
+      RegexGINA::from_str_with_context(r"^${1} has been slain by (?>[^!]+)\!$", &context).unwrap();
+    assert!(re
+      .check("Xenk has been slain by Vulak`Aerr!", TOON)
+      .is_some());
+    assert!(re
+      .check("Goner has been slain by Vulak`Aerr!", TOON)
+      .is_none());
   }
 
   fn create_context(pattern: &str, text: &str) -> MatchContext {

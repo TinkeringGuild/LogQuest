@@ -145,7 +145,10 @@ const TriggerEditor: React.FC<{}> = () => {
           </p>
         )}
         <div>
-          <EditFilter selector={$$selectTriggerFilter} />
+          <EditFilter
+            matchersIncludeContext={false}
+            selector={$$selectTriggerFilter}
+          />
         </div>
 
         <h3 style={{ marginBottom: 10 }}>Effects</h3>

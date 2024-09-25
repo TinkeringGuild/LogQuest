@@ -50,7 +50,7 @@ const TIMER_EFFECT_COMPONENTS = {
         help="Pause the execution of subsequent Effects until one of the given patterns matches"
         onDelete={onDelete}
       >
-        <EditFilter selector={filterSelector}>
+        <EditFilter matchersIncludeContext={true} selector={filterSelector}>
           <Box margin="0 auto">
             <EditorError
               center
