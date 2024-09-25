@@ -198,7 +198,7 @@ pub fn file_path_is_executable(path: &str) -> bool {
 }
 
 #[cfg(windows)]
-pub fn file_path_is_executable(path: &str) {
+pub fn file_path_is_executable(path: &str) -> bool {
   path.ends_with(".exe")
     || path.ends_with(".bat")
     || path.ends_with(".cmd")
