@@ -1,4 +1,4 @@
-import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import { createSelector, createSlice, PayloadAction } from '@reduxjs/toolkit';
 
 import { MainRootState } from '../../MainStore';
 import { DataDelta } from '../../generated/DataDelta';
@@ -7,6 +7,7 @@ import { TriggerGroupDescendant } from '../../generated/TriggerGroupDescendant';
 import { TriggerIndex } from '../../generated/TriggerIndex';
 import { UUID } from '../../generated/UUID';
 import * as deltas from './deltas';
+import { $PARAM } from '../common';
 
 export const TRIGGERS_SLICE = 'triggers';
 
@@ -147,31 +148,44 @@ export const {
 
 export default triggersSlice.reducer;
 
+const createTriggersSelector = createSelector.withTypes<TriggersState>();
+
 export function triggersSelector<T>(
   selector: TriggersSelector<T>
 ): (state: MainRootState) => T {
   return (state: MainRootState) => selector(state[TRIGGERS_SLICE]);
 }
 
-export const $topLevel = triggersSelector(
-  ({ index: { top_level } }) => top_level
+const $$topLevel = ({ index: { top_level } }: TriggersState) => top_level;
+export const $topLevel = triggersSelector($$topLevel);
+
+const $$triggers = ({ index: { triggers } }: TriggersState) => triggers;
+export const $triggers = triggersSelector($$triggers);
+
+const triggerIDParam = $PARAM<UUID>();
+const selectTrigger = createSelector(
+  [$triggers, triggerIDParam],
+  (triggers, triggerID) => triggers[triggerID]
 );
 
-export const $trigger = (triggerID: UUID) => {
-  return triggersSelector(({ index: { triggers } }) => triggers[triggerID]);
-};
+export const $trigger = (triggerID: UUID) => (state: MainRootState) =>
+  selectTrigger(state, triggerID);
 
-export const $triggerGroup = (groupID: UUID) => {
-  return triggersSelector((slice) => slice.index.groups[groupID]);
-};
+const $$triggerGroups = ({ index: { groups } }: TriggersState) => groups;
+export const $triggerGroups = triggersSelector($$triggerGroups);
 
-export const $triggerGroups = triggersSelector(
-  ({ index: { groups } }) => groups
+const groupIDParam = $PARAM<UUID>();
+const selectGroup = createSelector(
+  [$triggerGroups, groupIDParam],
+  (groups, group_ID) => groups[group_ID]
 );
+export const $triggerGroup = (groupID: UUID) => (state: MainRootState) =>
+  selectGroup(state, groupID);
 
-export const $triggerTags = triggersSelector(
-  ({ index: { trigger_tags } }) => trigger_tags
-);
+export const $$triggerTags = ({ index: { trigger_tags } }: TriggersState) =>
+  trigger_tags;
+
+export const $triggerTags = triggersSelector($$triggerTags);
 
 export const $activeTriggerTagID = triggersSelector(
   ({ activeTriggerTagID }) => activeTriggerTagID
@@ -182,49 +196,63 @@ export const $activeTriggerTag = triggersSelector(
     activeTriggerTagID ? trigger_tags[activeTriggerTagID] : null
 );
 
-export const $$triggerTagsHavingTrigger = (triggerID: UUID) => {
-  return ({ index: { trigger_tags } }: TriggersState) => {
-    return Object.values(trigger_tags).filter((tag) =>
-      tag.triggers.includes(triggerID)
-    );
-  };
-};
+const selectTriggerTagsHavingTrigger = createTriggersSelector(
+  [$$triggerTags, triggerIDParam],
+  (triggerTags, triggerID) =>
+    Object.values(triggerTags).filter((tag) => tag.triggers.includes(triggerID))
+);
+export const $$triggerTagsHavingTrigger =
+  (triggerID: UUID) => (slice: TriggersState) =>
+    selectTriggerTagsHavingTrigger(slice, triggerID);
 
-export const $triggerTagsHavingTrigger = (triggerID: UUID) => {
-  return triggersSelector($$triggerTagsHavingTrigger(triggerID));
-};
+export const $triggerTagsHavingTrigger = (triggerID: UUID) =>
+  triggersSelector($$triggerTagsHavingTrigger(triggerID));
 
-export const $groupsUptoGroup = (groupID: UUID | null) =>
-  triggersSelector((slice) => {
+export const $groups = triggersSelector((slice) => slice.index.groups);
+
+export const paramGroupID = $PARAM<UUID | null>();
+export const selectGroupsUptoGroup = createSelector(
+  [$groups, paramGroupID],
+  (groups, groupID) => {
     if (!groupID) {
       return [];
     }
-    const groups = slice.index.groups;
     const deepest: TriggerGroup = groups[groupID];
     let parent_id: UUID | null = deepest.parent_id;
     const path: TriggerGroup[] = [deepest];
     while (parent_id) {
       const parent = groups[parent_id];
-      parent_id = parent.parent_id;
       path.unshift(parent);
+      parent_id = parent.parent_id;
     }
     return path;
-  });
+  }
+);
 
-export const $positionOf = (typeAndID: { trigger: UUID } | { group: UUID }) =>
-  triggersSelector((slice) => {
+export const $groupsUptoGroup =
+  (groupID: UUID | null) => (state: MainRootState) =>
+    selectGroupsUptoGroup(state, groupID);
+
+const typeAndIDParam = $PARAM<{ trigger: UUID } | { group: UUID }>();
+const selectPositionOf = createTriggersSelector(
+  [$$triggers, $$triggerGroups, $$topLevel, typeAndIDParam],
+  (triggers, groups, topLevel, typeAndID) => {
     const [tgdVariant, triggerOrGroup] =
       'trigger' in typeAndID
-        ? ['T', slice.index.triggers[typeAndID.trigger]]
-        : ['G', slice.index.groups[typeAndID.group]];
+        ? ['T', triggers[typeAndID.trigger]]
+        : ['G', groups[typeAndID.group]];
 
     const peers: TriggerGroupDescendant[] = triggerOrGroup.parent_id
-      ? slice.index.groups[triggerOrGroup.parent_id].children
-      : slice.index.top_level;
+      ? groups[triggerOrGroup.parent_id].children
+      : topLevel;
 
     return peers.findIndex(
       (tgd) => tgd.variant === tgdVariant && tgd.value === triggerOrGroup.id
     );
-  });
+  }
+);
+
+export const $positionOf = (typeAndID: { trigger: UUID } | { group: UUID }) =>
+  triggersSelector((slice) => selectPositionOf(slice, typeAndID));
 
 export const $filter = triggersSelector(({ filter }) => filter);
