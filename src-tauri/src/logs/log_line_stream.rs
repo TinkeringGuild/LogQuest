@@ -2,6 +2,7 @@ use super::{
   log_event_broadcaster::NotifyError, log_file_cursor::LogFileCursor, Line, LogFileEvent,
 };
 use crate::common::shutdown::quitter;
+use std::path::Path;
 use std::{
   pin::Pin,
   sync::Arc,
@@ -23,11 +24,57 @@ pub struct LogLineStream {
 }
 
 impl LogLineStream {
+  // #[cfg(unix)]
+  // fn platform_specific_open_options() -> tokio::fs::OpenOptions {
+  //   let mut opts = tokio::fs::OpenOptions::new();
+  //   opts.read(true);
+  //   opts
+  // }
+
+  // #[cfg(windows)]
+  // fn platform_specific_open_options() -> tokio::fs::OpenOptions {
+  //   use winapi::um::winnt::{FILE_SHARE_DELETE, FILE_SHARE_READ, FILE_SHARE_WRITE};
+
+  //   let mut opts = tokio::fs::OpenOptions::new();
+  //   opts
+  //     .read(true)
+  //     .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE);
+  //   opts
+  // }
+
+  #[cfg(unix)]
+  async fn platform_specific_open<P>(path: P) -> tokio::io::Result<tokio::fs::File>
+  where
+    P: AsRef<Path>,
+  {
+    tokio::fs::OpenOptions::new().read(true).open(path).await
+  }
+
+  #[cfg(windows)]
+  async fn platform_specific_open<P>(path: P) -> tokio::io::Result<tokio::fs::File>
+  where
+    P: AsRef<Path>,
+  {
+    // TODO remove winapi Cargo dependency
+    // use winapi::um::winnt::{FILE_SHARE_DELETE, FILE_SHARE_READ, FILE_SHARE_WRITE};
+
+    // Reference: https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfile2
+    const FILE_SHARE_READ: u32 = 0x1;
+    const FILE_SHARE_WRITE: u32 = 0x2;
+    const FILE_SHARE_DELETE: u32 = 0x4;
+    const SHARE_MODE: u32 = FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE;
+    tokio::fs::OpenOptions::new()
+      .read(true)
+      .share_mode(SHARE_MODE)
+      .open(path)
+      .await
+  }
+
   pub async fn create(
     cursor: &LogFileCursor,
     rx_log_file_events: broadcast::Receiver<Result<LogFileEvent, NotifyError>>,
   ) -> tokio::io::Result<Self> {
-    let file = tokio::fs::File::open(&cursor.path).await?;
+    let file = Self::platform_specific_open(&cursor.path).await?;
     let mut reader = tokio::io::BufReader::new(file);
 
     debug!(

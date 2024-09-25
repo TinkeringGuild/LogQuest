@@ -46,6 +46,7 @@ tts = "0.26.3"
 uuid = { version = "1.10.0", features = ["v4", "fast-rng"] }
 which = "6.0"
 xml-rs = "0.8.20"
+winapi = { version = "0.3", features = ["fileapi"] }
 zip = { version = "2.1.3", default-features = false, features = ["deflate"] }
 
 # For Tokio support, the docs suggest disabling default features and enabling macos_kqueue: https://docs.rs/notify/latest/notify/#crossbeam-channel--tokio
