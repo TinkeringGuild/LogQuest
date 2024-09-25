@@ -55,15 +55,16 @@ const TriggerTree: React.FC<{}> = () => {
   const top: TriggerGroupDescendant[] = useSelector($topLevel);
   const activeTriggerTag = useSelector($activeTriggerTag);
 
-  const shouldFocusFilter = useState(false);
+  const [shouldFocusFilter, setShouldFocusFilter] = useState(false);
   const filterInputRef = useRef<HTMLInputElement>(null);
   const filter = useSelector($filter);
 
   useEffect(() => {
     if (shouldFocusFilter && filterInputRef.current) {
       filterInputRef.current.focus();
+      setShouldFocusFilter(false);
     }
-  }, [shouldFocusFilter]);
+  }, [shouldFocusFilter, filterInputRef.current]);
 
   const activeTriggersSet = activeTriggerTag
     ? {
@@ -83,7 +84,16 @@ const TriggerTree: React.FC<{}> = () => {
   return (
     <div className="trigger-tree scrollable-container">
       <div className="scrollable-content central-content">
-        <SearchShortcutListener />
+        <SearchShortcutListener
+          onTrigger={() => {
+            if (filter) {
+              dispatch(clearSearch());
+            } else {
+              setShouldFocusFilter(true);
+              dispatch(search(''));
+            }
+          }}
+        />
         {filter && (
           <Slide
             direction="down"
@@ -166,9 +176,10 @@ const TriggerTree: React.FC<{}> = () => {
                         size="small"
                         selected={!!filter}
                         disabled={top.length === 0}
-                        onChange={() =>
-                          dispatch(filter ? clearSearch() : search(''))
-                        }
+                        onChange={() => {
+                          !filter && setShouldFocusFilter(true);
+                          dispatch(filter ? clearSearch() : search(''));
+                        }}
                         sx={{ color: 'black' }}
                       >
                         <ManageSearch />
@@ -292,17 +303,17 @@ const CreateTriggerGroupButton: React.FC<{}> = () => {
   );
 };
 
-const SearchShortcutListener: React.FC = () => {
-  const dispatch = useDispatch();
-
-  const filter = useSelector($filter);
-
+const SearchShortcutListener: React.FC<{ onTrigger: () => void }> = ({
+  onTrigger,
+}) => {
   useEffect(() => {
+    let isMounted = true;
     let osType: os.OsType | null = null;
 
     const osTypePromise = os.type();
 
     osTypePromise.then((tauriOsType) => {
+      if (!isMounted) return;
       osType = tauriOsType;
     });
 
@@ -312,7 +323,7 @@ const SearchShortcutListener: React.FC = () => {
       const modifierKeyIsDown =
         osType === 'Darwin' ? event.metaKey : event.ctrlKey;
       if (modifierKeyIsDown && event.key === 'f') {
-        dispatch(filter ? clearSearch() : search(''));
+        onTrigger();
       }
     };
 
@@ -320,6 +331,7 @@ const SearchShortcutListener: React.FC = () => {
 
     // Clean up the event listener on component unmount
     return () => {
+      isMounted = false;
       osTypePromise.then(() => {
         window.removeEventListener('keydown', handleKeyDown);
       });
