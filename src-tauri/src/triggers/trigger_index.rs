@@ -19,10 +19,6 @@ pub struct TriggerTag {
   triggers: HashSet<UUID>,
 }
 
-#[derive(thiserror::Error, Debug)]
-#[error("Triggers file version is incompatible with this version of LogQuest. Found: {0:?}")]
-struct OutdatedTriggersFile(LogQuestVersion);
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, ts_rs::TS)]
 #[serde(tag = "variant", content = "value")]
 #[ts(tag = "variant", content = "value")]

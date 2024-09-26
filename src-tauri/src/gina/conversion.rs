@@ -92,9 +92,6 @@ impl GINATriggerGroup {
 
     let this_id = UUID::new();
 
-    // Assume enable_by_default is a shallow-enable, affecting only immediate descendants
-    let enable_children = self.enable_by_default.unwrap_or(false);
-
     let mut children: Vec<TriggerGroupDescendant> =
       Vec::with_capacity(self.triggers.len() + self.trigger_groups.len());
 
@@ -118,11 +115,6 @@ impl GINATriggerGroup {
         import_time,
         progress,
       )?;
-
-      // // TODO!! I NEED TO AUTO-TAG THE TRIGGERS TO ENABLE THEM
-      // if enable_children {
-      //   trigger.enabled = true;
-      // }
 
       children.push(TriggerGroupDescendant::T(trigger_id));
     }

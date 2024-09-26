@@ -24,24 +24,6 @@ pub struct LogLineStream {
 }
 
 impl LogLineStream {
-  // #[cfg(unix)]
-  // fn platform_specific_open_options() -> tokio::fs::OpenOptions {
-  //   let mut opts = tokio::fs::OpenOptions::new();
-  //   opts.read(true);
-  //   opts
-  // }
-
-  // #[cfg(windows)]
-  // fn platform_specific_open_options() -> tokio::fs::OpenOptions {
-  //   use winapi::um::winnt::{FILE_SHARE_DELETE, FILE_SHARE_READ, FILE_SHARE_WRITE};
-
-  //   let mut opts = tokio::fs::OpenOptions::new();
-  //   opts
-  //     .read(true)
-  //     .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE);
-  //   opts
-  // }
-
   #[cfg(unix)]
   async fn platform_specific_open<P>(path: P) -> tokio::io::Result<tokio::fs::File>
   where
@@ -55,14 +37,12 @@ impl LogLineStream {
   where
     P: AsRef<Path>,
   {
-    // TODO remove winapi Cargo dependency
-    // use winapi::um::winnt::{FILE_SHARE_DELETE, FILE_SHARE_READ, FILE_SHARE_WRITE};
-
     // Reference: https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfile2
     const FILE_SHARE_READ: u32 = 0x1;
     const FILE_SHARE_WRITE: u32 = 0x2;
     const FILE_SHARE_DELETE: u32 = 0x4;
     const SHARE_MODE: u32 = FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE;
+
     tokio::fs::OpenOptions::new()
       .read(true)
       .share_mode(SHARE_MODE)

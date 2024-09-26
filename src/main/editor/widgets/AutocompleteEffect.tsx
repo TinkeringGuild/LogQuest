@@ -76,7 +76,7 @@ export const createAutocomplete = <
 export const createEffectAutocomplete = (props: {
   onSelect: (value: EffectVariant) => void;
   close?: () => void;
-}) => createAutocomplete({ width: 200, options: EFFECT_VARIANTS, ...props });
+}) => createAutocomplete({ width: 225, options: EFFECT_VARIANTS, ...props });
 
 export const createEffectOrTimerEffectAutocomplete = (props: {
   onSelect: (value: EitherVariant) => void;
@@ -84,7 +84,7 @@ export const createEffectOrTimerEffectAutocomplete = (props: {
 }) =>
   createAutocomplete({
     options: VARIANTS_OF_TIMER_EFFECTS_AND_EFFECTS,
-    width: 275,
+    width: 300,
     groupBy: (option) =>
       isTimerEffectVariant(option) ? 'Timer Effects' : 'General Effects',
     ...props,

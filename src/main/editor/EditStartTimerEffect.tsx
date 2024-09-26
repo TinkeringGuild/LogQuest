@@ -254,7 +254,7 @@ const CreateEffectOrTimerEffectButton: React.FC<{
         size="large"
         startIcon={<Add />}
         onClick={() => setIsOpen(true)}
-        sx={{ width: 275 }}
+        sx={{ width: 300 }}
       >
         Add New Timer Effect
       </Button>

@@ -40,7 +40,6 @@ dependencies = [
  "tts",
  "uuid",
  "which 6.0.3",
- "winapi",
  "xml-rs",
  "zip",
 ]

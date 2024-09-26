@@ -211,7 +211,7 @@ const CreateEffectButton: React.FC<{
         size="large"
         startIcon={<Add />}
         onClick={() => setIsOpen(true)}
-        sx={{ width: 200 }}
+        sx={{ width: 225 }}
       >
         Add New Effect
       </Button>
