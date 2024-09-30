@@ -264,7 +264,7 @@ fn sys_command_info(command: String) -> Result<SystemCommandInfo, String> {
 
 #[tauri::command]
 fn validate_gina_regex(pattern: String) -> Option<(Option<usize>, String)> {
-  match RegexGINA::from_str(&pattern) {
+  match RegexGINA::from_str_without_fixing_character_classes(&pattern) {
     Err(fancy_regex::Error::ParseError(position, parse_error)) => {
       Some((Some(position), parse_error.to_string()))
     }
@@ -275,7 +275,10 @@ fn validate_gina_regex(pattern: String) -> Option<(Option<usize>, String)> {
 
 #[tauri::command]
 fn validate_gina_regex_with_context(pattern: String) -> Option<(Option<usize>, String)> {
-  match RegexGINA::from_str_with_context(&pattern, &MatchContext::empty("")) {
+  match RegexGINA::from_str_with_context_without_fixing_character_classes(
+    &pattern,
+    &MatchContext::empty(""),
+  ) {
     Err(fancy_regex::Error::ParseError(position, parse_error)) => {
       Some((Some(position), parse_error.to_string()))
     }

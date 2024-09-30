@@ -162,7 +162,15 @@ impl GINATrigger {
         return Err(GINAConversionError::TriggerPatternError(trigger_name.to_owned()).into())
       }
       (Some(text), Some(true)) => {
-        vec![matchers::Matcher::gina(text).map_err(GINAConversionError::from)?].into()
+        let matcher = matchers::Matcher::gina(text);
+        let matcher = matcher.map_err(|e| {
+          error!(
+            r#"Invalid GINA Regex in Trigger "{trigger_name}" with pattern: {text}  ({})"#,
+            e.to_string()
+          );
+          GINAConversionError::from(e)
+        })?;
+        vec![matcher].into()
       }
       (Some(text), Some(false)) | (Some(text), None) => vec![matchers::Matcher::WholeLine {
         id: UUID::new(),

@@ -11,6 +11,7 @@ use crate::{
 };
 use std::{path::Path, sync::Arc};
 use tokio::sync::{oneshot, watch};
+use tracing::error;
 
 #[derive(thiserror::Error, Debug)]
 pub enum GINAImportError {
@@ -45,6 +46,7 @@ pub fn import_from_gina_export_file(
         let from_gina = match load_gina_triggers_from_file_path(&file_path, &progress_reporter_) {
           Ok(value) => value,
           Err(e) => {
+            error!("Encountered error parsing GINA import file: {e:?}");
             _ = tx_result.send(Err(e.into()));
             return;
           }
