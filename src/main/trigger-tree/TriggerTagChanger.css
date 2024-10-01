@@ -11,7 +11,11 @@
   margin-right: -3px;
 }
 
-.trigger-tag-select fieldset {
+#trigger-tag-select fieldset {
+  border-radius: 0;
+}
+
+#trigger-tag-select .MuiInputBase-root:not(.Mui-focused) fieldset {
   border-color: black;
 }
 

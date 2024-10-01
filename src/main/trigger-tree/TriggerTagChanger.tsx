@@ -155,11 +155,10 @@ const SelectTriggerTagMenu: React.FC<{
   return (
     <FormControl sx={{ minWidth: 175 }} size="small">
       <InputLabel>Trigger Tag</InputLabel>
-      <ButtonGroup>
+      <ButtonGroup id="trigger-tag-select">
         <Select
           size="small"
           label="Trigger Tag"
-          id="trigger-tag-select"
           onChange={(event: SelectChangeEvent) => onChange(event.target.value)}
           value={activeTriggerTagID ?? ''}
           sx={{ width: 200 }}
