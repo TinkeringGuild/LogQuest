@@ -63,8 +63,7 @@ p.trigger-editor-info {
 .template-input input,
 .template-input textarea {
   font-size: 14px;
-  font-family: 'Liberation Mono', 'Consolas', 'Courier New', 'Menlo', 'Monaco',
-    monospace;
+  font-family: 'Roboto Mono', monospace;
 }
 
 .trigger-editor .effect-with-options .MuiCardHeader-root {

@@ -8,6 +8,11 @@ import '@fontsource/roboto/latin-300.css';
 import '@fontsource/roboto/latin-400.css';
 import '@fontsource/roboto/latin-500.css';
 import '@fontsource/roboto/latin-700.css';
+import '@fontsource/roboto-mono/latin-300.css';
+import '@fontsource/roboto-mono/latin-400.css';
+import '@fontsource/roboto-mono/latin-500.css';
+import '@fontsource/roboto-mono/latin-700.css';
+
 import './base.css';
 
 const container = document.getElementById('root') as HTMLElement;
