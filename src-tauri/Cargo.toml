@@ -3,7 +3,6 @@
 [package]
 name = "LogQuest"
 version = "0.1.0"
-description = "A Deluxe Toolbox for EverQuest enjoyers"
 authors = ["Tinkering Guild"]
 edition = "2021"
 
