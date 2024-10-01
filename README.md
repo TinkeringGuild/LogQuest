@@ -4,7 +4,7 @@ This project is very much a Work-in-Progress and still in an alpha state.
 
 I was motivated to create this program because a program like [GINA](https://eq.gimasoft.com/gina/) is very useful for EverQuest raiding and general gameplay, however GINA does not run on Linux. I have also heard many people express frustratons with GINA's features (or lack thereof), so I thought it would be a fun and worthwhile project to create my own application that could possibly supercede GINA. LogQuest works on Windows, Linux, and (probably) macOS.
 
-It is an important goal of LogQuest to have full GINA compatibility. You should be able to export your triggers from GINA, import them into LogQuest easily, and have basically everything work the same (within the limits of what GINA allows exporting). GINA compatibility is mostly implemented now, with just two unimplemented features remaining (coming soon!): counters and stopwatches.
+It is an important goal of LogQuest to have full GINA compatibility. You should be able to export your triggers from GINA, import them into LogQuest easily, and have basically everything work the same (within the limits of what GINA allows exporting). GINA compatibility and parity is mostly implemented now, with just two unimplemented features remaining (coming soon!): Counters and Stopwatches.
 
 LogQuest doesn't seek to be just another GINA, though. The plan is to offer a sizable superset of GINA's features.
 
@@ -16,7 +16,7 @@ There are two main differences between how GINA and LogQuest function from a use
 
 An Effect is a something that happens in response to a Trigger's patterns matching a new line in a log file.
 
-With GINA, you configure a Trigger with a single plain-text or Regular Expression pattern, then choose from a few options available to do something in when that pattern matches a new line in a log file. In LogQuest, a Trigger can have multiple patterns; if *any* of them match, the Trigger will fire. Patterns can be a GINA-style Regular Expression, a verbatim whole-line text match, or a partial-line match.
+With GINA, you configure a Trigger with a single plain-text or Regular Expression pattern, then choose from a few options available to do something when that pattern matches a new line in a log file. In LogQuest, a Trigger can have multiple patterns; if *any* of them match, the Trigger will fire. Patterns can be a GINA-style Regular Expression, a verbatim whole-line text match, or a partial-line match.
 
 LogQuest offers a much more open-ended customization of what happens in response to a Trigger matching a line. Effects can run in a particular order, concurrently or serially, can respond to future lines matching after the Trigger, can pause a certain duration or until another line matches a new pattern, start multiple Timers that can each have their own states and effects, and much more.
 
@@ -24,7 +24,7 @@ When LogQuest imports GINA triggers, it re-interprets the settings of each Trigg
 
 More documentation on the Effect system will come soon.
 
-### Trigger Tags
+### Trigger Tags instead of Profiles
 
 In LogQuest, there is no such thing as a "Profile" like in GINA. Instead, the user can create as many "Trigger Tags" as they want, and then they can assign individual Triggers to particular Trigger Tags. When you play EverQuest, you enable specific Trigger Tags to activate all Triggers associated with those Tags.
 
