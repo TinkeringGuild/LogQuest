@@ -323,6 +323,7 @@ const SearchShortcutListener: React.FC<{ onTrigger: () => void }> = ({
       const modifierKeyIsDown =
         osType === 'Darwin' ? event.metaKey : event.ctrlKey;
       if (modifierKeyIsDown && event.key === 'f') {
+        event.preventDefault();
         onTrigger();
       }
     };
