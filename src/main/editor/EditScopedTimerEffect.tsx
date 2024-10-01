@@ -137,15 +137,18 @@ const TIMER_EFFECT_COMPONENTS = {
     return (
       <EffectWithOptions
         variant="AddTag"
-        help="Adds a Timer Tag to this Timer. A Timer Tag can be used for filtering and styling of Timers in the Overlay."
+        help="Adds a Timer Label to this Timer. A Timer Label can be used for filtering and styling of Timers in the Overlay."
         onDelete={onDelete}
+        width={400}
       >
-        <TextField
-          label="Timer Tag"
-          variant="outlined"
-          defaultValue={timerTag}
-          sx={{ maxWidth: 200 }}
-        />
+        <Box textAlign="center">
+          <TextField
+            label="Timer Label"
+            variant="outlined"
+            defaultValue={timerTag}
+            sx={{ maxWidth: 350 }}
+          />
+        </Box>
       </EffectWithOptions>
     );
   },
@@ -154,15 +157,18 @@ const TIMER_EFFECT_COMPONENTS = {
     return (
       <EffectWithOptions
         variant="RemoveTag"
-        help="Removes a Timer Tag from this Timer."
+        help="Removes a Timer Label from this Timer."
         onDelete={onDelete}
+        width={400}
       >
-        <TextField
-          label="Timer Tag"
-          variant="outlined"
-          defaultValue={timerTag}
-          sx={{ maxWidth: 200 }}
-        />
+        <Box textAlign="center">
+          <TextField
+            label="Timer Label"
+            variant="outlined"
+            defaultValue={timerTag}
+            sx={{ maxWidth: 350 }}
+          />
+        </Box>
       </EffectWithOptions>
     );
   },

@@ -103,10 +103,10 @@ export const TimerEffectIcon: {
 const HUMANIZED_TIMER_EFFECT_NAMES: {
   [key in TimerEffectVariant]: string;
 } = {
-  AddTag: 'Add Timer Tag',
+  AddTag: 'Add Timer Label',
   ClearTimer: 'Clear this Timer',
   HideTimer: 'Hide this Timer',
-  RemoveTag: 'Remove Timer Tag',
+  RemoveTag: 'Remove Timer Label',
   RestartTimer: 'Restart this Timer',
   UnhideTimer: 'Un-Hide this Timer',
   WaitUntilFilterMatches: 'Wait until Filter Matches',
