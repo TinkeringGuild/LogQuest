@@ -45,7 +45,8 @@ impl Line {
       return Err(LogLineParseError(raw_line.to_owned()));
     };
     let raw_datetime = raw_line[1..datetime_end].to_owned();
-    let content = raw_line[datetime_end + 2..].to_owned();
+    let content = &raw_line[datetime_end + 2..];
+    let content = content.replace("&PCT;", "%");
     Ok(Line {
       content,
       raw_datetime,
