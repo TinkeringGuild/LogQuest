@@ -97,13 +97,13 @@ fn setup(app: &AppHandle) {
   {
     if let Some(main) = app.get_window(MAIN_WINDOW_LABEL) {
       // inject the script to integrate with react-devtools
-      if let Err(e) = main.eval(r#"
-        (() => {
+      if let Err(e) = main.eval(
+        r#"(() => {
           const injection = document.createElement("script");
           injection.src = "http://localhost:8097";
           document.head.appendChild(injection);
-        })();
-      "#) {
+        })();"#,
+      ) {
         error!("Could not inject react-devtools integration script! Error: {e:?}");
       }
     }
