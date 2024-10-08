@@ -269,8 +269,9 @@ impl GINATrigger {
                 TimerStartPolicy::AlwaysStartNewTimer
               }
               (Some(GINATimerStartBehavior::RestartTimer), Some(true)) => {
-                error!("Encountered unexpected TimerStartBehavior=RestartTimer with RestartBasedOnTimerName=True");
-                return Err(GINAConversionError::TimerStartPolicyError(timer_name.clone()).into());
+                TimerStartPolicy::StartAndReplacesAnyTimerOfTriggerWithNameTemplateMatching(
+                  timer_name.clone(),
+                )
               }
               (Some(GINATimerStartBehavior::RestartTimer), _) => {
                 TimerStartPolicy::StartAndReplacesAllTimersOfTrigger
