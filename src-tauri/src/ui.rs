@@ -128,7 +128,6 @@ fn create_default_overlay_window(app: &AppHandle) -> tauri::Window {
   let overlay_window = tauri::WindowBuilder::new(app, OVERLAY_WINDOW_LABEL, window_uri)
     .title("LogQuest Overlay")
     .transparent(true)
-    .decorations(false)
     .fullscreen(true)
     .always_on_top(true)
     .focused(false)
@@ -139,6 +138,12 @@ fn create_default_overlay_window(app: &AppHandle) -> tauri::Window {
     .accept_first_mouse(true)
     .build()
     .expect("Could not create overlay window!");
+
+  // decorations must be disabled AFTER creating the window to avoid the M.O.A.B (Mother Of All Bugs) on Windows
+  // that stole weeks of my life. If you create the window with both fullscreen(true) and decorations(true), then
+  // a semi-transparent titlebar appears that cannot be removed, even when changing the low-level window styles at
+  // runtime. I am pretty sure this is a bug with Windows itself.
+  _ = overlay_window.set_decorations(false);
 
   let is_editable = state(app).select_overlay(|overlay| overlay.overlay_editable);
   set_overlay_editable(app, is_editable);
