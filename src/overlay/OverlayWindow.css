@@ -34,3 +34,20 @@ body {
 .column-member + .column-member {
   margin-top: 5px;
 }
+
+.overlay-hotkey-hint {
+  display: none;
+}
+
+.overlay.is-editable .overlay-hotkey-hint {
+  display: block;
+  position: absolute;
+  font-size: 50px;
+  bottom: 50px;
+  left: 50px;
+  z-index: -1;
+}
+
+.overlay-hotkey-hint kbd {
+  background-color: yellow;
+}

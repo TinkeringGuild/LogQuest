@@ -43,6 +43,11 @@ const OverlayMode: React.FC<{}> = () => {
           </Grid>
         </Grid>
       </div>
+
+      <p>
+        <strong>Toggle Overlay Edit Mode shortcut:</strong>{' '}
+        <kbd style={{ fontSize: 15 }}>Ctrl+Alt+Shift+L</kbd>
+      </p>
     </div>
   );
 };

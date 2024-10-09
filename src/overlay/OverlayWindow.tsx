@@ -45,6 +45,9 @@ function OverlayWindow() {
           <OverlayMessage key={id} text={text} />
         ))}
       </DynamicContainer>
+      <div className="overlay-hotkey-hint">
+        <kbd>Ctrl+Alt+Shift+L</kbd> to exit edit mode
+      </div>
     </div>
   );
 }
